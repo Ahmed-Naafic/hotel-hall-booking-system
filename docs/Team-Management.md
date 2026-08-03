@@ -2,9 +2,9 @@
 title: "Team Management"
 document_type: Governance
 status: Approved
-version: 1.3
+version: 1.8
 owner: Ahmed (Project Lead)
-last_updated: 2026-08-02
+last_updated: 2026-08-03
 ---
 
 # Team Management
@@ -186,7 +186,7 @@ the table.
 
 | Feature ID | Feature Name | Module | Prepared By | Implemented By | Reviewer | Priority | Status | Assigned Date | Started Date | Completed Date | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| M01 | Authentication & Account Management | 01-authentication-and-account-management | — | — | — | High | Not Started | — | — | — | Dependency root for every other module — planned first. |
+| M01 | Authentication & Account Management | 01-authentication-and-account-management | Ahmed | Ahmed | TBD (Mohamed or Abukar) | High | Ready for Development | 2026-08-03 | — | — | Dependency root for every other module — planned first. Business Specification (v1.2), Technical Design (v1.4), and Implementation Plan (v1.4) all `Approved` — first feature to reach `Ready for Development`, so Ahmed is first in Round Robin rotation (§4); `Implemented By` set accordingly. Per §5, since Ahmed implements, Mohamed or Abukar performs the implementation review (exact reviewer TBD, Ahmed's discretion). No blockers remain: SMS delivery resolved (`ADR-0005` `Approved`, Twilio) and password hashing decided (Argon2id, Technical Design §11) — every WBS task is ready. Procedural gap (not a blocker): `test-strategy.md`, `review-checklists.md`, and `definition-of-ready-and-done.md` are still `Not Started` and should be authored before this feature reaches Validation & QA. |
 | M02 | Customer Management | 02-customer-management | — | — | — | — | Not Started | — | — | — | |
 | M03 | Hotel Management | 03-hotel-management | — | — | — | — | Not Started | — | — | — | |
 | M04 | Hall Management | 04-hall-management | — | — | — | — | Not Started | — | — | — | |
@@ -290,6 +290,11 @@ A feature is considered complete only when **all** of the following are true:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.8 | 2026-08-03 | Ahmed | §7: M01's `Notes` updated — password hashing algorithm decided (Argon2id); no blockers remain for M01. Reflects Technical Design v1.4 and Implementation Plan v1.4. |
+| 1.7 | 2026-08-03 | Ahmed | §7: M01's Implementation Plan reached `Approved` — Status changed `Implementation Planning` → `Ready for Development`; `Implemented By` set to Ahmed as the first Round Robin assignment (§4), consistent with the register being the record of the rotation (§4's own rule). |
+| 1.6 | 2026-08-03 | Ahmed | §7: M01's `Notes` updated — `ADR-0005` reached `Approved` (Twilio); the SMS delivery blocker is resolved, leaving the password-hashing algorithm as the sole remaining blocker. Reflects Technical Design v1.3 and Implementation Plan v1.2. |
+| 1.5 | 2026-08-03 | Ahmed | §7: M01's `Notes` now cite `ADR-0005` (`Proposed`) by ID for the SMS delivery-provider blocker, and reflect Technical Design v1.2 and Implementation Plan v1.1 (both minor cross-reference updates only). |
+| 1.4 | 2026-08-03 | Ahmed | §7: M01 (Authentication & Account Management) updated from `Not Started` to `Implementation Planning`, reflecting that its Business Specification and Technical Design are `Approved` and its Implementation Plan is authored (`Draft`, pending review). `Prepared By` set to Ahmed; `Assigned Date` set; two open implementation blockers recorded in `Notes`. |
 | 1.0 | 2026-08-01 | Ahmed | Initial approved Team Management document; replaces the planned `team-and-workflow.md` and `feature-status-board.md` |
 | 1.1 | 2026-08-02 | Ahmed | §6 status vocabulary aligned to the 13 phases now defined in `docs/Development-Lifecycle.md`; §3 cross-references it |
 | 1.2 | 2026-08-02 | Ahmed | Linked the anticipated "Development Roadmap" reference in §1 to the now-approved `docs/Development-Roadmap.md` |

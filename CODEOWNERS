@@ -1,0 +1,35 @@
+# CODEOWNERS — Hotel Hall Booking Management System
+#
+# Roles and review rules are defined in docs/Team-Management.md; this file makes them
+# enforceable in GitLab. Replace the placeholder @handles below with real GitLab usernames
+# before enabling "Require code owner approval" on protected branches.
+#
+# Review rule (docs/Team-Management.md §5): Ahmed reviews Mohamed's and Abukar's work;
+# Mohamed or Abukar reviews Ahmed's. No self-review, ever.
+
+# Default owner — Ahmed owns repository-level settings and all documentation
+# (docs/Team-Management.md §1, §9).
+* @ahmed
+
+# Documentation — governance, architecture, standards, and all per-module docs are
+# authored and owned by Ahmed (docs/Team-Management.md §9).
+/docs/ @ahmed
+
+# Backend
+/backend/ @ahmed @mohamed @abukar
+
+# Mobile applications
+/apps/customer-mobile/ @ahmed @mohamed @abukar
+/apps/manager-mobile/ @ahmed @mohamed @abukar
+
+# Admin web
+/apps/admin-web/ @ahmed @mohamed @abukar
+
+# Shared code
+/shared/ @ahmed @mohamed @abukar
+
+# Infrastructure — repository-level settings owner (docs/03-standards/git-workflow-and-branching.md §2)
+/docker/ @ahmed
+/scripts/ @ahmed
+/.gitlab/ @ahmed
+docker-compose.yml @ahmed

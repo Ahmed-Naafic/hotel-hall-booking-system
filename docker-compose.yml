@@ -1,0 +1,53 @@
+# ==========================================================================
+# Docker Compose — Hotel Hall Booking Management System (placeholder)
+# ==========================================================================
+# No services are active yet. This file reserves the shape of local
+# orchestration; it is populated once the corresponding application exists,
+# per docs/02-architecture/adr/0003-repository-initialization-scaffolding.md
+# and docs/02-architecture/folder-structure.md §6.
+#
+# Approved stack reference: docs/02-architecture/technology-stack.md
+# ==========================================================================
+
+# services:
+#   backend:
+#     build:
+#       context: ./backend
+#       dockerfile: ../docker/backend.Dockerfile
+#     env_file:
+#       - .env
+#     ports:
+#       - "3000:3000"
+#     depends_on:
+#       - postgres
+#
+#   postgres:
+#     image: postgres:16-alpine
+#     env_file:
+#       - .env
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+#     ports:
+#       - "5432:5432"
+#
+#   admin-web:
+#     build:
+#       context: ./apps/admin-web
+#       dockerfile: ../../docker/admin-web.Dockerfile
+#     ports:
+#       - "5173:5173"
+#     depends_on:
+#       - backend
+#
+#   nginx:
+#     image: nginx:alpine
+#     volumes:
+#       - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+#     ports:
+#       - "80:80"
+#     depends_on:
+#       - backend
+#       - admin-web
+#
+# volumes:
+#   postgres-data:

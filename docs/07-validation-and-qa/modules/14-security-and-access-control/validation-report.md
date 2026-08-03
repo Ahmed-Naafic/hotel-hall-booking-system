@@ -1,0 +1,14 @@
+---
+title: "Security & Access Control — Validation Report"
+document_type: Validation Report
+module: 14-security-and-access-control
+status: Not Started
+owner: Unassigned
+reviewer: TBD
+depends_on: ["docs/06-implementation-planning/modules/14-security-and-access-control/implementation-plan.md"]
+last_updated: null
+---
+
+> Placeholder. This document has not been authored yet.
+> For its purpose, mandatory status, ownership rules, and dependency chain, see
+> `docs/00-governance/documentation-architecture.md`.

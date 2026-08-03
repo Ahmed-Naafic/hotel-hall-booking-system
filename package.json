@@ -1,0 +1,27 @@
+{
+  "name": "hotel-hall-booking-system",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hotel Hall Booking Management System — monorepo root. See README.md.",
+  "workspaces": [
+    "backend",
+    "apps/admin-web"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:admin": "npm run dev --workspace=apps/admin-web",
+    "dev:customer-mobile": "cd apps/customer-mobile && flutter run",
+    "dev:manager-mobile": "cd apps/manager-mobile && flutter run",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:customer-mobile": "cd apps/customer-mobile && flutter analyze",
+    "lint:manager-mobile": "cd apps/manager-mobile && flutter analyze",
+    "format": "npm run format --workspaces --if-present",
+    "format:customer-mobile": "cd apps/customer-mobile && dart format lib test",
+    "format:manager-mobile": "cd apps/manager-mobile && dart format lib test",
+    "test": "npm run test --workspaces --if-present",
+    "test:customer-mobile": "cd apps/customer-mobile && flutter test",
+    "test:manager-mobile": "cd apps/manager-mobile && flutter test"
+  },
+  "license": "UNLICENSED"
+}

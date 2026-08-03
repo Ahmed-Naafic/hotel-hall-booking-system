@@ -2,7 +2,7 @@
 title: "Project Overview"
 document_type: Foundational / Governance
 status: Approved
-version: 2.3
+version: 2.4
 owner: Ahmed (Project Lead, Business Architect, Technical Architect)
 last_updated: 2026-08-03
 audience: Every human contributor and every AI assistant working on this project
@@ -453,8 +453,12 @@ created and approved. The register now has eight entries, all `Approved`.
 `docs/02-architecture/architecture-principles.md`, `technology-stack.md` (ADR-0001), and
 `folder-structure.md` are also approved. The repository has been initialized (ADR-0003): the
 top-level skeleton exists (placeholder folders only), root configuration, and GitLab
-standards are in place. No application code has been written. No module's Business
-Specification has yet been authored.
+standards are in place. The engineering workspace has since been initialized (ADR-0004): the
+backend, Prisma, Admin Web, Customer Mobile, and Hotel Manager Mobile projects are
+bootstrapped with dependencies installed and a minimal runnable entry point each, plus
+development tooling (ESLint, Prettier) and development-only Docker configuration. No feature
+code, business logic, API, or database model exists. No module's Business Specification has
+yet been authored.
 
 ---
 
@@ -505,3 +509,4 @@ apply).
 | 2.1 | 2026-08-02 | Ahmed | All 8 initial Business Decisions (BDR-001–008) approved; §7, §13, §14, §21, §23 updated to reflect resolved decisions (notably: web dashboard confirmed as Platform-Administrator-only exception to mobile-first scope) |
 | 2.2 | 2026-08-03 | Ahmed | §15 mentions `03-standards/naming-conventions.md` |
 | 2.3 | 2026-08-03 | Ahmed | Per ADR-0003, §14 and §21 updated — repository initialized with an empty top-level skeleton; module/feature code still waits for each module's Phase 8 |
+| 2.4 | 2026-08-03 | Ahmed | Per ADR-0004, §21 updated — engineering workspace (backend, Prisma, Admin Web, both Flutter apps, dev tooling, dev Docker config) initialized; module/feature implementation still waits for each module's Phase 8 |

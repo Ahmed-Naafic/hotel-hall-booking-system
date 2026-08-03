@@ -115,19 +115,30 @@ Full navigation index: [`docs/README.md`](docs/README.md) and
 
 ## Getting Started
 
-The project is currently in the documentation phase (`docs/Project-Overview.md` §21–§22) —
-no application code exists yet. This section will be populated with real setup instructions
-(prerequisites, environment configuration, running the backend and each app locally) once the
-first module (`01-authentication-and-account-management`) reaches
-`Development-Lifecycle.md` Phase 8.
+The project is in the documentation phase (`docs/Project-Overview.md` §21–§22) — no feature,
+business logic, API, or database model exists yet. The engineering workspace itself is
+initialized, per `docs/02-architecture/adr/0004-workspace-initialization.md`:
 
-In the meantime:
+**Prerequisites:** Node.js 22+, Flutter (stable channel), Docker.
 
 ```bash
 git clone <repository-url>
 cd hotel-hall-booking-system
 cp .env.example .env   # fill in local values; never commit .env
+
+npm install             # installs backend and apps/admin-web (npm workspaces)
+
+npm run dev:backend     # backend, http://localhost:3000 (no routes registered yet)
+npm run dev:admin       # apps/admin-web, Vite dev server
+
+cd apps/customer-mobile && flutter run   # or npm run dev:customer-mobile
+cd apps/manager-mobile && flutter run    # or npm run dev:manager-mobile
+
+docker compose up       # backend + PostgreSQL, development configuration
 ```
+
+`npm run lint` / `npm run format` / `npm test` run across the npm workspaces; see each app's
+README for its own Flutter-specific commands.
 
 ## Contribution Workflow
 

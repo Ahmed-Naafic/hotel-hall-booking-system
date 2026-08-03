@@ -1,34 +1,45 @@
 # ==========================================================================
-# Docker Compose — Hotel Hall Booking Management System (placeholder)
+# Docker Compose — Hotel Hall Booking Management System (development)
 # ==========================================================================
-# No services are active yet. This file reserves the shape of local
-# orchestration; it is populated once the corresponding application exists,
-# per docs/02-architecture/adr/0003-repository-initialization-scaffolding.md
-# and docs/02-architecture/folder-structure.md §6.
+# Development-only configuration for the backend and its database. Not
+# optimized for production (no multi-stage build, no production process
+# manager, bind-mounted source for hot reload). Backend and PostgreSQL only,
+# per docs/02-architecture/adr/0004-workspace-initialization.md.
 #
 # Approved stack reference: docs/02-architecture/technology-stack.md
+# Usage: cp .env.example .env, fill in local values, then `docker compose up`.
 # ==========================================================================
 
-# services:
-#   backend:
-#     build:
-#       context: ./backend
-#       dockerfile: ../docker/backend.Dockerfile
-#     env_file:
-#       - .env
-#     ports:
-#       - "3000:3000"
-#     depends_on:
-#       - postgres
-#
-#   postgres:
-#     image: postgres:16-alpine
-#     env_file:
-#       - .env
-#     volumes:
-#       - postgres-data:/var/lib/postgresql/data
-#     ports:
-#       - "5432:5432"
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-hotel_hall_booking}?schema=public
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-hotel_hall_booking}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+# Not yet configured — added once their respective workspaces need containerized
+# deployment (docs/02-architecture/adr/0004-workspace-initialization.md):
 #
 #   admin-web:
 #     build:
@@ -48,6 +59,6 @@
 #     depends_on:
 #       - backend
 #       - admin-web
-#
-# volumes:
-#   postgres-data:
+
+volumes:
+  postgres-data:

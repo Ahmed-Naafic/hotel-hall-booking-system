@@ -4,10 +4,14 @@ Containerization assets: one Dockerfile per app/service, plus compose files for 
 development. Stays at the repository root (not nested under `backend/`) since it builds more
 than one app. Governed by `docs/02-architecture/folder-structure.md` §1, §6.
 
-**Status:** Placeholder. No Dockerfiles exist here yet; the root `docker-compose.yml` is a
-commented placeholder (see repository root).
+**Status:** Development configuration only, per
+`docs/02-architecture/adr/0004-workspace-initialization.md` — not optimized for production.
 
-This folder is reserved by the approved repository layout, created at repository
-initialization per `docs/02-architecture/adr/0003-repository-initialization-scaffolding.md`.
-Individual Dockerfiles (e.g. `backend.Dockerfile`) are added once the corresponding
-application exists, per `Development-Lifecycle.md` Phase 8.
+- `backend.Dockerfile` — dev image for the backend workspace (bind-mounted source, runs
+  `npm run dev`).
+- The root `docker-compose.yml` runs `backend` and `postgres` for local development.
+- `admin-web.Dockerfile` and `nginx.conf` are added once those workspaces need
+  containerized deployment.
+
+Usage: `cp .env.example .env` at the repository root, fill in local values, then
+`docker compose up`.

@@ -30,6 +30,12 @@ async function post(path, body, headers = {}) {
   return { status: res.status, body: text ? JSON.parse(text) : undefined }
 }
 
+async function get(path, headers = {}) {
+  const res = await fetch(`${baseUrl}${path}`, { headers })
+  const text = await res.text()
+  return { status: res.status, body: text ? JSON.parse(text) : undefined }
+}
+
 async function registerAndLogin(overrides = {}) {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
@@ -211,6 +217,25 @@ describe('Authentication — token refresh (Technical Design §7.3)', () => {
 
   test('rejects an unknown refresh token with 401, not a distinct error type (BR-AUTH-11)', async () => {
     const { status } = await post('/api/v1/auth/refresh', { refreshToken: 'a'.repeat(128) })
+    assert.equal(status, 401)
+  })
+})
+
+describe('Authentication — account summary (C8)', () => {
+  test('returns the caller\'s own account when authenticated', async () => {
+    const { accessToken, mobileNumber } = await registerAndLogin()
+
+    const { status, body } = await get('/api/v1/auth/me', {
+      Authorization: `Bearer ${accessToken}`,
+    })
+
+    assert.equal(status, 200)
+    assert.equal(body.data.mobileNumber, mobileNumber)
+    assert.equal(body.data.passwordHash, undefined, 'password hash must never appear in a response')
+  })
+
+  test('blocks the endpoint with no access token', async () => {
+    const { status } = await get('/api/v1/auth/me')
     assert.equal(status, 401)
   })
 })

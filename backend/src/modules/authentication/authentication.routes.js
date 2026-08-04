@@ -7,7 +7,7 @@ import { authenticate } from '../../shared/middleware/authenticate.js'
  * Route definitions only (coding-standards.md §5) — maps method + path to a
  * controller function. Mounted at /api/v1/auth by the app entry point.
  * Endpoints per Technical Design §10; WBS-10 (verifications) and WBS-11a/b
- * (password change/reset) are a later increment.
+ * (password change/reset) remain a later increment (Milestone M3).
  */
 export const authenticationRouter = Router()
 
@@ -30,3 +30,5 @@ authenticationRouter.post(
   authenticationValidation.validateRefresh,
   authenticationController.refresh,
 )
+
+authenticationRouter.get('/me', authenticate, authenticationController.getCurrentUser)

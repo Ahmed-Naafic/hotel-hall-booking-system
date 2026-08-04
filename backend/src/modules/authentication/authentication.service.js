@@ -72,3 +72,12 @@ export async function refresh(rawRefreshToken) {
 
   return { accessToken, refreshToken: newRawRefreshToken }
 }
+
+/** Account summary (C8, Technical Design §10) — the authenticated identity's own record. */
+export async function getCurrentUser(userId) {
+  const user = await identityService.findIdentityById(userId)
+  if (!user) {
+    throw new AuthenticationError('Invalid or expired session.')
+  }
+  return user
+}

@@ -40,3 +40,12 @@ export const refresh = asyncHandler(async (req, res) => {
     data: { accessToken, refreshToken },
   })
 })
+
+export const getCurrentUser = asyncHandler(async (req, res) => {
+  const user = await authenticationService.getCurrentUser(req.identity.userId)
+  sendSuccess(res, {
+    statusCode: 200,
+    message: 'Current account retrieved successfully.',
+    data: toPublicUser(user),
+  })
+})

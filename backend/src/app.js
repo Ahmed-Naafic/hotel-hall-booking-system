@@ -1,8 +1,14 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import express from 'express'
+import swaggerUi from 'swagger-ui-express'
 import { requestId } from './shared/middleware/requestId.js'
 import { notFoundHandler } from './shared/middleware/notFoundHandler.js'
 import { errorHandler } from './shared/middleware/errorHandler.js'
 import { authenticationRouter } from './modules/authentication/authentication.routes.js'
+
+const openapiSpecPath = fileURLToPath(new URL('./openapi/openapi.json', import.meta.url))
+const openapiSpec = JSON.parse(readFileSync(openapiSpecPath, 'utf-8'))
 
 /**
  * The Express app, separate from the listener (index.js) so integration
@@ -18,6 +24,12 @@ export function createApp() {
   // Feature-based modules, mounted under the versioned API prefix
   // (api-standards.md §3). One line per module as each is implemented.
   app.use('/api/v1/auth', authenticationRouter)
+
+  // OpenAPI/Swagger documentation (technology-stack.md, api-standards.md §16) —
+  // a tooling/meta endpoint, unversioned like the health check pattern
+  // system-architecture-overview.md §14 describes.
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec))
+  app.get('/openapi.json', (req, res) => res.json(openapiSpec))
 
   app.use(notFoundHandler)
   app.use(errorHandler)

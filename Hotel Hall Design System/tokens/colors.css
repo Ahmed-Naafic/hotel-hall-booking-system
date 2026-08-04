@@ -1,0 +1,32 @@
+/* Colors sampled directly from the Hotel Hall logo:
+   navy #0C2A4E, teal #187884, gold #CC9C24 */
+:root{
+/* --- Brand scales --- */
+--navy-900:#06182f;--navy-800:#0a2141;--navy-700:#0c2a4e;--navy-600:#123f6d;--navy-500:#1d558c;--navy-400:#4a7cab;--navy-300:#8daac6;--navy-200:#c3d3e2;--navy-100:#e4ebf2;--navy-050:#f3f6fa;
+--teal-900:#0a3a41;--teal-800:#115c65;--teal-700:#187884;--teal-600:#22929e;--teal-500:#3aabb6;--teal-400:#6ec4cc;--teal-300:#a3dbe0;--teal-200:#cdebee;--teal-100:#e7f5f6;
+--gold-900:#6b5210;--gold-800:#9b761a;--gold-700:#b88c1f;--gold-600:#cc9c24;--gold-500:#d9af45;--gold-400:#e5c778;--gold-300:#efdcaa;--gold-200:#f7ecd2;--gold-100:#fcf7ec;
+/* --- Neutrals: warm-cool ivory through slate --- */
+--ivory:#fbfaf7;--sand-100:#f5f2ec;--sand-200:#e9e4d9;
+--gray-050:#f7f8f9;--gray-100:#eef0f3;--gray-200:#dfe3e8;--gray-300:#c4cad2;--gray-400:#98a1ac;--gray-500:#6c7783;--gray-600:#4d5865;--gray-700:#333c47;--gray-800:#1e242c;--white:#ffffff;
+/* --- Semantic status --- */
+--success-700:#1c6b45;--success-500:#2f9160;--success-100:#e4f2ea;
+--warning-700:#8a5a13;--warning-500:#c98a22;--warning-100:#fbf0da;
+--danger-700:#8f2320;--danger-500:#bf3b33;--danger-100:#fae8e6;
+--info-700:var(--navy-600);--info-500:var(--navy-500);--info-100:var(--navy-100);
+
+/* --- Semantic aliases: text --- */
+--text-heading:var(--navy-700);--text-body:var(--gray-700);--text-muted:var(--gray-500);--text-subtle:var(--gray-400);
+--text-inverse:var(--white);--text-on-navy:#e8eff6;--text-accent:var(--teal-700);--text-gold:var(--gold-700);--text-link:var(--teal-700);--text-link-hover:var(--navy-700);
+/* --- Semantic aliases: surfaces --- */
+--surface-page:var(--ivory);--surface-card:var(--white);--surface-raised:var(--white);--surface-sunken:var(--sand-100);
+--surface-navy:var(--navy-700);--surface-navy-deep:var(--navy-900);--surface-teal:var(--teal-700);--surface-gold-tint:var(--gold-100);--surface-navy-tint:var(--navy-050);
+--surface-overlay:rgba(6,24,47,.62);--surface-glass:rgba(255,255,255,.78);--surface-glass-dark:rgba(6,24,47,.42);
+/* --- Semantic aliases: lines --- */
+--border-subtle:var(--gray-200);--border-default:var(--gray-300);--border-strong:var(--navy-200);--border-navy:var(--navy-700);--border-gold:var(--gold-600);--border-rule-gold:var(--gold-500);
+--focus-ring:var(--teal-600);
+/* --- Interactive --- */
+--action-primary:var(--navy-700);--action-primary-hover:var(--navy-600);--action-primary-active:var(--navy-800);
+--action-accent:var(--teal-700);--action-accent-hover:var(--teal-600);--action-accent-active:var(--teal-800);
+--action-gold:var(--gold-600);--action-gold-hover:var(--gold-500);--action-gold-active:var(--gold-700);
+--action-disabled-bg:var(--gray-100);--action-disabled-text:var(--gray-400);
+}

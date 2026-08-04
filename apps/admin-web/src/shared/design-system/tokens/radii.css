@@ -1,0 +1,7 @@
+:root{
+/* Soft, hospitality-warm rounding — never pill-shaped except tags/avatars */
+--radius-none:0;--radius-xs:2px;--radius-sm:4px;--radius-md:6px;--radius-lg:10px;--radius-xl:14px;--radius-2xl:20px;--radius-pill:999px;
+--radius-card:var(--radius-lg);--radius-control:var(--radius-md);--radius-image:var(--radius-lg);--radius-modal:var(--radius-xl);
+/* The arch: a signature shape lifted from the logo's venue archway */
+--arch-top:120px 120px var(--radius-sm) var(--radius-sm); /* @kind radius */
+}

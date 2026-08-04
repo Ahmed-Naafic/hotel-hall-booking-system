@@ -1,6 +1,5 @@
 import argon2 from 'argon2'
 import { env } from '../../config/env.js'
-import { AuthenticationError } from '../../shared/errors/errorTypes.js'
 
 /**
  * Credential Component (Technical Design §4, §11) — stores and verifies
@@ -21,14 +20,13 @@ export function hashPassword(plainPassword) {
 }
 
 /**
- * Verifies a plain password against a stored hash. Never distinguishes
- * "wrong password" from "unknown identifier" to the caller (BR-AUTH-09,
- * anti-enumeration) — that distinction is the Authentication Component's
- * responsibility to word consistently, not this component's to leak.
+ * Returns whether a plain password matches a stored hash — a boolean, not
+ * a thrown error. What a mismatch *means* differs by caller: login treats
+ * it as a 401 (BR-AUTH-09, never distinguished from an unknown identifier);
+ * changing a password treats it as a 422 (a business-rule failure on an
+ * already-authenticated request). Deciding between those is the caller's
+ * job, not this pure-crypto component's.
  */
-export async function verifyPassword(plainPassword, passwordHash) {
-  const isValid = await argon2.verify(passwordHash, plainPassword)
-  if (!isValid) {
-    throw new AuthenticationError('Invalid credentials.')
-  }
+export function verifyPassword(plainPassword, passwordHash) {
+  return argon2.verify(passwordHash, plainPassword)
 }

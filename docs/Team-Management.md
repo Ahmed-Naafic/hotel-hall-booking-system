@@ -2,7 +2,7 @@
 title: "Team Management"
 document_type: Governance
 status: Approved
-version: 1.11
+version: 1.12
 owner: Ahmed (Project Lead)
 last_updated: 2026-08-04
 ---
@@ -186,7 +186,7 @@ the table.
 
 | Feature ID | Feature Name | Module | Prepared By | Implemented By | Reviewer | Priority | Status | Assigned Date | Started Date | Completed Date | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| M01 | Authentication & Account Management | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Implementation | 2026-08-03 | 2026-08-03 | — | Dependency root for every other module — planned first. Documentation (Business Specification v1.2, Technical Design v1.4, Implementation Plan v1.4) all `Approved`. `feature/authentication-identity-foundation` pushed; MR not yet opened (link only, no GitLab CLI/API access in this environment). Reviewer set to Mohamed per §5 (Ahmed implemented; neither Mohamed nor Abukar has other active work, so this is an arbitrary pick between two equally-available reviewers, not a workload-driven one — swap freely). **Milestones M1+M2+M4 complete** (WBS-01–09, WBS-12–13 — full component set, Access Gate, register/login/logout/refresh/me endpoints, OpenAPI docs served at `/docs`), 28 passing tests, clean lint. **Only M3 remains** (WBS-10 Verification, WBS-11b Password Reset — deferred, needs real Twilio credentials not available in this environment). Procedural gap (not a blocker): `test-strategy.md`, `review-checklists.md`, and `definition-of-ready-and-done.md` are still `Not Started` and should be authored before this feature reaches Validation & QA. |
+| M01 | Authentication & Account Management | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Implementation Review | 2026-08-03 | 2026-08-03 | — | Dependency root for every other module — planned first. Documentation (Business Specification v1.2, Technical Design v1.5, Implementation Plan v1.5) all `Approved`. `feature/authentication-identity-foundation` pushed; MR not yet opened (link only, no GitLab CLI/API access in this environment). Reviewer Mohamed (§5; arbitrary pick between two equally-available reviewers — swap freely). **All 15 WBS tasks complete (M1–M4)**: full component set including Verification and Password Reset via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`, ADR-0005) — no real Twilio credentials needed for development or CI. 51 passing tests, clean lint. One design defect found and corrected during implementation: Technical Design §10's `PATCH /password-resets/:id` was incompatible with its own anti-enumeration requirement, corrected to `PATCH /password-resets` (Technical Design v1.5). Status moved to `Implementation Review` — awaiting Mohamed. Procedural gap (not a blocker): `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md`, and `validation-report.md` are all still `Not Started` and should be authored before Validation & QA. |
 | M02 | Customer Management | 02-customer-management | — | — | — | — | Not Started | — | — | — | |
 | M03 | Hotel Management | 03-hotel-management | — | — | — | — | Not Started | — | — | — | |
 | M04 | Hall Management | 04-hall-management | — | — | — | — | Not Started | — | — | — | |
@@ -290,6 +290,7 @@ A feature is considered complete only when **all** of the following are true:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.12 | 2026-08-04 | Ahmed | §7: M01's `Status` changed `Implementation` → `Implementation Review` — all 15 WBS tasks (M1–M4) complete, 51 passing tests. Awaiting Mohamed's review. |
 | 1.11 | 2026-08-04 | Ahmed | §7: M01's `Notes` updated — Milestone M4 complete (GET /me, OpenAPI docs, 28 passing tests); only M3 (Twilio-dependent) remains. |
 | 1.10 | 2026-08-04 | Ahmed | §7: M01's `Reviewer` set to Mohamed (arbitrary pick between two equally-available reviewers, per §5); branch pushed, MR link recorded; M4 marked in progress. |
 | 1.9 | 2026-08-03 | Ahmed | §7: M01's `Status` changed `Ready for Development` → `Implementation`; `Started Date` set. Development began on `feature/authentication-identity-foundation` — Milestones M1+M2 (WBS-01–09) complete with 26 passing tests; M3 deferred (needs Twilio credentials); M4 not yet started. |

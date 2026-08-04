@@ -6,8 +6,8 @@ import { authenticate } from '../../shared/middleware/authenticate.js'
 /**
  * Route definitions only (coding-standards.md §5) — maps method + path to a
  * controller function. Mounted at /api/v1/auth by the app entry point.
- * Endpoints per Technical Design §10; WBS-10 (verifications) and WBS-11a/b
- * (password change/reset) remain a later increment (Milestone M3).
+ * Endpoints per Technical Design §10 (password-resets confirm corrected in
+ * v1.5 — see passwordReset.service.js's confirmPasswordReset() docstring).
  */
 export const authenticationRouter = Router()
 
@@ -32,3 +32,37 @@ authenticationRouter.post(
 )
 
 authenticationRouter.get('/me', authenticate, authenticationController.getCurrentUser)
+
+authenticationRouter.post(
+  '/verifications',
+  authenticate,
+  authenticationController.requestVerification,
+)
+
+authenticationRouter.post(
+  '/verifications/confirm',
+  authenticate,
+  authenticationValidation.validateConfirmVerification,
+  authenticationController.confirmVerification,
+)
+
+authenticationRouter.post(
+  '/password-resets',
+  authenticationValidation.validateRequestPasswordReset,
+  authenticationController.requestPasswordReset,
+)
+
+// No :id — see passwordReset.service.js's confirmPasswordReset() docstring
+// for why (an id in the POST response above would violate BR-AUTH-09).
+authenticationRouter.patch(
+  '/password-resets',
+  authenticationValidation.validateConfirmPasswordReset,
+  authenticationController.confirmPasswordReset,
+)
+
+authenticationRouter.patch(
+  '/password',
+  authenticate,
+  authenticationValidation.validateChangePassword,
+  authenticationController.changePassword,
+)

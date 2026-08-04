@@ -36,5 +36,24 @@ export const env = {
       timeCost: Number(process.env.ARGON2_TIME_COST || 2),
       parallelism: Number(process.env.ARGON2_PARALLELISM || 1),
     },
+
+    // Verification/reset code validity windows — Business Specification
+    // Pending Business Decision #2 (Mobile Number Verification Method,
+    // §10) covers the code format/window; not yet settled. Development
+    // defaults only, per the same pattern as the TTLs above.
+    verificationCodeTtlMinutes: Number(process.env.VERIFICATION_CODE_TTL_MINUTES || 10),
+    passwordResetCodeTtlMinutes: Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 30),
+  },
+
+  // SMS delivery (Twilio, ADR-0005) — intentionally NOT read via required().
+  // Absent credentials are an expected, valid local-development state
+  // (shared/providers/smsProvider.js falls back to MockSmsProvider); never
+  // hardcode a placeholder value here.
+  sms: {
+    twilio: {
+      accountSid: process.env.TWILIO_ACCOUNT_SID || undefined,
+      authToken: process.env.TWILIO_AUTH_TOKEN || undefined,
+      fromNumber: process.env.TWILIO_FROM_NUMBER || undefined,
+    },
   },
 }

@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/folder-structure.md", "docs/03-standards/coding-standards.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/03-standards/testing-standards.md", "docs/03-standards/git-workflow-and-branching.md"]
-version: 1.4
-last_updated: 2026-08-03
+version: 1.5
+last_updated: 2026-08-04
 ---
 
 # Authentication & Account Management — Implementation Plan
@@ -102,9 +102,9 @@ a `Team-Management.md` §7 concern once this plan is `Approved`.
 | WBS-07 | Access Gate middleware | Platform-wide authentication gate | Shared middleware every protected endpoint, in every module, passes through (Technical Design §4, §8). Highest blast radius in this module. | WBS-04, WBS-06 | Shared authentication middleware | High (security-critical, cross-module impact) |
 | WBS-08 | Login / Logout endpoints | Implement `C4`, `H7`, `A1`, `C5`, `A2` | `POST /api/v1/auth/login`, `POST /api/v1/auth/logout` (Technical Design §7.1–7.2, §10). | WBS-02–07 | 2 endpoints, OpenAPI stubs | Medium |
 | WBS-09 | Token Refresh endpoint | Implement §7.3 | `POST /api/v1/auth/refresh` (Technical Design §7.3, §10). | WBS-04, WBS-05 | 1 endpoint, OpenAPI stub | Medium |
-| WBS-10 | Verification Component + endpoints | Implement `C3`, `BR-AUTH-02` | `POST /api/v1/auth/verifications`, `POST /api/v1/auth/verifications/confirm` (Technical Design §7.5, §10). Delivery provider resolved (`ADR-0005`, Twilio) — unblocked. | WBS-02 | 2 endpoints, OpenAPI stubs | Medium |
-| WBS-11a | Password Change endpoint | Implement `C7`, `A3`, `BR-AUTH-08` | `PATCH /api/v1/auth/password` (Technical Design §10) — no external delivery dependency, not blocked. | WBS-03, WBS-08 | 1 endpoint, OpenAPI stub | Low |
-| WBS-11b | Password Reset endpoints | Implement `C6`, `BR-AUTH-09` | `POST /api/v1/auth/password-resets`, `PATCH /api/v1/auth/password-resets/:id` (Technical Design §7.4, §10). Delivery provider resolved (`ADR-0005`, Twilio); still depends on WBS-03 (Credential Component) for setting the new password. | WBS-03 | 2 endpoints, OpenAPI stubs | Medium |
+| WBS-10 | Verification Component + endpoints | Implement `C3`, `BR-AUTH-02` | **Done.** `POST /api/v1/auth/verifications`, `POST /api/v1/auth/verifications/confirm` (Technical Design §7.5, §10), via `SmsProvider` (`MockSmsProvider`/`TwilioSmsProvider`). | WBS-02 | 2 endpoints, OpenAPI docs, 6 tests | Medium |
+| WBS-11a | Password Change endpoint | Implement `C7`, `A3`, `BR-AUTH-08` | **Done.** `PATCH /api/v1/auth/password` (Technical Design §10). | WBS-03, WBS-08 | 1 endpoint, OpenAPI docs, 4 tests | Low |
+| WBS-11b | Password Reset endpoints | Implement `C6`, `BR-AUTH-09` | **Done.** `POST /api/v1/auth/password-resets`, `PATCH /api/v1/auth/password-resets` (Technical Design §7.4, §10 — corrected in Technical Design v1.5 from `PATCH .../{:id}`, a defect surfaced during implementation, not a plan change). | WBS-03 | 2 endpoints, OpenAPI docs, 5 tests | Medium |
 | WBS-12 | Account summary endpoint | Implement `C8` | `GET /api/v1/auth/me` (Technical Design §10). | WBS-08 | 1 endpoint, OpenAPI stub | Low |
 | WBS-13 | OpenAPI documentation | Satisfy `api-standards.md` §16 | Complete OpenAPI entries (summary, description, parameters, request/response, security) for every endpoint implemented so far. | WBS-08–12 (as each completes) | OpenAPI/Swagger definitions | Low–Medium |
 | WBS-14 | Integration + API test suite | Verify cross-layer and contract behavior | Integration tests against a real test database and real JWT verification (`testing-standards.md` §6); API tests against the Technical Design §10 contract. | WBS-08–13 (as each completes) | Integration + API test suite | Medium |
@@ -188,10 +188,13 @@ approval to wait on.
 **External**
 
 - **Twilio (SMS)** — approved via `ADR-0005` (2026-08-03) for identity-verification and
-  password-reset delivery, behind the Verification Component's abstraction. WBS-10 and
-  WBS-11b (Development-phase tasks) still need `TWILIO_*` credentials provisioned
-  (`naming-conventions.md` §10) before they can be verified end to end — a provisioning step,
-  not an approval blocker.
+  password-reset delivery, behind the `SmsProvider` abstraction (`shared/providers/`).
+  **Resolved**: `TwilioSmsProvider` and `MockSmsProvider` are both implemented; the app
+  selects between them at startup based on whether `TWILIO_*` credentials are present, and
+  runs correctly either way (never a hard dependency, per `Architecture-Principles.md`
+  §10–§11). WBS-10/WBS-11b were built and tested entirely against `MockSmsProvider`; real
+  Twilio credentials are needed only for actual SMS delivery in a live environment, not for
+  development or CI.
 
 **Infrastructure**
 
@@ -303,21 +306,29 @@ Documents that must be updated once implementation of this module is underway or
 
 Per `testing-standards.md` §14 (Feature Acceptance Criteria), applied to this module:
 
-- [ ] Business Specification requirements implemented (every `BR-AUTH-##`, `C#`, `H#`, `A#`).
-- [ ] Technical Design implemented (every component in §4 there — WBS-10/WBS-11b are no
-      longer excepted, `ADR-0005` resolved their blocker).
-- [ ] Coding standards followed (`coding-standards.md`).
-- [ ] Security standards followed — `security-coding-standards.md`'s checklist where it
-      exists; `coding-standards.md` §12's baseline otherwise, until that document is
-      authored.
-- [ ] API standards followed (`api-standards.md`).
-- [ ] Database standards followed (`database-standards.md`).
-- [ ] Unit tests passing (§8).
-- [ ] Integration tests passing (§8).
-- [ ] API tests passing (§8).
-- [ ] Documentation updated (§9).
-- [ ] Ready for Validation — `validation-report.md` authored against `testing-standards.md`
-      §13 (§8, §9).
+- [x] Business Specification requirements implemented (every `BR-AUTH-##`, `C#`, `H#`, `A#`
+      behaviorally implemented; exact parameter values for items still tracked in
+      Business Specification §10 use the provisional defaults documented in `config/env.js`,
+      not yet-finalized business policy).
+- [x] Technical Design implemented — all 15 WBS tasks complete (WBS-01–15).
+- [x] Coding standards followed (`coding-standards.md`) — lint clean throughout.
+- [x] Security standards followed — `security-coding-standards.md` itself is still
+      `Not Started`; `coding-standards.md` §12's baseline is followed (Argon2id hashing,
+      hashed tokens/codes at rest, no credential material in any response, verified by
+      dedicated tests).
+- [x] API standards followed (`api-standards.md`) — envelopes, status codes, versioning; full
+      OpenAPI documentation at `/docs`.
+- [x] Database standards followed (`database-standards.md`).
+- [x] Unit tests passing — 51/51 (§8).
+- [x] Integration tests passing — real Postgres, real JWT verification, real `MockSmsProvider`
+      (§8).
+- [x] API tests passing — every endpoint's contract exercised (§8).
+- [x] Documentation updated (§9) — Technical Design corrected to v1.5 (§10's
+      `password-resets` confirm endpoint), this plan, and `Team-Management.md`.
+- [ ] Ready for Validation — **not yet**: `validation-report.md`, `test-strategy.md`,
+      `review-checklists.md`, and `definition-of-ready-and-done.md` are all still
+      `Not Started` (§8, §9). This is the one remaining gap before the feature can formally
+      close out, and it is process documentation, not remaining code.
 
 ---
 
@@ -331,30 +342,33 @@ Per `testing-standards.md` §14 (Feature Acceptance Criteria), applied to this m
    introduced.
 3. **Implementation sequencing** — §4's dependency graph contains no cycle and no task
    depending on an incomplete prerequisite; no task-family is blocked any longer (§2, §4).
-4. **Blockers identified before development begins:** none remain.
-   - ~~Password hashing algorithm unselected~~ **Resolved 2026-08-03** — Ahmed decided
-     Argon2id, recorded in Technical Design §11; WBS-03 and its dependents (WBS-04, WBS-08,
-     WBS-11a, WBS-11b) proceed.
-   - ~~No approved SMS delivery integration~~ **Resolved 2026-08-03** — `ADR-0005`
-     (`Approved`, Twilio) cleared this blocker; WBS-10 and WBS-11b proceed (Technical Design
-     §17, Item 2 — resolved; §6, §7 here).
-   - **`test-strategy.md`, `review-checklists.md`, and `definition-of-ready-and-done.md` are
-     all `Not Started`** — does not block *development* from starting, but means the formal
-     Validation gate this plan hands off to (§8, §9) is currently ungoverned by its own
-     dedicated documents; `testing-standards.md` is used as the interim standard. This is the
-     one open item this self-review still flags — not a blocker for starting Development,
-     but worth authoring before M4 hands off to Validation.
+4. **Blockers at any point during this work:** both resolved before they stopped anything.
+   - ~~Password hashing algorithm unselected~~ **Resolved 2026-08-03** — Argon2id (Technical
+     Design §11).
+   - ~~No approved SMS delivery integration~~ **Resolved 2026-08-03** — `ADR-0005` (Twilio),
+     implemented behind the `SmsProvider` abstraction with `MockSmsProvider` as the
+     no-credentials-needed default (§6).
+5. **Implementation status (2026-08-04):** all 15 WBS tasks are complete. 51 automated tests
+   passing (unit + integration), lint clean. One defect was found and corrected during
+   implementation, not silently worked around: Technical Design §10's original
+   `PATCH /password-resets/:id` was incompatible with that same endpoint's own
+   anti-enumeration requirement — corrected to `PATCH /password-resets` (Technical Design
+   v1.5).
+6. **What remains:** `test-strategy.md`, `review-checklists.md`, and
+   `definition-of-ready-and-done.md` are all still `Not Started` — process documentation the
+   Validation & QA phase depends on, not implementation work. `validation-report.md` itself
+   is not yet authored.
 
-**Conclusion (updated 2026-08-03):** This Implementation Plan is internally consistent, fully
+**Conclusion (updated 2026-08-04):** This Implementation Plan is internally consistent, fully
 traceable to the `Approved` Technical Design and Business Specification, and does not
-redesign either. Both blockers identified at authoring time are now resolved — `ADR-0005`
-(Twilio, `Approved`) for SMS delivery, and Argon2id (Technical Design §11) for password
-hashing. **The Implementation Planning document is complete, internally consistent, aligned
-with the approved Business Specification and Technical Design, and ready for the Development
-phase** — every milestone (M1–M4) and every WBS task can proceed on ordinary dependency order
-alone, with no external approval left to wait on. The only open item is procedural, not a
-blocker: `test-strategy.md`, `review-checklists.md`, and `definition-of-ready-and-done.md`
-remain `Not Started` and should be authored before M4 hands off to Validation.
+redesign either. **Implementation is complete** — every milestone (M1–M4) and all 15 WBS
+tasks are done, tested, and documented. The Implementation Planning document itself has been
+ready for the Development phase since its own approval; that phase is now finished. What
+remains before this feature reaches `Feature Accepted` (`Team-Management.md` §6) is the
+Implementation Review (Mohamed, per the Feature Assignment Register) and the Validation & QA
+phase — the latter currently ungoverned by its own dedicated documents (`test-strategy.md`,
+`review-checklists.md`, `definition-of-ready-and-done.md`, all `Not Started`), which should
+be authored before that phase begins in earnest.
 
 ---
 
@@ -362,6 +376,7 @@ remain `Not Started` and should be authored before M4 hands off to Validation.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (WBS-10, WBS-11a, WBS-11b) via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`) — all 15 WBS tasks now complete, 51 tests passing. §3, §6, §10, §11 updated accordingly. Ready for Implementation Review; Validation & QA still waits on `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md` (all `Not Started`). |
 | 1.4 | 2026-08-03 | Ahmed | Password hashing algorithm decided (Argon2id, Technical Design §11) — the last remaining blocker. WBS-03 and its dependents (§3), the Development Sequence (§4), Risks (§7), and Final Validation (§11) all updated. No blockers remain; every milestone is ready for Development. |
 | 1.3 | 2026-08-03 | Ahmed | Status changed `Draft` → `Approved`: independent review by Mohamed or Abukar is complete, per `documentation-architecture.md` §4's no-self-review rule. All three governing documents for Module 1 (Business Specification, Technical Design, Implementation Plan) are now `Approved` — the feature moves to `Ready for Development` (`Team-Management.md` §7) and Round Robin assignment applies. The password-hashing algorithm remains an open task-level blocker for WBS-03 and its dependents (§7) — approval of this plan does not resolve it. |
 | 1.2 | 2026-08-03 | Ahmed | `ADR-0005` reached `Approved` (Twilio). §2, §3 (WBS-10, WBS-11b), §4, §5, §6, §7, §9, §10, and §11 updated: the SMS delivery-provider blocker is resolved, unblocking WBS-10 and Milestone M3. The password-hashing algorithm (WBS-03 and its dependents) remains the sole open blocker. |

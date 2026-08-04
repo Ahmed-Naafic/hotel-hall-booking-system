@@ -1,7 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import * as credentialService from '../credential.service.js'
-import { AuthenticationError } from '../../../shared/errors/errorTypes.js'
 
 // Pure crypto — no database, no mocking needed (testing-standards.md §5).
 
@@ -12,17 +11,14 @@ describe('Credential Component', () => {
     assert.match(hash, /^\$argon2id\$/)
   })
 
-  test('verifies the correct password against its own hash', async () => {
+  test('verifyPassword returns true for the correct password', async () => {
     const hash = await credentialService.hashPassword('correct-horse-battery-staple')
-    await assert.doesNotReject(() => credentialService.verifyPassword('correct-horse-battery-staple', hash))
+    assert.equal(await credentialService.verifyPassword('correct-horse-battery-staple', hash), true)
   })
 
-  test('rejects an incorrect password with AuthenticationError', async () => {
+  test('verifyPassword returns false for an incorrect password (caller decides the error, not this component)', async () => {
     const hash = await credentialService.hashPassword('correct-horse-battery-staple')
-    await assert.rejects(
-      () => credentialService.verifyPassword('wrong-password', hash),
-      AuthenticationError,
-    )
+    assert.equal(await credentialService.verifyPassword('wrong-password', hash), false)
   })
 
   test('two hashes of the same password are not identical (salted)', async () => {

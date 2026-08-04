@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/02-architecture/mobile-application-architecture.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md"]
-version: 1.4
-last_updated: 2026-08-03
+version: 1.5
+last_updated: 2026-08-04
 ---
 
 # Authentication & Account Management — Technical Design
@@ -367,7 +367,7 @@ sequenceDiagram
     Auth->>Auth: Look up identifier (never reveal result, BR-AUTH-09)
     Auth->>Notif: Trigger SMS delivery request (Twilio, ADR-0005)
     Auth-->>Client: 200 — "if this account exists, instructions were sent"
-    Client->>Auth: PATCH /api/v1/auth/password-resets/:id (reset token, new password)
+    Client->>Auth: PATCH /api/v1/auth/password-resets (mobileNumber, code, new password)
     Auth->>Auth: Validate reset request not expired/used (§13)
     Auth->>Cred: Set new credential
     Cred-->>Auth: Updated
@@ -530,15 +530,22 @@ resolved.
 - **Validation** — `400` only for a malformed identifier; never `404` (would leak
   existence).
 
-#### `PATCH /api/v1/auth/password-resets/:id`
-- **Purpose** — confirm a password reset with the reset credential and a new password —
-  `C6`.
-- **Request** — the reset request's own token/code, new password.
+#### `PATCH /api/v1/auth/password-resets`
+- **Purpose** — confirm a password reset with the reset code and a new password — `C6`.
+- **Request** — `mobileNumber`, `code`, `newPassword`. **Corrected in v1.5**: originally
+  specified as `PATCH /password-resets/:id`, but the `POST` above (§10, "never confirm or
+  deny the identifier's existence") cannot return a request id to the client without itself
+  revealing whether the account exists — an id in the response is exactly the kind of signal
+  `BR-AUTH-09` forbids. `mobileNumber` + `code` identify the request instead, the same
+  pattern `POST /verifications/confirm` already uses.
 - **Response** — `200 OK`.
-- **Authentication** — The reset request's own token is the credential; no access token.
+- **Authentication** — Public — the code itself, tied to the mobile number, is the
+  credential; no access token (the caller cannot log in, which is the whole reason this
+  endpoint exists).
 - **Authorization** — N/A.
-- **Validation** — `422` for an expired/used reset request or a new password failing policy
-  (§17, Item 5).
+- **Validation** — `422` for an incorrect, expired, or superseded reset code (Technical
+  Design §5.1 — at most one active request per account, so an earlier code stops working
+  once a newer one is requested) or a new password failing policy (§17, Item 5).
 
 #### `PATCH /api/v1/auth/password`
 - **Purpose** — change password while authenticated — `C7`, `A3`, `BR-AUTH-08`.
@@ -838,12 +845,22 @@ Planning and Development now. Item 5's pending parameters should still be resolv
 the Business Specification's existing governance path before those specific values are
 finalized, but do not block starting the work itself.
 
+**Implementation update (2026-08-04):** every component described in this document has now
+been built (backend, `feature/authentication-identity-foundation`), including Identity
+Verification and Password Reset (§7.4, §7.5), through the SmsProvider abstraction this
+document specified (§4, §11) — `MockSmsProvider` for any environment without Twilio
+credentials configured, `TwilioSmsProvider` when they're present, selected without the
+application failing to start either way. Implementation surfaced one real defect in §10's
+originally-specified `PATCH /password-resets/:id`, corrected below (v1.5) rather than
+silently implemented around.
+
 ---
 
 ## Version History
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (Identity Verification, Password Reset) via the SmsProvider abstraction, `MockSmsProvider`/`TwilioSmsProvider`. §10's `PATCH /password-resets/:id` **corrected** to `PATCH /password-resets` (body: `mobileNumber`, `code`) — the original `:id` shape was discovered, during implementation, to be incompatible with this same endpoint's own anti-enumeration requirement (an id in the `POST` response would reveal account existence). §7.4 sequence diagram updated to match. |
 | 1.4 | 2026-08-03 | Ahmed | Password hashing algorithm decided: **Argon2id**, recorded in §11 with rationale (bcrypt considered and rejected as the weaker alternative). §17 Item 1 narrowed accordingly (hashing no longer among what's deferred to `security-coding-standards.md`) and the Conclusion updated — every component in this document is now unblocked at the architecture level. |
 | 1.3 | 2026-08-03 | Ahmed | `ADR-0005` reached `Approved` (Twilio selected). §2.4, §6, §7.4, §7.5, §11, and §17 (Item 2) updated from "blocked, awaiting ADR" to resolved — Identity Verification and Password Recovery are now unblocked at the architecture level. §17's Conclusion updated accordingly; Item 1 (missing security architecture documents) remains the sole open blocker. |
 | 1.2 | 2026-08-03 | Ahmed | §17, Item 2 and the Conclusion now cite `ADR-0005` (`Proposed`, `docs/02-architecture/adr/0005-sms-delivery-provider.md`) by ID instead of referring generically to "a new ADR" — minor, clarifying cross-reference only; no rule changed. |

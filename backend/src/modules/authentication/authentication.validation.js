@@ -47,6 +47,19 @@ function assertPassword(value, field = 'password') {
   }
 }
 
+// Shape only — a 6-digit numeric code (verificationCode.js). Whether the
+// code is actually correct/unexpired is business validation (service layer).
+const VERIFICATION_CODE_PATTERN = /^\d{6}$/
+
+function assertVerificationCode(value, field = 'code') {
+  assertString(value, field)
+  if (!VERIFICATION_CODE_PATTERN.test(value)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field, message: `${field} must be a 6-digit code.` },
+    ])
+  }
+}
+
 export function validateRegister(req, res, next) {
   const { mobileNumber, password, accountType } = req.body ?? {}
 
@@ -75,5 +88,32 @@ export function validateLogin(req, res, next) {
 export function validateRefresh(req, res, next) {
   const { refreshToken } = req.body ?? {}
   assertString(refreshToken, 'refreshToken')
+  next()
+}
+
+export function validateConfirmVerification(req, res, next) {
+  const { code } = req.body ?? {}
+  assertVerificationCode(code)
+  next()
+}
+
+export function validateRequestPasswordReset(req, res, next) {
+  const { mobileNumber } = req.body ?? {}
+  assertMobileNumber(mobileNumber)
+  next()
+}
+
+export function validateConfirmPasswordReset(req, res, next) {
+  const { mobileNumber, code, newPassword } = req.body ?? {}
+  assertMobileNumber(mobileNumber)
+  assertVerificationCode(code)
+  assertPassword(newPassword, 'newPassword')
+  next()
+}
+
+export function validateChangePassword(req, res, next) {
+  const { currentPassword, newPassword } = req.body ?? {}
+  assertString(currentPassword, 'currentPassword')
+  assertPassword(newPassword, 'newPassword')
   next()
 }

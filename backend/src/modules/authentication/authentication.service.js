@@ -3,7 +3,7 @@ import * as credentialService from './credential.service.js'
 import * as tokenService from './token.service.js'
 import * as sessionService from './session.service.js'
 import * as authorizationService from './authorization.service.js'
-import { AuthenticationError } from '../../shared/errors/errorTypes.js'
+import { AuthenticationError, BusinessRuleError } from '../../shared/errors/errorTypes.js'
 
 /**
  * Authentication Component (Technical Design §4, §7) — orchestrates the
@@ -25,7 +25,11 @@ export async function login({ mobileNumber, password }) {
     throw new AuthenticationError('Invalid credentials.')
   }
 
-  await credentialService.verifyPassword(password, user.passwordHash)
+  const isCorrectPassword = await credentialService.verifyPassword(password, user.passwordHash)
+  if (!isCorrectPassword) {
+    // Same message as an unknown identifier — never reveals which failed (BR-AUTH-09).
+    throw new AuthenticationError('Invalid credentials.')
+  }
 
   if (!user.isActive) {
     // BR-AUTH-06: distinct message from "invalid credentials" once we know the account exists.
@@ -80,4 +84,28 @@ export async function getCurrentUser(userId) {
     throw new AuthenticationError('Invalid or expired session.')
   }
   return user
+}
+
+/** Password change (C7, A3, BR-AUTH-08) — while authenticated, confirming the current password. */
+export async function changePassword(userId, { currentPassword, newPassword }) {
+  const user = await identityService.findIdentityById(userId)
+  if (!user) {
+    throw new AuthenticationError('Invalid or expired session.')
+  }
+
+  const isCorrectPassword = await credentialService.verifyPassword(currentPassword, user.passwordHash)
+  if (!isCorrectPassword) {
+    // 422, not 401: the caller is already authenticated — this is a
+    // business-rule failure (Technical Design §10), not an auth failure.
+    throw new BusinessRuleError('The current password is incorrect.')
+  }
+
+  const passwordHash = await credentialService.hashPassword(newPassword)
+  await identityService.changePasswordHash(userId, passwordHash)
+
+  // Same defensible security default as password reset — see
+  // passwordReset.service.js's confirmPasswordReset() for the caveat this
+  // does NOT cover (an already-issued access token remains valid until its
+  // own expiry; only future refreshes are blocked).
+  await sessionService.endAllSessionsForUser(userId)
 }

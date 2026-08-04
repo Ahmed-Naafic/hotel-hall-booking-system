@@ -2,6 +2,7 @@ import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { createApp } from '../../../app.js'
 import { prisma } from '../../../shared/prismaClient.js'
+import { smsProvider } from '../../../shared/providers/smsProvider.js'
 
 /**
  * Integration tests (testing-standards.md §6) — real Prisma queries against
@@ -34,6 +35,28 @@ async function get(path, headers = {}) {
   const res = await fetch(`${baseUrl}${path}`, { headers })
   const text = await res.text()
   return { status: res.status, body: text ? JSON.parse(text) : undefined }
+}
+
+async function patch(path, body, headers = {}) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const text = await res.text()
+  return { status: res.status, body: text ? JSON.parse(text) : undefined }
+}
+
+// This test suite runs with no Twilio credentials configured, so
+// `smsProvider` (shared/providers/smsProvider.js) is MockSmsProvider —
+// itself the thing this increment's abstraction requirement verifies
+// (tests never depend on a real SMS channel, testing-standards.md §6).
+function codeSentTo(mobileNumber) {
+  const message = smsProvider.getLastMessageTo(mobileNumber)
+  assert.ok(message, `expected a message to have been sent to ${mobileNumber}`)
+  const match = message.body.match(/\d{6}/)
+  assert.ok(match, `expected a 6-digit code in the message body: ${message.body}`)
+  return match[0]
 }
 
 async function registerAndLogin(overrides = {}) {
@@ -236,6 +259,219 @@ describe('Authentication — account summary (C8)', () => {
 
   test('blocks the endpoint with no access token', async () => {
     const { status } = await get('/api/v1/auth/me')
+    assert.equal(status, 401)
+  })
+})
+
+describe('Authentication — identity verification (C3, BR-AUTH-02)', () => {
+  test('full flow: request, receive via MockSmsProvider, confirm', async () => {
+    const { accessToken, mobileNumber } = await registerAndLogin()
+
+    const requestRes = await post('/api/v1/auth/verifications', undefined, {
+      Authorization: `Bearer ${accessToken}`,
+    })
+    assert.equal(requestRes.status, 200)
+
+    const code = codeSentTo(mobileNumber)
+
+    const confirmRes = await post(
+      '/api/v1/auth/verifications/confirm',
+      { code },
+      { Authorization: `Bearer ${accessToken}` },
+    )
+    assert.equal(confirmRes.status, 200)
+    assert.equal(confirmRes.body.data.isVerified, true)
+  })
+
+  test('rejects an incorrect code with 422', async () => {
+    const { accessToken } = await registerAndLogin()
+    await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
+
+    const { status, body } = await post(
+      '/api/v1/auth/verifications/confirm',
+      { code: '000000' },
+      { Authorization: `Bearer ${accessToken}` },
+    )
+    assert.equal(status, 422)
+    assert.equal(body.error, 'BUSINESS_RULE_VIOLATION')
+  })
+
+  test('a used code cannot be confirmed a second time', async () => {
+    const { accessToken, mobileNumber } = await registerAndLogin()
+    await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
+    const code = codeSentTo(mobileNumber)
+    await post('/api/v1/auth/verifications/confirm', { code }, { Authorization: `Bearer ${accessToken}` })
+
+    const { status } = await post(
+      '/api/v1/auth/verifications/confirm',
+      { code },
+      { Authorization: `Bearer ${accessToken}` },
+    )
+    assert.equal(status, 422)
+  })
+
+  test('rejects a second request while one is still active with 409', async () => {
+    const { accessToken } = await registerAndLogin()
+    await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
+
+    const { status, body } = await post('/api/v1/auth/verifications', undefined, {
+      Authorization: `Bearer ${accessToken}`,
+    })
+    assert.equal(status, 409)
+    assert.equal(body.error, 'CONFLICT')
+  })
+
+  test('rejects a request for an already-verified account with 422', async () => {
+    const { accessToken, mobileNumber } = await registerAndLogin()
+    await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
+    const code = codeSentTo(mobileNumber)
+    await post('/api/v1/auth/verifications/confirm', { code }, { Authorization: `Bearer ${accessToken}` })
+
+    const { status, body } = await post('/api/v1/auth/verifications', undefined, {
+      Authorization: `Bearer ${accessToken}`,
+    })
+    assert.equal(status, 422)
+    assert.equal(body.error, 'BUSINESS_RULE_VIOLATION')
+  })
+
+  test('blocks both endpoints with no access token', async () => {
+    const requestRes = await post('/api/v1/auth/verifications', undefined)
+    const confirmRes = await post('/api/v1/auth/verifications/confirm', { code: '123456' })
+    assert.equal(requestRes.status, 401)
+    assert.equal(confirmRes.status, 401)
+  })
+})
+
+describe('Authentication — password reset (C6, BR-AUTH-09)', () => {
+  test('full flow: request, receive via MockSmsProvider, confirm, log in with the new password', async () => {
+    const { mobileNumber, password: oldPassword } = await registerAndLogin()
+
+    const requestRes = await post('/api/v1/auth/password-resets', { mobileNumber })
+    assert.equal(requestRes.status, 200)
+
+    const code = codeSentTo(mobileNumber)
+    const newPassword = 'new-correct-horse-battery'
+
+    const confirmRes = await patch('/api/v1/auth/password-resets', { mobileNumber, code, newPassword })
+    assert.equal(confirmRes.status, 200)
+
+    const oldLogin = await post('/api/v1/auth/login', { mobileNumber, password: oldPassword })
+    assert.equal(oldLogin.status, 401)
+
+    const newLogin = await post('/api/v1/auth/login', { mobileNumber, password: newPassword })
+    assert.equal(newLogin.status, 200)
+  })
+
+  test('never reveals whether the mobile number is registered', async () => {
+    const unknownNumber = uniqueMobileNumber()
+    const { status, body } = await post('/api/v1/auth/password-resets', { mobileNumber: unknownNumber })
+
+    assert.equal(status, 200)
+    assert.equal(smsProvider.getLastMessageTo(unknownNumber), undefined, 'no SMS for an unknown number')
+
+    const { mobileNumber } = await registerAndLogin()
+    const known = await post('/api/v1/auth/password-resets', { mobileNumber })
+    assert.equal(known.status, 200)
+    assert.equal(known.body.message, body.message, 'identical response either way')
+  })
+
+  test('rejects an incorrect code with 422', async () => {
+    const { mobileNumber } = await registerAndLogin()
+    await post('/api/v1/auth/password-resets', { mobileNumber })
+
+    const { status } = await patch('/api/v1/auth/password-resets', {
+      mobileNumber,
+      code: '000000',
+      newPassword: 'new-correct-horse-battery',
+    })
+    assert.equal(status, 422)
+  })
+
+  test('a new request supersedes the previous one (at most one active at a time, Technical Design §5.1)', async () => {
+    const { mobileNumber } = await registerAndLogin()
+    await post('/api/v1/auth/password-resets', { mobileNumber })
+    const firstCode = codeSentTo(mobileNumber)
+
+    await post('/api/v1/auth/password-resets', { mobileNumber })
+    const secondCode = codeSentTo(mobileNumber)
+
+    const confirmWithFirst = await patch('/api/v1/auth/password-resets', {
+      mobileNumber,
+      code: firstCode,
+      newPassword: 'new-correct-horse-battery',
+    })
+    assert.equal(confirmWithFirst.status, 422, 'the superseded code must no longer work')
+
+    if (firstCode !== secondCode) {
+      const confirmWithSecond = await patch('/api/v1/auth/password-resets', {
+        mobileNumber,
+        code: secondCode,
+        newPassword: 'new-correct-horse-battery',
+      })
+      assert.equal(confirmWithSecond.status, 200)
+    }
+  })
+
+  test('ends existing sessions — the old refresh token no longer works after a reset', async () => {
+    const { mobileNumber, refreshToken } = await registerAndLogin()
+    await post('/api/v1/auth/password-resets', { mobileNumber })
+    const code = codeSentTo(mobileNumber)
+    await patch('/api/v1/auth/password-resets', {
+      mobileNumber,
+      code,
+      newPassword: 'new-correct-horse-battery',
+    })
+
+    const refreshRes = await post('/api/v1/auth/refresh', { refreshToken })
+    assert.equal(refreshRes.status, 401)
+  })
+})
+
+describe('Authentication — password change (C7, A3, BR-AUTH-08)', () => {
+  test('changes the password when the current password is correct', async () => {
+    const { accessToken, mobileNumber } = await registerAndLogin()
+    const newPassword = 'new-correct-horse-battery'
+
+    const { status } = await patch(
+      '/api/v1/auth/password',
+      { currentPassword: 'correct-horse-battery-staple', newPassword },
+      { Authorization: `Bearer ${accessToken}` },
+    )
+    assert.equal(status, 200)
+
+    const loginRes = await post('/api/v1/auth/login', { mobileNumber, password: newPassword })
+    assert.equal(loginRes.status, 200)
+  })
+
+  test('rejects an incorrect current password with 422', async () => {
+    const { accessToken } = await registerAndLogin()
+
+    const { status, body } = await patch(
+      '/api/v1/auth/password',
+      { currentPassword: 'wrong-password', newPassword: 'new-correct-horse-battery' },
+      { Authorization: `Bearer ${accessToken}` },
+    )
+    assert.equal(status, 422)
+    assert.equal(body.error, 'BUSINESS_RULE_VIOLATION')
+  })
+
+  test('ends existing sessions — the old refresh token no longer works after a change', async () => {
+    const { accessToken, refreshToken } = await registerAndLogin()
+    await patch(
+      '/api/v1/auth/password',
+      { currentPassword: 'correct-horse-battery-staple', newPassword: 'new-correct-horse-battery' },
+      { Authorization: `Bearer ${accessToken}` },
+    )
+
+    const refreshRes = await post('/api/v1/auth/refresh', { refreshToken })
+    assert.equal(refreshRes.status, 401)
+  })
+
+  test('blocks the endpoint with no access token', async () => {
+    const { status } = await patch('/api/v1/auth/password', {
+      currentPassword: 'a',
+      newPassword: 'new-correct-horse-battery',
+    })
     assert.equal(status, 401)
   })
 })

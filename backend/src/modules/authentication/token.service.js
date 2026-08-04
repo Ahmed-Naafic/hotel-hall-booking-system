@@ -1,7 +1,8 @@
 import jwt from 'jsonwebtoken'
-import { randomBytes, createHash } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { env } from '../../config/env.js'
 import { AuthenticationError } from '../../shared/errors/errorTypes.js'
+import { sha256Hex } from '../../shared/utils/hash.js'
 
 /**
  * Token Component (Technical Design §4, §7.3, §11) — the only component
@@ -45,7 +46,7 @@ export function generateRefreshToken() {
 
 /** Hashes a refresh token for storage/lookup — never the raw value at rest (data-architecture.md §13). */
 export function hashRefreshToken(rawToken) {
-  return createHash('sha256').update(rawToken).digest('hex')
+  return sha256Hex(rawToken)
 }
 
 export function refreshTokenExpiryDate(from = new Date()) {

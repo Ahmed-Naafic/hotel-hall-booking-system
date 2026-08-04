@@ -1,4 +1,6 @@
 import * as authenticationService from './authentication.service.js'
+import * as verificationService from './verification.service.js'
+import * as passwordResetService from './passwordReset.service.js'
 import { toPublicUser } from './authentication.mapper.js'
 import { sendSuccess, sendNoContent } from '../../shared/utils/responseEnvelope.js'
 import { asyncHandler } from '../../shared/utils/asyncHandler.js'
@@ -48,4 +50,39 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
     message: 'Current account retrieved successfully.',
     data: toPublicUser(user),
   })
+})
+
+export const requestVerification = asyncHandler(async (req, res) => {
+  await verificationService.requestVerification(req.identity.userId)
+  sendSuccess(res, { statusCode: 200, message: 'Verification code sent.', data: {} })
+})
+
+export const confirmVerification = asyncHandler(async (req, res) => {
+  const user = await verificationService.confirmVerification(req.identity.userId, req.body.code)
+  sendSuccess(res, {
+    statusCode: 200,
+    message: 'Account verified successfully.',
+    data: toPublicUser(user),
+  })
+})
+
+export const requestPasswordReset = asyncHandler(async (req, res) => {
+  await passwordResetService.requestPasswordReset(req.body.mobileNumber)
+  // BR-AUTH-09: identical response whether or not the account exists.
+  sendSuccess(res, {
+    statusCode: 200,
+    message: 'If this account exists, password reset instructions were sent.',
+    data: {},
+  })
+})
+
+export const confirmPasswordReset = asyncHandler(async (req, res) => {
+  const { mobileNumber, code, newPassword } = req.body
+  await passwordResetService.confirmPasswordReset(mobileNumber, code, newPassword)
+  sendSuccess(res, { statusCode: 200, message: 'Password reset successfully.', data: {} })
+})
+
+export const changePassword = asyncHandler(async (req, res) => {
+  await authenticationService.changePassword(req.identity.userId, req.body)
+  sendSuccess(res, { statusCode: 200, message: 'Password changed successfully.', data: {} })
 })

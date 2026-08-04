@@ -2,7 +2,7 @@
 title: "Team Management"
 document_type: Governance
 status: Approved
-version: 1.10
+version: 1.11
 owner: Ahmed (Project Lead)
 last_updated: 2026-08-04
 ---
@@ -186,7 +186,7 @@ the table.
 
 | Feature ID | Feature Name | Module | Prepared By | Implemented By | Reviewer | Priority | Status | Assigned Date | Started Date | Completed Date | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| M01 | Authentication & Account Management | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Implementation | 2026-08-03 | 2026-08-03 | — | Dependency root for every other module — planned first. Documentation (Business Specification v1.2, Technical Design v1.4, Implementation Plan v1.4) all `Approved`. `feature/authentication-identity-foundation` pushed; MR not yet opened (link only, no GitLab CLI/API access in this environment). Reviewer set to Mohamed per §5 (Ahmed implemented; neither Mohamed nor Abukar has other active work, so this is an arbitrary pick between two equally-available reviewers, not a workload-driven one — swap freely). **Milestones M1+M2 complete** (WBS-01–09 — Identity, Credential [Argon2id], Token, Session, Authorization-Claim components; Access Gate middleware; register/login/logout/refresh endpoints), 26 passing tests, clean lint. **M3 deferred** (needs real Twilio credentials). **M4 in progress** (GET /me, OpenAPI docs). Procedural gap (not a blocker): `test-strategy.md`, `review-checklists.md`, and `definition-of-ready-and-done.md` are still `Not Started` and should be authored before this feature reaches Validation & QA. |
+| M01 | Authentication & Account Management | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Implementation | 2026-08-03 | 2026-08-03 | — | Dependency root for every other module — planned first. Documentation (Business Specification v1.2, Technical Design v1.4, Implementation Plan v1.4) all `Approved`. `feature/authentication-identity-foundation` pushed; MR not yet opened (link only, no GitLab CLI/API access in this environment). Reviewer set to Mohamed per §5 (Ahmed implemented; neither Mohamed nor Abukar has other active work, so this is an arbitrary pick between two equally-available reviewers, not a workload-driven one — swap freely). **Milestones M1+M2+M4 complete** (WBS-01–09, WBS-12–13 — full component set, Access Gate, register/login/logout/refresh/me endpoints, OpenAPI docs served at `/docs`), 28 passing tests, clean lint. **Only M3 remains** (WBS-10 Verification, WBS-11b Password Reset — deferred, needs real Twilio credentials not available in this environment). Procedural gap (not a blocker): `test-strategy.md`, `review-checklists.md`, and `definition-of-ready-and-done.md` are still `Not Started` and should be authored before this feature reaches Validation & QA. |
 | M02 | Customer Management | 02-customer-management | — | — | — | — | Not Started | — | — | — | |
 | M03 | Hotel Management | 03-hotel-management | — | — | — | — | Not Started | — | — | — | |
 | M04 | Hall Management | 04-hall-management | — | — | — | — | Not Started | — | — | — | |
@@ -290,6 +290,7 @@ A feature is considered complete only when **all** of the following are true:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.11 | 2026-08-04 | Ahmed | §7: M01's `Notes` updated — Milestone M4 complete (GET /me, OpenAPI docs, 28 passing tests); only M3 (Twilio-dependent) remains. |
 | 1.10 | 2026-08-04 | Ahmed | §7: M01's `Reviewer` set to Mohamed (arbitrary pick between two equally-available reviewers, per §5); branch pushed, MR link recorded; M4 marked in progress. |
 | 1.9 | 2026-08-03 | Ahmed | §7: M01's `Status` changed `Ready for Development` → `Implementation`; `Started Date` set. Development began on `feature/authentication-identity-foundation` — Milestones M1+M2 (WBS-01–09) complete with 26 passing tests; M3 deferred (needs Twilio credentials); M4 not yet started. |
 | 1.8 | 2026-08-03 | Ahmed | §7: M01's `Notes` updated — password hashing algorithm decided (Argon2id); no blockers remain for M01. Reflects Technical Design v1.4 and Implementation Plan v1.4. |

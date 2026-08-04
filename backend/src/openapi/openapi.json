@@ -1,0 +1,321 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Hotel Hall Booking Management System API",
+    "version": "1.0.0",
+    "description": "Documented per docs/03-standards/api-standards.md §16. One `paths`/`components.schemas` section grows per module as each is implemented — this file currently covers Authentication & Account Management (Module 1) only."
+  },
+  "servers": [{ "url": "/api/v1", "description": "Version 1 (api-standards.md §3)" }],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Identity, login, account lifecycle (Module 1). Endpoints per docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md §10."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Access token, per api-standards.md §12: `Authorization: Bearer <JWT>`."
+      }
+    },
+    "schemas": {
+      "SuccessEnvelope": {
+        "type": "object",
+        "description": "api-standards.md §7 — every successful response.",
+        "properties": {
+          "status": { "type": "string", "enum": ["success"] },
+          "message": { "type": "string" },
+          "data": {},
+          "timestamp": { "type": "string", "format": "date-time" }
+        },
+        "required": ["status", "message", "data", "timestamp"]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "description": "api-standards.md §8 — every non-2xx response.",
+        "properties": {
+          "status": { "type": "string", "enum": ["error"] },
+          "error": { "type": "string", "example": "VALIDATION_ERROR" },
+          "message": { "type": "string" },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": { "field": { "type": "string" }, "message": { "type": "string" } }
+            }
+          },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "requestId": { "type": "string", "format": "uuid" }
+        },
+        "required": ["status", "error", "message", "timestamp", "requestId"]
+      },
+      "PublicUser": {
+        "type": "object",
+        "description": "A User Account, never including passwordHash (data-architecture.md §13, Restricted).",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "mobileNumber": { "type": "string", "example": "+15551234567" },
+          "accountType": {
+            "type": "string",
+            "enum": ["CUSTOMER", "HOTEL_MANAGER", "STAFF", "PLATFORM_ADMINISTRATOR"]
+          },
+          "isVerified": { "type": "boolean" },
+          "isActive": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a new Customer or Hotel account",
+        "description": "Creates a new User Account (BR-AUTH-02, BR-AUTH-03, C2, H1). Self-registration only ever creates a Customer or Hotel Manager account — Staff and Platform Administrator accounts are created by other modules (Business Specification §3).",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mobileNumber", "password", "accountType"],
+                "properties": {
+                  "mobileNumber": { "type": "string", "example": "+15551234567" },
+                  "password": { "type": "string", "format": "password", "minLength": 8 },
+                  "accountType": { "type": "string", "enum": ["CUSTOMER", "HOTEL_MANAGER"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created (unverified).",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicUser" } } }] } } }
+          },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "422": { "description": "The mobile number is already registered (BR-AUTH-02).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Authenticate and issue tokens",
+        "description": "C4, H7, A1 (Technical Design §7.1). Blocked for a deactivated account (BR-AUTH-06) with a message distinct from invalid credentials.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mobileNumber", "password"],
+                "properties": {
+                  "mobileNumber": { "type": "string", "example": "+15551234567" },
+                  "password": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessEnvelope" },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "accessToken": { "type": "string" },
+                            "refreshToken": { "type": "string" },
+                            "user": { "$ref": "#/components/schemas/PublicUser" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid credentials, or the account is inactive (BR-AUTH-06, BR-AUTH-09 — never reveals which).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "End the current session",
+        "description": "C5, A2, BR-AUTH-13 (Technical Design §7.2). Ends the Session identified by the access token's own `sid` claim — no request body needed.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Logged out. No further action succeeds on this session without logging in again." },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Exchange a refresh token for a new access token",
+        "description": "Technical Design §7.3. The refresh token is never accepted anywhere an access token is expected (api-standards.md §12); rotated on every use (single-use).",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "required": ["refreshToken"], "properties": { "refreshToken": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New access + refresh token pair.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessEnvelope" },
+                    { "properties": { "data": { "type": "object", "properties": { "accessToken": { "type": "string" }, "refreshToken": { "type": "string" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid, expired, or already-rotated refresh token (BR-AUTH-11).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Retrieve the authenticated identity's own account summary",
+        "description": "C8 (Technical Design §10).",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "The caller's own account.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicUser" } } }] } } }
+          },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/verifications": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Request a mobile-number verification code",
+        "description": "C3, BR-AUTH-02. Delivered via SMS (Twilio, ADR-0005) behind the SmsProvider abstraction — MockSmsProvider in any environment without Twilio credentials configured.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Verification code sent.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "An active (unexpired) verification code was already sent.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "422": { "description": "The account is already verified.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/verifications/confirm": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Confirm a mobile-number verification code",
+        "description": "C3, BR-AUTH-02. Activates the User Account on success.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["code"], "properties": { "code": { "type": "string", "pattern": "^[0-9]{6}$", "example": "482913" } } } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Account verified.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicUser" } } }] } } }
+          },
+          "400": { "description": "Malformed code.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "422": { "description": "Invalid or expired verification request.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/password-resets": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Request a password reset",
+        "description": "C6, BR-AUTH-09. Never reveals whether the mobile number is registered — the response is identical either way.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["mobileNumber"], "properties": { "mobileNumber": { "type": "string", "example": "+15551234567" } } } } }
+        },
+        "responses": {
+          "200": { "description": "Generic acknowledgement — identical whether or not the account exists.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "400": { "description": "Malformed mobile number.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Authentication"],
+        "summary": "Confirm a password reset",
+        "description": "C6, BR-AUTH-09. Takes `mobileNumber` + `code` rather than a request id — Technical Design v1.5 correction: the POST above cannot return an id without violating its own anti-enumeration requirement.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mobileNumber", "code", "newPassword"],
+                "properties": {
+                  "mobileNumber": { "type": "string", "example": "+15551234567" },
+                  "code": { "type": "string", "pattern": "^[0-9]{6}$", "example": "482913" },
+                  "newPassword": { "type": "string", "format": "password", "minLength": 8 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Password reset.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "422": { "description": "Invalid or expired password reset request.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/auth/password": {
+      "patch": {
+        "tags": ["Authentication"],
+        "summary": "Change password while authenticated",
+        "description": "C7, A3, BR-AUTH-08. Ends every existing Session (refresh tokens) as a security default — the caller's own current access token remains valid until its own natural expiry (Technical Design §9; no access-token blocklist).",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword"],
+                "properties": {
+                  "currentPassword": { "type": "string", "format": "password" },
+                  "newPassword": { "type": "string", "format": "password", "minLength": 8 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Password changed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "422": { "description": "The current password is incorrect.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    }
+  }
+}

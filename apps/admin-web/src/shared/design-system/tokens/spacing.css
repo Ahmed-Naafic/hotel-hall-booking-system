@@ -1,0 +1,10 @@
+:root{
+/* 4px base, with a 6px half-step used in control padding */
+--space-0:0;--space-1:4px;--space-2:6px;--space-3:8px;--space-4:12px;--space-5:16px;--space-6:20px;--space-7:24px;--space-8:32px;--space-9:40px;--space-10:48px;--space-11:64px;--space-12:80px;--space-13:104px;--space-14:128px;
+/* Layout */
+--container-max:1200px;--container-narrow:760px;--gutter:24px;--gutter-lg:40px;
+--section-y:var(--space-13);--section-y-tight:var(--space-11);
+/* Control metrics */
+--control-h-sm:32px;--control-h-md:40px;--control-h-lg:48px;--control-pad-x:18px;--control-gap:8px;
+--card-pad:20px;--card-pad-lg:28px;
+}

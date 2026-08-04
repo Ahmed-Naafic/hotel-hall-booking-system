@@ -1,0 +1,15 @@
+/* Minimal element defaults. Components carry their own styling inline or via tokens. */
+html{-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--surface-page);color:var(--text-body);font-family:var(--font-sans);font-size:var(--text-md);line-height:var(--leading-normal)}
+h1,h2,h3,h4{font-family:var(--font-display);color:var(--text-heading);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);line-height:var(--display-leading);text-transform:uppercase;margin:0 0 var(--space-4)}
+h1{font-size:var(--display-lg)}h2{font-size:var(--display-md)}h3{font-size:var(--display-sm)}h4{font-size:var(--text-lg);letter-spacing:var(--tracking-wide)}
+p{margin:0 0 var(--space-5);text-wrap:pretty}
+a{color:var(--text-link);text-decoration:none;border-bottom:1px solid rgba(24,120,132,.35);transition:var(--transition-control)}
+a:hover{color:var(--text-link-hover);border-bottom-color:var(--navy-700)}
+small{font-size:var(--text-xs);color:var(--text-muted)}
+hr{border:0;border-top:1px solid var(--border-subtle);margin:var(--space-8) 0}
+::selection{background:var(--gold-200);color:var(--navy-800)}
+.hh-eyebrow{font-family:var(--font-sans);font-size:var(--eyebrow-size);font-weight:var(--eyebrow-weight);letter-spacing:var(--eyebrow-tracking);text-transform:uppercase;color:var(--text-gold)}
+.hh-rule-gold{display:flex;align-items:center;gap:var(--space-4);color:var(--gold-600)}
+.hh-rule-gold::before,.hh-rule-gold::after{content:"";flex:1;height:1px;background:currentColor;opacity:.6}
+*:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}

@@ -2,9 +2,9 @@
 title: "Team Management"
 document_type: Governance
 status: Approved
-version: 1.3
+version: 1.17
 owner: Ahmed (Project Lead)
-last_updated: 2026-08-02
+last_updated: 2026-08-04
 ---
 
 # Team Management
@@ -186,7 +186,8 @@ the table.
 
 | Feature ID | Feature Name | Module | Prepared By | Implemented By | Reviewer | Priority | Status | Assigned Date | Started Date | Completed Date | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| M01 | Authentication & Account Management | 01-authentication-and-account-management | — | — | — | High | Not Started | — | — | — | Dependency root for every other module — planned first. |
+| M01.1 | Authentication & Account Management — Backend | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Validation & QA | 2026-08-03 | 2026-08-03 | — | Dependency root for every other module — planned first. Split from `M01` on 2026-08-04 (§7's own splitting rule) once frontend became a distinct, separately-tracked scope. Business Specification v1.2, Technical Design v1.7 (§1–§17), Implementation Plan v1.7 (§1–§3 WBS-01–15) all `Approved`; **Implementation Review complete — approved by Mohamed.** All 15 backend WBS tasks complete (M1–M4 milestones): full component set including Verification and Password Reset via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`, `ADR-0005`). 51 passing tests, clean lint. One design defect found and corrected during implementation: Technical Design §10's `PATCH /password-resets/:id` was incompatible with its own anti-enumeration requirement, corrected to `PATCH /password-resets`. **Real gap, not yet procedural-only:** `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md`, and `validation-report.md` are all still `Not Started` — blocks Validation & QA from actually closing out. |
+| M01.2 | Authentication & Account Management — Frontend | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Implementation | 2026-08-04 | 2026-08-04 | — | Split from `M01` on 2026-08-04. Technical Design §18 (Frontend Integration Scope) and Implementation Plan §3.1 (`FE-00`–`FE-07`) — **reviewed and approved by Mohamed, 2026-08-04.** `Implemented By` set to Ahmed as the first Round Robin assignment (§4) once `FE-01`/`FE-02` were picked up. **`FE-01`/`FE-02` (Admin Web Login/Change-Password) done** — implemented on `feature/authentication-admin-web-ui`, manually verified end-to-end against the real backend (login, change password, logout). Remaining scope: Customer Mobile and Hotel Manager Mobile screens (`FE-03`–`FE-07`, blocked on the `FE-00` Flutter design-token port); `FE-07` additionally blocked on Hotel Management (Module 3) and Administration & Platform Management (Module 13) having Business Specifications. Source: `Hotel Hall Design System/` (repo root, committed 2026-08-04). |
 | M02 | Customer Management | 02-customer-management | — | — | — | — | Not Started | — | — | — | |
 | M03 | Hotel Management | 03-hotel-management | — | — | — | — | Not Started | — | — | — | |
 | M04 | Hall Management | 04-hall-management | — | — | — | — | Not Started | — | — | — | |
@@ -290,6 +291,20 @@ A feature is considered complete only when **all** of the following are true:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.16 | 2026-08-04 | Ahmed | §7: Mohamed reviewed and approved Technical Design §18 and Implementation Plan §3.1 (frontend scope). Split `M01` into `M01.1` (Backend, `Validation & QA`) and `M01.2` (Frontend, `Ready for Development`) per §7's own splitting rule — the two tracks are now at genuinely different lifecycle phases and a single `Status` cell could no longer represent both accurately. |
+| 1.17 | 2026-08-04 | Ahmed | §7: M01.2's `Status` changed `Ready for Development` → `Implementation`; `Implemented By` set to Ahmed (first Round Robin assignment); `Started Date` set. `FE-01`/`FE-02` (Admin Web Login/Change-Password) complete and manually verified against the real backend; `FE-00`, `FE-03`–`FE-07` remain not started. |
+| 1.15 | 2026-08-04 | Ahmed | §7: M01's `Notes` — `FE-00`–`FE-07` formalized into Implementation Plan §3.1 (v1.6), still `Proposed` pending review, same as Technical Design §18. |
+| 1.14 | 2026-08-04 | Ahmed | §7: M01's `Notes` note Technical Design §18 (Frontend Integration Scope, unreviewed) and that no frontend work has started. |
+| 1.13 | 2026-08-04 | Ahmed | §7: M01's `Status` changed `Implementation Review` → `Validation & QA` — Mohamed approved the implementation review. `Feature Accepted` still requires Validation to actually pass (§6), which currently has no governing document (`test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md`, `validation-report.md` all `Not Started`). |
+| 1.12 | 2026-08-04 | Ahmed | §7: M01's `Status` changed `Implementation` → `Implementation Review` — all 15 WBS tasks (M1–M4) complete, 51 passing tests. Awaiting Mohamed's review. |
+| 1.11 | 2026-08-04 | Ahmed | §7: M01's `Notes` updated — Milestone M4 complete (GET /me, OpenAPI docs, 28 passing tests); only M3 (Twilio-dependent) remains. |
+| 1.10 | 2026-08-04 | Ahmed | §7: M01's `Reviewer` set to Mohamed (arbitrary pick between two equally-available reviewers, per §5); branch pushed, MR link recorded; M4 marked in progress. |
+| 1.9 | 2026-08-03 | Ahmed | §7: M01's `Status` changed `Ready for Development` → `Implementation`; `Started Date` set. Development began on `feature/authentication-identity-foundation` — Milestones M1+M2 (WBS-01–09) complete with 26 passing tests; M3 deferred (needs Twilio credentials); M4 not yet started. |
+| 1.8 | 2026-08-03 | Ahmed | §7: M01's `Notes` updated — password hashing algorithm decided (Argon2id); no blockers remain for M01. Reflects Technical Design v1.4 and Implementation Plan v1.4. |
+| 1.7 | 2026-08-03 | Ahmed | §7: M01's Implementation Plan reached `Approved` — Status changed `Implementation Planning` → `Ready for Development`; `Implemented By` set to Ahmed as the first Round Robin assignment (§4), consistent with the register being the record of the rotation (§4's own rule). |
+| 1.6 | 2026-08-03 | Ahmed | §7: M01's `Notes` updated — `ADR-0005` reached `Approved` (Twilio); the SMS delivery blocker is resolved, leaving the password-hashing algorithm as the sole remaining blocker. Reflects Technical Design v1.3 and Implementation Plan v1.2. |
+| 1.5 | 2026-08-03 | Ahmed | §7: M01's `Notes` now cite `ADR-0005` (`Proposed`) by ID for the SMS delivery-provider blocker, and reflect Technical Design v1.2 and Implementation Plan v1.1 (both minor cross-reference updates only). |
+| 1.4 | 2026-08-03 | Ahmed | §7: M01 (Authentication & Account Management) updated from `Not Started` to `Implementation Planning`, reflecting that its Business Specification and Technical Design are `Approved` and its Implementation Plan is authored (`Draft`, pending review). `Prepared By` set to Ahmed; `Assigned Date` set; two open implementation blockers recorded in `Notes`. |
 | 1.0 | 2026-08-01 | Ahmed | Initial approved Team Management document; replaces the planned `team-and-workflow.md` and `feature-status-board.md` |
 | 1.1 | 2026-08-02 | Ahmed | §6 status vocabulary aligned to the 13 phases now defined in `docs/Development-Lifecycle.md`; §3 cross-references it |
 | 1.2 | 2026-08-02 | Ahmed | Linked the anticipated "Development Roadmap" reference in §1 to the now-approved `docs/Development-Roadmap.md` |

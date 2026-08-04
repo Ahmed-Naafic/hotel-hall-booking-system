@@ -2,9 +2,9 @@
 title: "Business Decision Register"
 document_type: Business / Governance
 status: Approved
-version: 2.0
+version: 2.1
 owner: Ahmed (Product Governance Architect)
-last_updated: 2026-08-02
+last_updated: 2026-08-03
 ---
 
 # Business Decision Register
@@ -146,6 +146,7 @@ Every decision recorded in §5 uses this template:
 | BDR-006 | Booking Policy | Booking Policies | Approved | Ahmed | 2026-08-02 | Booking Management, Calendar & Scheduling Management |
 | BDR-007 | Platform Administration Web Interface | Business Model | Approved | Ahmed | 2026-08-02 | Administration & Platform Management |
 | BDR-008 | Multi-Branch Hotels | Business Model | Approved | Ahmed | 2026-08-02 | Hotel Management, Hall Management |
+| BDR-009 | Customer Registration Timing | Customer Policies | Approved | Ahmed | 2026-08-03 | Authentication & Account Management, Customer Management, Hall Management, Booking Management |
 
 This table grows for the life of the project. Full records for each entry above follow in
 §9. New entries follow the same pattern: a row here, plus a full record using the §3
@@ -358,12 +359,31 @@ Decisions: Ahmed) and §8 (AI may recommend; AI never becomes the decision maker
 | Future Review Required | Yes — revisit once real Hotel chain demand is evidenced. |
 | Notes | Resolved consistently with BDR-001 (Platform Type) — both concern the fundamental shape of what a "Hotel" is on this Platform. `folder-structure.md` §4's `branches/` exclusion is now confirmed, not provisional. |
 
+### BDR-009 — Customer Registration Timing
+
+| Field | Value |
+|---|---|
+| Category | Customer Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-03 |
+| Business Problem | BDR-005 approved open Customer registration but did not settle *when* in the Customer's journey registration is required — specifically, whether a Customer must create an account before browsing Hotels and Halls, or only once they act on a specific Hall. Needed before Authentication & Account Management's Business Specification could define its account-creation triggers. |
+| Options Considered | (1) Registration required before any use of the Customer application, including browsing. (2) Deferred registration — a Customer may browse Hotels and Halls freely, and is only required to register at the point of proceeding to book a specific Hall. (3) Partial browsing (e.g. Hotel list only, no Hall detail or availability) without an account, full detail gated behind registration. |
+| Selected Decision | **Option 2 — Deferred ("Hall-First") registration.** A Customer may browse Hotels and Halls, including availability and pricing, without an account. Registration is required only when the Customer proceeds to book a Hall (or otherwise acts on their own account, e.g. saving a favorite). |
+| Business Rationale | Removes friction from the top of the funnel — a Customer can evaluate whether the Platform has what they need before committing to an account, which directly serves Project Objective 1 (`Project-Overview.md` §5, "search, filter, and book... without manual coordination"). Consistent with BDR-005's open-registration stance: there is no eligibility barrier to browsing, so gating it behind registration would add friction without a corresponding trust or fraud control benefit. Registration at the point of booking is still early enough to capture the identity/contact verification Authentication & Account Management requires before a Booking (a real transaction) is created. |
+| Impacted Documents | Authentication & Account Management Business Specification; Customer Management Business Specification; Hall Management Business Specification (Hall browsing/search); Booking Management Business Specification (registration as a precondition of the booking flow) |
+| Impacted Modules | Authentication & Account Management, Customer Management, Hall Management, Booking Management |
+| Risks | None identified — browsing without an account exposes no Customer or Hotel data beyond what a public listing already implies. |
+| Future Review Required | No. |
+| Notes | Directly informs Authentication & Account Management's account-creation trigger (Business Specification, §5–§7). |
+
 ---
 
 ## Version History
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 2.1 | 2026-08-03 | Ahmed | Added BDR-009 (Approved): Customer Registration Timing ("Hall-First" deferred registration), settled while authoring Authentication & Account Management's Business Specification |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved Business Decision Register, with six proposed (unapproved) initial decisions |
 | 1.1 | 2026-08-02 | Ahmed | Added BDR-007 (Proposed): a scope conflict between `Project-Overview.md` §7 and the newly-approved technology stack (React + Vite), surfaced while authoring `Architecture-Principles.md` and `technology-stack.md` |
 | 1.2 | 2026-08-02 | Ahmed | Added BDR-008 (Proposed): whether Hotels may operate multiple branches, surfaced while authoring `folder-structure.md` §4 |

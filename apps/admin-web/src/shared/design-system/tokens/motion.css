@@ -1,0 +1,15 @@
+:root{
+--dur-instant:80ms; /* @kind other */
+--dur-fast:140ms; /* @kind other */
+--dur-base:220ms; /* @kind other */
+--dur-slow:360ms; /* @kind other */
+--dur-slower:600ms; /* @kind other */
+/* Calm, no bounce: hospitality motion is a door easing shut */
+--ease-standard:cubic-bezier(.2,.6,.2,1); /* @kind other */
+--ease-out:cubic-bezier(0,.6,.3,1); /* @kind other */
+--ease-in:cubic-bezier(.5,0,1,.5); /* @kind other */
+--transition-control:background-color var(--dur-fast) var(--ease-standard),color var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard); /* @kind other */
+--transition-card:box-shadow var(--dur-base) var(--ease-standard),transform var(--dur-base) var(--ease-standard); /* @kind other */
+--lift-hover:translateY(-2px); /* @kind other */
+--press-scale:.985; /* @kind other */
+}

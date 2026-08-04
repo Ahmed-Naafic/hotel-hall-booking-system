@@ -2,9 +2,9 @@
 title: "Technology Stack"
 document_type: Architecture
 status: Approved
-version: 1.2
+version: 1.3
 owner: Ahmed
-last_updated: 2026-08-02
+last_updated: 2026-08-03
 ---
 
 # Technology Stack
@@ -34,6 +34,7 @@ and indexed in `docs/00-governance/decision-log.md`.
 | API style | REST, documented with OpenAPI (Swagger) |
 | Containerization | Docker |
 | Push notifications | Firebase Cloud Messaging (FCM) |
+| SMS delivery | Twilio (ADR-0005) — scoped to Authentication & Account Management's identity-verification and password-reset flows; provider-agnostic abstraction, not a hard dependency (`Architecture-Principles.md` §10–§11) |
 | Version control | GitLab |
 | Reverse proxy | Nginx (ADR-0002) |
 | Logging | Winston (ADR-0002) |
@@ -71,6 +72,7 @@ before a Technical Design may rely on the change.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.3 | 2026-08-03 | Ahmed | Added SMS delivery (Twilio), per `ADR-0005` — scoped to Authentication & Account Management's verification/password-reset flows |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved technology stack, per ADR-0001 |
 | 1.1 | 2026-08-02 | Ahmed | Web frontend scope resolved — `BDR-007` approved (Platform Administration dashboard only) |
 | 1.2 | 2026-08-03 | Ahmed | Added Nginx (reverse proxy) and Winston (logging), per ADR-0002 |

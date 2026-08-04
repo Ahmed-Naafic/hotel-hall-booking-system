@@ -1,0 +1,26 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Feedback — dialog, toast, rating" subtitle="Modal confirmation, notification tones, gold star rating" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:20px 22px;background:var(--surface-page)}.cap{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:8px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { Dialog, Toast, Rating, Button } = window.HotelHallDesignSystem_6ae9d5;
+function App(){return <div style={{display:'grid',gridTemplateColumns:'1.05fr 1fr',gap:24}}>
+<div><div className="cap">Dialog</div>
+<div style={{position:'relative',height:230,borderRadius:'var(--radius-lg)',overflow:'hidden',background:'var(--sand-100)'}}>
+<Dialog eyebrow="Almost there" title="Confirm your stay" width={330}
+ footer={<><Button variant="ghost" size="sm">Back</Button><Button size="sm">Reserve</Button></>}>
+Harbour Suite, Aug 12–15. $744 total, charged at check-in.</Dialog></div></div>
+<div><div className="cap">Toast · Rating</div>
+<div style={{display:'flex',flexDirection:'column',gap:10}}>
+<Toast tone="success" title="Reserved" message="Confirmation 4821-HH is in your inbox." onDismiss={()=>{}}/>
+<Toast tone="danger" title="Card declined" message="Try another card, or hold the room for 24 hours."/>
+</div>
+<div style={{display:'flex',flexDirection:'column',gap:8,marginTop:16}}>
+<Rating value={4.5} count={218}/><Rating value={5} size={20}/><Rating value={3.5} size={13} label={false}/></div></div>
+</div>;}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script></body></html>

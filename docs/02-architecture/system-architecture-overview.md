@@ -2,7 +2,7 @@
 title: "System Architecture Overview"
 document_type: Architecture
 status: Approved
-version: 1.0
+version: 1.1
 owner: Ahmed (Chief Solution Architect)
 last_updated: 2026-08-03
 ---
@@ -172,7 +172,8 @@ governance) and `database-standards.md` (physical schema) — not duplicated her
 | **Cloudinary** | Default storage provider, behind a provider-agnostic abstraction (`Architecture-Principles.md` §10, `technology-stack.md`). |
 | **Firebase Cloud Messaging** | Push notification delivery (`mobile-application-architecture.md` §11). |
 | **Payment Gateway** | **Not yet selected** — `Project-Overview.md` §13 lists this as `TBD`; `BDR-004` approved the payment *policy*, not the provider. Introduced via a future ADR once chosen. |
-| **Maps, Email, SMS** | **Not currently approved integrations.** No Business Specification or ADR has introduced them; they are not assumed into this architecture. If a future module requires one, it follows the same approval path as any other integration (`Decision-Making-Principles.md` §7). |
+| **Twilio (SMS)** | Approved via **ADR-0005** (`docs/02-architecture/adr/0005-sms-delivery-provider.md`) — scoped specifically to Authentication & Account Management's identity-verification (`BR-AUTH-02`) and password-reset (`BR-AUTH-09`) flows, behind a provider-agnostic abstraction (`Architecture-Principles.md` §10–§11). Not a general-purpose SMS capability for other modules without their own approval. |
+| **Maps, Email** | **Not currently approved integrations.** No Business Specification or ADR has introduced them; they are not assumed into this architecture. If a future module requires one, it follows the same approval path as any other integration (`Decision-Making-Principles.md` §7). |
 
 Every integration, approved or future, sits behind an abstraction the backend depends on —
 never called directly from business logic (`Architecture-Principles.md` §11).
@@ -348,4 +349,5 @@ to this document's scope:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.1 | 2026-08-03 | Ahmed | §8: Twilio (SMS) added as an approved integration per `ADR-0005`, scoped to Authentication & Account Management's verification/password-reset flows; Email and Maps remain not currently approved. |
 | 1.0 | 2026-08-03 | Ahmed | Initial approved System Architecture Overview |

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import swaggerUi from 'swagger-ui-express'
 import { requestId } from './shared/middleware/requestId.js'
+import { corsPolicy } from './shared/middleware/corsPolicy.js'
 import { notFoundHandler } from './shared/middleware/notFoundHandler.js'
 import { errorHandler } from './shared/middleware/errorHandler.js'
 import { authenticationRouter } from './modules/authentication/authentication.routes.js'
@@ -19,6 +20,7 @@ export function createApp() {
   const app = express()
 
   app.use(requestId)
+  app.use(corsPolicy)
   app.use(express.json())
 
   // Feature-based modules, mounted under the versioned API prefix

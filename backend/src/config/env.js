@@ -56,4 +56,18 @@ export const env = {
       fromNumber: process.env.TWILIO_FROM_NUMBER || undefined,
     },
   },
+
+  // CORS — Admin Web (BDR-007) is the only approved browser client; the
+  // Flutter apps don't go through a browser, so CORS doesn't apply to them.
+  // Comma-separated explicit origin allowlist, e.g.
+  // "https://admin.example.com". In development, any http://localhost:*
+  // origin is allowed instead (Vite picks a free port per run, so pinning
+  // one exact dev port is brittle) — this is not a decision to loosen
+  // security, only to keep local development workable.
+  cors: {
+    allowedOrigins: (process.env.ADMIN_WEB_ORIGINS || '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  },
 }

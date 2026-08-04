@@ -6,7 +6,7 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/folder-structure.md", "docs/03-standards/coding-standards.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/03-standards/testing-standards.md", "docs/03-standards/git-workflow-and-branching.md"]
-version: 1.7
+version: 1.8
 last_updated: 2026-08-04
 ---
 
@@ -121,10 +121,14 @@ a distinct track (client applications, not the backend module) and Technical Des
 already refers to them by these IDs; renumbering here would create two names for the same
 task. **Reviewed and approved by Mohamed, 2026-08-04** (`documentation-architecture.md` §4,
 no self-review), the same as Technical Design §18 itself. Approval makes these tasks a valid
-basis for Development — no Flutter or React code exists yet for any of them, and per
-`git-workflow-and-branching.md` §4 a feature branch for any `FE-##` task is still only
-created once it reaches `Ready for Development` (Round Robin assignment, `Team-Management.md`
-§4), not automatically by this approval.
+basis for Development, and per `git-workflow-and-branching.md` §4 a feature branch for any
+`FE-##` task is only created once it reaches `Ready for Development` (Round Robin assignment,
+`Team-Management.md` §4), not automatically by this approval.
+
+**`FE-01` and `FE-02` are Done** (2026-08-04) — implemented on
+`feature/authentication-admin-web-ui` and manually verified end-to-end in a browser against
+the real backend (login, change password including a server-side re-login check, logout).
+`FE-00`, `FE-03`–`FE-07` remain not yet built.
 
 | ID | Task | Purpose | Description | Dependencies | Deliverables | Complexity |
 |---|---|---|---|---|---|---|
@@ -198,10 +202,12 @@ approval to wait on.
   `docs/07-validation-and-qa/modules/01-authentication-and-account-management/validation-report.md`
   (§8, §9).
 
-**Proposed, not yet built (§3.1):** a shared Flutter design-token package (`FE-00`); Admin
-Web Login and Change Password screens (`FE-01`, `FE-02`); Customer Mobile Register/Verify,
-Login/Logout, and Forgot/Change Password screens (`FE-03`–`FE-05`); Hotel Manager Mobile
-Register/Login and access-blocked screens (`FE-06`, `FE-07`).
+**Done (§3.1):** Admin Web Login and Change Password screens (`FE-01`, `FE-02`) —
+`apps/admin-web/src/`, verified against the real backend 2026-08-04.
+
+**Not yet built (§3.1):** a shared Flutter design-token package (`FE-00`); Customer Mobile
+Register/Verify, Login/Logout, and Forgot/Change Password screens (`FE-03`–`FE-05`); Hotel
+Manager Mobile Register/Login and access-blocked screens (`FE-06`, `FE-07`).
 
 ---
 
@@ -419,6 +425,7 @@ be authored before that phase begins in earnest.
 | Version | Date | Author | Change |
 |---|---|---|---|
 | 1.7 | 2026-08-04 | Ahmed | §3.1 (`FE-00`–`FE-07`) reviewed and approved by Mohamed — status changed from "proposed, pending review" to `Approved`, matching Technical Design §18. Scope only; still no Flutter/React code. |
+| 1.8 | 2026-08-04 | Ahmed | `FE-01` and `FE-02` marked Done — implemented on `feature/authentication-admin-web-ui`, manually verified end-to-end against the real backend (login, change password, logout). §3, §5 updated accordingly. `FE-00`, `FE-03`–`FE-07` remain not yet built. |
 | 1.6 | 2026-08-04 | Ahmed | Added §3.1, formalizing Technical Design §18's frontend scope into `FE-00`–`FE-07` WBS-shaped entries (design-token port, Admin Web/Customer Mobile/Hotel Manager Mobile screens). §5 and §6 updated to list the proposed deliverables and the `Hotel Hall Design System/` and Module 3/13 dependencies. **§3.1 is new scope pending its own review**, the same as Technical Design §18 it depends on — no Flutter/React code exists yet. |
 | 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (WBS-10, WBS-11a, WBS-11b) via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`) — all 15 WBS tasks now complete, 51 tests passing. §3, §6, §10, §11 updated accordingly. Ready for Implementation Review; Validation & QA still waits on `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md` (all `Not Started`). |
 | 1.4 | 2026-08-03 | Ahmed | Password hashing algorithm decided (Argon2id, Technical Design §11) — the last remaining blocker. WBS-03 and its dependents (§3), the Development Sequence (§4), Risks (§7), and Final Validation (§11) all updated. No blockers remain; every milestone is ready for Development. |

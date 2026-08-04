@@ -6,7 +6,7 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/02-architecture/mobile-application-architecture.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md"]
-version: 1.6
+version: 1.7
 last_updated: 2026-08-04
 ---
 
@@ -856,15 +856,18 @@ silently implemented around.
 
 ---
 
-## 18. Frontend Integration Scope (proposed — not yet built)
+## 18. Frontend Integration Scope (`Approved` — not yet built)
 
-**Status: scoping only, per explicit instruction — no Flutter or React code is written in
-this section**, consistent with this document's own constraints (Deliverable). This section
-maps this module's already-built API (§10) to the three approved client applications, using
-`Hotel Hall Design System/` (repo root) as the visual source. **This section is new scope
-beyond what Mohamed reviewed and approved through v1.5 — it should go through its own
-review before any of it is treated as `Approved`**, the same no-self-review rule as every
-other addition to this document.
+**Status: scoping only — no Flutter or React code is written in this section**, consistent
+with this document's own constraints (Deliverable). This section maps this module's
+already-built API (§10) to the three approved client applications, using
+`Hotel Hall Design System/` (repo root) as the visual source. **Reviewed and approved by
+Mohamed, 2026-08-04** (`documentation-architecture.md` §4, no self-review), the same as
+`implementation-plan.md` §3.1's `FE-##` tasks this section feeds. Being `Approved` makes it a
+valid basis to build from — it is still scope and design, not code; Development
+(`Development-Lifecycle.md` Phase 8) on any `FE-##` task is a separate step, per
+`git-workflow-and-branching.md` §4 (a feature branch is created only once its documentation
+is `Approved` and the feature reaches `Ready for Development`).
 
 ### 18.1 Design System Source
 
@@ -955,9 +958,10 @@ addition to this feature has gone through.
    Platform Management (Module 13), neither of which has an authored Business Specification
    yet. This table names the screen; it cannot name its exact content until those modules
    exist.
-5. **This whole section is a proposal.** Per `Development-Lifecycle.md`, no Flutter or React
-   code should be written against it until it is reviewed and the relevant WBS tasks (§18.4)
-   are formally added to `implementation-plan.md` through that document's own change process.
+5. ~~This whole section is a proposal.~~ **Resolved 2026-08-04** — reviewed and approved by
+   Mohamed; the `FE-##` tasks are formally in `implementation-plan.md` §3.1. Gaps 1–4 above
+   remain genuinely open (they're facts about the world, not review status) and still block
+   the specific `FE-##` tasks named in each.
 
 ---
 
@@ -965,6 +969,7 @@ addition to this feature has gone through.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.7 | 2026-08-04 | Ahmed | §18 (Frontend Integration Scope) reviewed and approved by Mohamed — status changed from "proposed, pending review" to `Approved`, matching `implementation-plan.md` §3.1's `FE-##` tasks it feeds. Scope only; still no Flutter/React code. |
 | 1.6 | 2026-08-04 | Ahmed | Added §18, Frontend Integration Scope — maps §10's API to Customer Mobile, Hotel Manager Mobile, and Admin Web using `Hotel Hall Design System/` (repo root, untracked). Scoping only, no Flutter/React code. Flags the React-vs-Flutter format mismatch, a Flutter token-translation prerequisite (FE-00), and that Hotel Manager's access-blocked screen can't be fully scoped until Modules 3/13 have Business Specifications. **This section is new scope pending its own review** — not covered by Mohamed's earlier approval through v1.5. |
 | 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (Identity Verification, Password Reset) via the SmsProvider abstraction, `MockSmsProvider`/`TwilioSmsProvider`. §10's `PATCH /password-resets/:id` **corrected** to `PATCH /password-resets` (body: `mobileNumber`, `code`) — the original `:id` shape was discovered, during implementation, to be incompatible with this same endpoint's own anti-enumeration requirement (an id in the `POST` response would reveal account existence). §7.4 sequence diagram updated to match. |
 | 1.4 | 2026-08-03 | Ahmed | Password hashing algorithm decided: **Argon2id**, recorded in §11 with rationale (bcrypt considered and rejected as the weaker alternative). §17 Item 1 narrowed accordingly (hashing no longer among what's deferred to `security-coding-standards.md`) and the Conclusion updated — every component in this document is now unblocked at the architecture level. |

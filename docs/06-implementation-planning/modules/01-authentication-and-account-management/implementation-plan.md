@@ -6,7 +6,7 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/folder-structure.md", "docs/03-standards/coding-standards.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/03-standards/testing-standards.md", "docs/03-standards/git-workflow-and-branching.md"]
-version: 1.6
+version: 1.7
 last_updated: 2026-08-04
 ---
 
@@ -113,16 +113,18 @@ a `Team-Management.md` §7 concern once this plan is `Approved`.
 Unit tests (`testing-standards.md` §5) are written alongside each component task (WBS-02–12),
 per that standard's "test early" principle — not listed as a separate trailing task.
 
-### 3.1 Frontend Tasks (Proposed — pending review)
+### 3.1 Frontend Tasks (`Approved`)
 
 Formalizes Technical Design §18 (Frontend Integration Scope) into WBS-shaped entries, using
 that section's `FE-##` IDs directly rather than continuing the `WBS-##` sequence — these are
 a distinct track (client applications, not the backend module) and Technical Design §18
 already refers to them by these IDs; renumbering here would create two names for the same
-task. **Per `documentation-architecture.md` §4's no-self-review rule, this subsection is not
-`Approved` merely by being added — it carries the same review requirement as Technical
-Design §18 itself, which it depends on.** No Flutter or React code exists yet for any of
-these.
+task. **Reviewed and approved by Mohamed, 2026-08-04** (`documentation-architecture.md` §4,
+no self-review), the same as Technical Design §18 itself. Approval makes these tasks a valid
+basis for Development — no Flutter or React code exists yet for any of them, and per
+`git-workflow-and-branching.md` §4 a feature branch for any `FE-##` task is still only
+created once it reaches `Ready for Development` (Round Robin assignment, `Team-Management.md`
+§4), not automatically by this approval.
 
 | ID | Task | Purpose | Description | Dependencies | Deliverables | Complexity |
 |---|---|---|---|---|---|---|
@@ -416,6 +418,7 @@ be authored before that phase begins in earnest.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.7 | 2026-08-04 | Ahmed | §3.1 (`FE-00`–`FE-07`) reviewed and approved by Mohamed — status changed from "proposed, pending review" to `Approved`, matching Technical Design §18. Scope only; still no Flutter/React code. |
 | 1.6 | 2026-08-04 | Ahmed | Added §3.1, formalizing Technical Design §18's frontend scope into `FE-00`–`FE-07` WBS-shaped entries (design-token port, Admin Web/Customer Mobile/Hotel Manager Mobile screens). §5 and §6 updated to list the proposed deliverables and the `Hotel Hall Design System/` and Module 3/13 dependencies. **§3.1 is new scope pending its own review**, the same as Technical Design §18 it depends on — no Flutter/React code exists yet. |
 | 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (WBS-10, WBS-11a, WBS-11b) via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`) — all 15 WBS tasks now complete, 51 tests passing. §3, §6, §10, §11 updated accordingly. Ready for Implementation Review; Validation & QA still waits on `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md` (all `Not Started`). |
 | 1.4 | 2026-08-03 | Ahmed | Password hashing algorithm decided (Argon2id, Technical Design §11) — the last remaining blocker. WBS-03 and its dependents (§3), the Development Sequence (§4), Risks (§7), and Final Validation (§11) all updated. No blockers remain; every milestone is ready for Development. |

@@ -6,7 +6,7 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/02-architecture/mobile-application-architecture.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md"]
-version: 1.5
+version: 1.6
 last_updated: 2026-08-04
 ---
 
@@ -856,10 +856,116 @@ silently implemented around.
 
 ---
 
+## 18. Frontend Integration Scope (proposed — not yet built)
+
+**Status: scoping only, per explicit instruction — no Flutter or React code is written in
+this section**, consistent with this document's own constraints (Deliverable). This section
+maps this module's already-built API (§10) to the three approved client applications, using
+`Hotel Hall Design System/` (repo root) as the visual source. **This section is new scope
+beyond what Mohamed reviewed and approved through v1.5 — it should go through its own
+review before any of it is treated as `Approved`**, the same no-self-review rule as every
+other addition to this document.
+
+### 18.1 Design System Source
+
+`Hotel Hall Design System/` is a React/JSX component library plus CSS custom-property design
+tokens (`tokens/*.css`), currently **untracked in git** (added 2026-08-04, not yet
+committed). No authentication screen exists in it today — `ui_kits/guest-app/Screens.jsx`
+covers only the post-login guest experience (Stay/Key/Services), and `ui_kits/website/`
+covers marketing/booking, not account flows. Every screen in §18.3 is newly composed from
+the kit's primitive components (`components/core/`, `components/forms/`,
+`components/feedback/`), not adapted from an existing mock.
+
+**Recommendation, not a decision made here:** this kit is the closest thing this project has
+to `docs/03-standards/ui-ux-and-accessibility-standards.md` (`documentation-architecture.md`
+§9), which is still entirely unauthored. Ahmed should decide whether to commit this folder
+into the repo and formally adopt it as that document's source, per the normal documentation
+process — not decided unilaterally here.
+
+### 18.2 Platform / Format Mismatch — the one real architectural gap
+
+- **Admin Web** (React + Vite, `BDR-007`) can consume the kit's `.jsx` components and CSS
+  tokens directly — same stack, no translation needed.
+- **Customer Mobile** and **Hotel Manager Mobile** are Flutter/Dart
+  (`technology-stack.md`) — the kit's `.jsx` components do not run there. What *does*
+  transfer is the token **values** (hex colors, type scale, spacing scale, radii, motion
+  durations — `tokens/*.css`) and the written brand/voice rules (`readme.md`) — these need a
+  one-time port into a Flutter `ThemeData`/design-tokens package, a prerequisite task (§18.4,
+  FE-00), not a per-screen one.
+- **Fonts** (Cinzel, Cormorant Garamond, Jost) and **icons** (Lucide, loaded from a CDN in
+  the web kit) are explicitly flagged in the kit's own `readme.md` as substitutions needing
+  real binaries/a Dart-side equivalent for Flutter — an implementation-time technology
+  choice (e.g. a `google_fonts`-style package), not decided here.
+
+### 18.3 Screens Needed, by App and Journey
+
+Every screen traces to a journey already defined in `business-specification.md` §7 and an
+endpoint already built in §10 — nothing here introduces new business behavior.
+
+| App | Screen | Journey / Rule | Endpoint(s) | Key components (design system) |
+|---|---|---|---|---|
+| Customer Mobile | Browse (no account) | `C1`, `BDR-009` | — | *(no auth screen at all — noted for boundary clarity)* |
+| Customer Mobile | Register | `C2`, `BR-AUTH-02` | `POST /register` | `Input` ×2, `Button` (primary) |
+| Customer Mobile | Verify mobile | `C3` | `POST /verifications`, `POST /verifications/confirm` | `Input` (code), `Button`, `Toast` (resend) |
+| Customer Mobile | Login | `C4`, `BR-AUTH-06` | `POST /login` | `Input` ×2, `Button`, text link to Forgot Password |
+| Customer Mobile | Logout | `C5`, `BR-AUTH-13` | `POST /logout` | Triggered from account/settings — not a dedicated screen |
+| Customer Mobile | Forgot password (request) | `C6` | `POST /password-resets` | `Input` (mobile number), `Button` |
+| Customer Mobile | Forgot password (confirm) | `C6` | `PATCH /password-resets` | `Input` (code), `Input` (new password), `Button` |
+| Customer Mobile | Change password | `C7`, `BR-AUTH-08` | `PATCH /password` | `Input` ×2, `Button` — from account settings |
+| Customer Mobile | Deactivated-account state | `C9`, `BR-AUTH-06` | `POST /login` (401) | `Toast` (tone `danger`) |
+| Hotel Manager Mobile | Create account | `H1`, `BR-AUTH-03` | `POST /register` (`accountType=HOTEL_MANAGER`) | Same as Customer Register |
+| Hotel Manager Mobile | Login | `H7`, `A1`-equivalent | `POST /login` | Same as Customer Login |
+| Hotel Manager Mobile | Access blocked before approval | `H8`, `BR-AUTH-04`/`07` | `POST /login` + `GET /me` | Persistent blocked-state screen, **not** a toast — see §18.5 gap |
+| Admin Web | Login | `A1` | `POST /login` | `Input` ×2, `Button` — direct reuse |
+| Admin Web | Change password | `A3`, `BR-AUTH-08` | `PATCH /password` | `Input` ×2, `Button` — direct reuse |
+| Admin Web | Logout | `A2` | `POST /logout` | Direct reuse |
+
+Platform Administrator accounts are not self-registered (§3.2) — Admin Web has no
+registration screen.
+
+### 18.4 Proposed Frontend Task Breakdown
+
+Illustrative WBS-style numbering (`FE-##`), **not yet added to
+`implementation-plan.md`** — that requires its own review, the same gate every other WBS
+addition to this feature has gone through.
+
+| ID | Task | Depends on | Blocked? |
+|---|---|---|---|
+| FE-00 | Port design tokens (`tokens/*.css`) to a Flutter `ThemeData`/tokens package, shared by both mobile apps (`folder-structure.md` §5) | — | Prerequisite for FE-03–FE-07 |
+| FE-01 | Admin Web — Login screen | Backend (done) | No |
+| FE-02 | Admin Web — Change Password screen | Backend (done) | No |
+| FE-03 | Customer Mobile — Register + Verify flow | FE-00 | Yes, on FE-00 |
+| FE-04 | Customer Mobile — Login/Logout | FE-00 | Yes, on FE-00 |
+| FE-05 | Customer Mobile — Forgot/Change Password | FE-00 | Yes, on FE-00 |
+| FE-06 | Hotel Manager Mobile — Register/Login (shares FE-03/FE-04's components via Flutter `shared/`) | FE-00, FE-03, FE-04 | Yes |
+| FE-07 | Hotel Manager Mobile — Access-before-approval state | FE-00, Module 3 & 13 Business Specs | Yes — §18.5 |
+
+### 18.5 Genuine Gaps
+
+1. **Design system location/adoption** — untracked folder; needs a repo-location decision and
+   a decision on formally adopting it as `ui-ux-and-accessibility-standards.md`'s source
+   (§18.1). Ahmed's call, not made here.
+2. **Flutter token translation doesn't exist yet** (FE-00) — blocks every mobile screen; does
+   not block Admin Web.
+3. **Font binaries and an icon package are undecided** for Flutter (§18.2) — an
+   implementation-time technology choice when FE-00 is actually built.
+4. **FE-07's exact blocked-state copy can't be fully scoped yet** — it needs to show the
+   Hotel's real application status (Registered / Profile Complete / Under Review /
+   Rejected), and those states are owned by Hotel Management (Module 3) and Administration &
+   Platform Management (Module 13), neither of which has an authored Business Specification
+   yet. This table names the screen; it cannot name its exact content until those modules
+   exist.
+5. **This whole section is a proposal.** Per `Development-Lifecycle.md`, no Flutter or React
+   code should be written against it until it is reviewed and the relevant WBS tasks (§18.4)
+   are formally added to `implementation-plan.md` through that document's own change process.
+
+---
+
 ## Version History
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.6 | 2026-08-04 | Ahmed | Added §18, Frontend Integration Scope — maps §10's API to Customer Mobile, Hotel Manager Mobile, and Admin Web using `Hotel Hall Design System/` (repo root, untracked). Scoping only, no Flutter/React code. Flags the React-vs-Flutter format mismatch, a Flutter token-translation prerequisite (FE-00), and that Hotel Manager's access-blocked screen can't be fully scoped until Modules 3/13 have Business Specifications. **This section is new scope pending its own review** — not covered by Mohamed's earlier approval through v1.5. |
 | 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (Identity Verification, Password Reset) via the SmsProvider abstraction, `MockSmsProvider`/`TwilioSmsProvider`. §10's `PATCH /password-resets/:id` **corrected** to `PATCH /password-resets` (body: `mobileNumber`, `code`) — the original `:id` shape was discovered, during implementation, to be incompatible with this same endpoint's own anti-enumeration requirement (an id in the `POST` response would reveal account existence). §7.4 sequence diagram updated to match. |
 | 1.4 | 2026-08-03 | Ahmed | Password hashing algorithm decided: **Argon2id**, recorded in §11 with rationale (bcrypt considered and rejected as the weaker alternative). §17 Item 1 narrowed accordingly (hashing no longer among what's deferred to `security-coding-standards.md`) and the Conclusion updated — every component in this document is now unblocked at the architecture level. |
 | 1.3 | 2026-08-03 | Ahmed | `ADR-0005` reached `Approved` (Twilio selected). §2.4, §6, §7.4, §7.5, §11, and §17 (Item 2) updated from "blocked, awaiting ADR" to resolved — Identity Verification and Password Recovery are now unblocked at the architecture level. §17's Conclusion updated accordingly; Item 1 (missing security architecture documents) remains the sole open blocker. |

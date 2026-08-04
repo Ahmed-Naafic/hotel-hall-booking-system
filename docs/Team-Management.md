@@ -2,7 +2,7 @@
 title: "Team Management"
 document_type: Governance
 status: Approved
-version: 1.14
+version: 1.15
 owner: Ahmed (Project Lead)
 last_updated: 2026-08-04
 ---
@@ -186,7 +186,7 @@ the table.
 
 | Feature ID | Feature Name | Module | Prepared By | Implemented By | Reviewer | Priority | Status | Assigned Date | Started Date | Completed Date | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| M01 | Authentication & Account Management | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Validation & QA | 2026-08-03 | 2026-08-03 | — | Dependency root for every other module — planned first. Documentation (Business Specification v1.2, Technical Design v1.6, Implementation Plan v1.5) all `Approved`; **Technical Design §18 (Frontend Integration Scope, added 2026-08-04) is new, unreviewed content pending its own review — not covered by Mohamed's approval.** **Implementation Review complete — approved by Mohamed** (per §5, no self-review; Ahmed implemented). All 15 backend WBS tasks complete (M1–M4): full component set including Verification and Password Reset via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`, ADR-0005). 51 passing tests, clean lint. One design defect found and corrected during implementation: Technical Design §10's `PATCH /password-resets/:id` was incompatible with its own anti-enumeration requirement, corrected to `PATCH /password-resets`. Status moved to `Validation & QA`. **Real gap, not yet procedural-only:** `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md`, and `validation-report.md` are all still `Not Started`. **Frontend not started:** Technical Design §18 scopes (does not build) Authentication screens for Customer Mobile, Hotel Manager Mobile, and Admin Web against `Hotel Hall Design System/` (repo root, untracked in git — location/adoption decision still Ahmed's to make); proposed `FE-##` tasks are not yet part of this Implementation Plan. |
+| M01 | Authentication & Account Management | 01-authentication-and-account-management | Ahmed | Ahmed | Mohamed | High | Validation & QA | 2026-08-03 | 2026-08-03 | — | Dependency root for every other module — planned first. Documentation (Business Specification v1.2, Technical Design v1.6, Implementation Plan v1.6) all `Approved` for their backend content; **Technical Design §18 and Implementation Plan §3.1 (Frontend Integration Scope + `FE-00`–`FE-07` tasks, added 2026-08-04) are new, unreviewed content pending their own review — not covered by Mohamed's approval.** **Backend Implementation Review complete — approved by Mohamed** (per §5, no self-review; Ahmed implemented). All 15 backend WBS tasks complete (M1–M4): full component set including Verification and Password Reset via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`, ADR-0005). 51 passing tests, clean lint. One design defect found and corrected during implementation: Technical Design §10's `PATCH /password-resets/:id` was incompatible with its own anti-enumeration requirement, corrected to `PATCH /password-resets`. Status moved to `Validation & QA` (backend). **Real gap, not yet procedural-only:** `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md`, and `validation-report.md` are all still `Not Started`. **Frontend not started:** `Hotel Hall Design System/` committed at repo root 2026-08-04; `FE-00`–`FE-07` are formally in the Implementation Plan now (§3.1) but still `Proposed`, not `Approved` — no Flutter/React code exists. |
 | M02 | Customer Management | 02-customer-management | — | — | — | — | Not Started | — | — | — | |
 | M03 | Hotel Management | 03-hotel-management | — | — | — | — | Not Started | — | — | — | |
 | M04 | Hall Management | 04-hall-management | — | — | — | — | Not Started | — | — | — | |
@@ -290,6 +290,7 @@ A feature is considered complete only when **all** of the following are true:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.15 | 2026-08-04 | Ahmed | §7: M01's `Notes` — `FE-00`–`FE-07` formalized into Implementation Plan §3.1 (v1.6), still `Proposed` pending review, same as Technical Design §18. |
 | 1.14 | 2026-08-04 | Ahmed | §7: M01's `Notes` note Technical Design §18 (Frontend Integration Scope, unreviewed) and that no frontend work has started. |
 | 1.13 | 2026-08-04 | Ahmed | §7: M01's `Status` changed `Implementation Review` → `Validation & QA` — Mohamed approved the implementation review. `Feature Accepted` still requires Validation to actually pass (§6), which currently has no governing document (`test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md`, `validation-report.md` all `Not Started`). |
 | 1.12 | 2026-08-04 | Ahmed | §7: M01's `Status` changed `Implementation` → `Implementation Review` — all 15 WBS tasks (M1–M4) complete, 51 passing tests. Awaiting Mohamed's review. |

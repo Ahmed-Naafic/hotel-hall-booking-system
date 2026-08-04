@@ -6,7 +6,7 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/folder-structure.md", "docs/03-standards/coding-standards.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/03-standards/testing-standards.md", "docs/03-standards/git-workflow-and-branching.md"]
-version: 1.5
+version: 1.6
 last_updated: 2026-08-04
 ---
 
@@ -113,6 +113,31 @@ a `Team-Management.md` §7 concern once this plan is `Approved`.
 Unit tests (`testing-standards.md` §5) are written alongside each component task (WBS-02–12),
 per that standard's "test early" principle — not listed as a separate trailing task.
 
+### 3.1 Frontend Tasks (Proposed — pending review)
+
+Formalizes Technical Design §18 (Frontend Integration Scope) into WBS-shaped entries, using
+that section's `FE-##` IDs directly rather than continuing the `WBS-##` sequence — these are
+a distinct track (client applications, not the backend module) and Technical Design §18
+already refers to them by these IDs; renumbering here would create two names for the same
+task. **Per `documentation-architecture.md` §4's no-self-review rule, this subsection is not
+`Approved` merely by being added — it carries the same review requirement as Technical
+Design §18 itself, which it depends on.** No Flutter or React code exists yet for any of
+these.
+
+| ID | Task | Purpose | Description | Dependencies | Deliverables | Complexity |
+|---|---|---|---|---|---|---|
+| FE-00 | Flutter design-token port | Prerequisite for every mobile screen | Port `Hotel Hall Design System/tokens/*.css` (colors, type scale, spacing, radii, motion) into a Flutter `ThemeData`/design-tokens package shared by both mobile apps (`folder-structure.md` §5). Includes deciding a font-binary and icon-package approach (Technical Design §18.2) — an implementation-time technology choice, not decided here. | None | Shared Flutter theme package | Medium |
+| FE-01 | Admin Web — Login screen | `A1` | `POST /login`, using the design system's `Input`/`Button` components directly (React + Vite, same stack — no token port needed). | Backend (done) | 1 screen | Low |
+| FE-02 | Admin Web — Change Password screen | `A3`, `BR-AUTH-08` | `PATCH /password`, direct component reuse. | Backend (done), FE-01 (shared layout/shell) | 1 screen | Low |
+| FE-03 | Customer Mobile — Register + Verify flow | `C2`, `C3`, `BR-AUTH-02` | `POST /register`, `POST /verifications`, `POST /verifications/confirm`. | FE-00 | 2 screens | Medium |
+| FE-04 | Customer Mobile — Login/Logout | `C4`, `C5`, `BR-AUTH-06`, `BR-AUTH-13` | `POST /login`, `POST /logout`; includes the deactivated-account error state (`C9`). | FE-00 | 1–2 screens | Medium |
+| FE-05 | Customer Mobile — Forgot/Change Password | `C6`, `C7`, `BR-AUTH-08`, `BR-AUTH-09` | `POST`/`PATCH /password-resets`, `PATCH /password`. | FE-00 | 2–3 screens | Medium |
+| FE-06 | Hotel Manager Mobile — Register/Login | `H1`, `H7` | Shares FE-03/FE-04's components via Flutter `shared/` (`folder-structure.md` §5) — not rebuilt from scratch. | FE-00, FE-03, FE-04 | 1–2 screens | Low–Medium |
+| FE-07 | Hotel Manager Mobile — Access-before-approval state | `H8`, `BR-AUTH-04`, `BR-AUTH-07` | Persistent blocked-state screen showing the Hotel's actual application status. **Cannot be fully scoped yet** (Technical Design §18.5, Item 4) — Hotel Management (Module 3) and Administration & Platform Management (Module 13) have no Business Specification yet, so the exact status values this screen displays are undefined. | FE-00, Module 3 & 13 Business Specifications | 1 screen | Blocked |
+
+`FE-01`/`FE-02` have no dependency on `FE-00` — Admin Web shares the design system's native
+stack. Every other `FE-##` task depends on it directly or transitively.
+
 ---
 
 ## 4. Development Sequence
@@ -171,6 +196,11 @@ approval to wait on.
   `docs/07-validation-and-qa/modules/01-authentication-and-account-management/validation-report.md`
   (§8, §9).
 
+**Proposed, not yet built (§3.1):** a shared Flutter design-token package (`FE-00`); Admin
+Web Login and Change Password screens (`FE-01`, `FE-02`); Customer Mobile Register/Verify,
+Login/Logout, and Forgot/Change Password screens (`FE-03`–`FE-05`); Hotel Manager Mobile
+Register/Login and access-blocked screens (`FE-06`, `FE-07`).
+
 ---
 
 ## 6. Dependencies
@@ -184,6 +214,16 @@ approval to wait on.
 - Every other module — depends on this module's Access Gate (WBS-07) and Token Component
   (WBS-04) to protect their own endpoints; this is a one-directional dependency (they depend
   on this module, not the reverse), consistent with Technical Design §2.2.
+- **`FE-07` (§3.1) additionally depends on Hotel Management (Module 3) and Administration &
+  Platform Management (Module 13) having an approved Business Specification** — it needs
+  their real application-status values, which don't exist yet.
+
+**Frontend (§3.1)**
+
+- **`Hotel Hall Design System/`** (repo root, committed 2026-08-04) — the visual source for
+  every `FE-##` task. React/CSS-native for `FE-01`/`FE-02` (Admin Web); requires the `FE-00`
+  token port for `FE-03`–`FE-07` (Flutter). See Technical Design §18.2 for the full
+  platform-mismatch discussion.
 
 **External**
 
@@ -376,6 +416,7 @@ be authored before that phase begins in earnest.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.6 | 2026-08-04 | Ahmed | Added §3.1, formalizing Technical Design §18's frontend scope into `FE-00`–`FE-07` WBS-shaped entries (design-token port, Admin Web/Customer Mobile/Hotel Manager Mobile screens). §5 and §6 updated to list the proposed deliverables and the `Hotel Hall Design System/` and Module 3/13 dependencies. **§3.1 is new scope pending its own review**, the same as Technical Design §18 it depends on — no Flutter/React code exists yet. |
 | 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (WBS-10, WBS-11a, WBS-11b) via the `SmsProvider` abstraction (`MockSmsProvider`/`TwilioSmsProvider`) — all 15 WBS tasks now complete, 51 tests passing. §3, §6, §10, §11 updated accordingly. Ready for Implementation Review; Validation & QA still waits on `test-strategy.md`, `review-checklists.md`, `definition-of-ready-and-done.md` (all `Not Started`). |
 | 1.4 | 2026-08-03 | Ahmed | Password hashing algorithm decided (Argon2id, Technical Design §11) — the last remaining blocker. WBS-03 and its dependents (§3), the Development Sequence (§4), Risks (§7), and Final Validation (§11) all updated. No blockers remain; every milestone is ready for Development. |
 | 1.3 | 2026-08-03 | Ahmed | Status changed `Draft` → `Approved`: independent review by Mohamed or Abukar is complete, per `documentation-architecture.md` §4's no-self-review rule. All three governing documents for Module 1 (Business Specification, Technical Design, Implementation Plan) are now `Approved` — the feature moves to `Ready for Development` (`Team-Management.md` §7) and Round Robin assignment applies. The password-hashing algorithm remains an open task-level blocker for WBS-03 and its dependents (§7) — approval of this plan does not resolve it. |

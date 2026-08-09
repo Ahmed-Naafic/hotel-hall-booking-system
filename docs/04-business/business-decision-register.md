@@ -2,9 +2,9 @@
 title: "Business Decision Register"
 document_type: Business / Governance
 status: Approved
-version: 2.1
+version: 2.2
 owner: Ahmed (Product Governance Architect)
-last_updated: 2026-08-03
+last_updated: 2026-08-09
 ---
 
 # Business Decision Register
@@ -147,6 +147,11 @@ Every decision recorded in §5 uses this template:
 | BDR-007 | Platform Administration Web Interface | Business Model | Approved | Ahmed | 2026-08-02 | Administration & Platform Management |
 | BDR-008 | Multi-Branch Hotels | Business Model | Approved | Ahmed | 2026-08-02 | Hotel Management, Hall Management |
 | BDR-009 | Customer Registration Timing | Customer Policies | Approved | Ahmed | 2026-08-03 | Authentication & Account Management, Customer Management, Hall Management, Booking Management |
+| BDR-010 | Rejected Hotel Application Handling | Hotel Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
+| BDR-011 | Pending Hotel Application Withdrawal | Hotel Policies | Approved | Ahmed | 2026-08-09 | Hotel Management |
+| BDR-012 | Hotel Suspension Authority | Platform Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
+| BDR-013 | Hotel Information Validity & Restriction | Platform Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
+| BDR-014 | Hotel Profile Change Review Policy | Platform Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
 
 This table grows for the life of the project. Full records for each entry above follow in
 §9. New entries follow the same pattern: a row here, plus a full record using the §3
@@ -209,11 +214,14 @@ template.
 
 ## 9. Decisions
 
-All eight decisions below are **`Approved`**, per the process in
+All fourteen decisions below are **`Approved`**, per the process in
 `Decision-Making-Principles.md` §5: each was analyzed, at least two genuine options were
 weighed against the evaluation criteria in §6 of that document, a recommendation was drafted
 by AI assistance, and the decision itself was made by Ahmed — consistent with §4 (Business
-Decisions: Ahmed) and §8 (AI may recommend; AI never becomes the decision maker).
+Decisions: Ahmed) and §8 (AI may recommend; AI never becomes the decision maker). BDR-010
+through BDR-014 record five Hotel Management lifecycle decisions the team had already reached
+consensus on; Ahmed's sign-off recorded here formalizes them into the register per §6's
+ordering rule (recorded here before any dependent Business Specification).
 
 ### BDR-001 — Platform Type
 
@@ -377,12 +385,103 @@ Decisions: Ahmed) and §8 (AI may recommend; AI never becomes the decision maker
 | Future Review Required | No. |
 | Notes | Directly informs Authentication & Account Management's account-creation trigger (Business Specification, §5–§7). |
 
+### BDR-010 — Rejected Hotel Application Handling
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether a Hotel application rejected under BDR-003's Platform Administrator review is final, or whether the Hotel has a path to pursue approval after rejection. |
+| Options Considered | (1) Rejection is final — a rejected applicant must start over with an entirely new application. (2) The rejected Hotel may edit its existing application to address the rejection reason and resubmit it for another Platform Administrator review. (3) Automatic resubmission without any edit, as a retry. |
+| Selected Decision | **Option 2.** A rejected Hotel may edit its application and resubmit it for another Platform Administrator review. |
+| Business Rationale | A rejection reason (e.g. missing or incorrect information) is often correctable — treating it as final (option 1) would permanently lose a legitimate Hotel over a fixable problem, with no offsetting trust or fraud-control benefit over option 2. Requiring resubmission to go through Platform Administrator review again (rather than option 3's unreviewed retry) preserves BDR-003's manual-control gate rather than weakening it. |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | A Hotel could cycle between rejection and resubmission indefinitely without ever meeting requirements; whether a cap or other handling applies is not decided here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — revisit if repeated-rejection cycling becomes an operational problem. |
+| Notes | Extends BDR-003 (Hotel Approval Process) — a rejection is no longer necessarily final; it now has a defined recourse path. |
+
+### BDR-011 — Pending Hotel Application Withdrawal
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether a Hotel that has submitted an application still awaiting Platform Administrator review (BDR-003) may withdraw it before a decision is made. |
+| Options Considered | (1) No withdrawal — a submitted application must be resolved (approved or rejected) by the Platform Administrator. (2) The Hotel may withdraw its own application at any time while it remains pending. |
+| Selected Decision | **Option 2.** A Hotel may withdraw its application while it remains pending Platform Administrator review. |
+| Business Rationale | Gives a Hotel control over an application it no longer wants reviewed (e.g. submitted in error, or the Hotel changed its mind), and avoids the Platform Administrator spending review effort on an application the applicant has already abandoned. |
+| Impacted Documents | Hotel Management Business Specification |
+| Impacted Modules | Hotel Management |
+| Risks | None significant identified — withdrawal only affects the Hotel's own not-yet-approved application. |
+| Future Review Required | No. |
+| Notes | Distinct from BDR-010 — this concerns a still-pending application, not a rejected one. |
+
+### BDR-012 — Hotel Suspension Authority
+
+| Field | Value |
+|---|---|
+| Category | Platform Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether an already-approved, operating Hotel can subsequently be suspended or deactivated, and who holds the authority to do so. |
+| Options Considered | (1) No suspension mechanism — an approved Hotel remains approved indefinitely once it passes BDR-003's approval gate. (2) An approved Hotel may be suspended or deactivated, with the Platform Administrator holding sole authority to do so. (3) Suspension authority shared between the Platform Administrator and an automated policy-violation system. |
+| Selected Decision | **Option 2.** An approved Hotel may be suspended (or deactivated); the Platform Administrator is the sole authority controlling suspension and deactivation of approved Hotels. |
+| Business Rationale | BDR-003's approval gate only controls onboarding — it provides no ongoing control if an approved Hotel later needs to be taken offline. Concentrating this authority in the Platform Administrator keeps it consistent with BDR-003's existing manual-control model rather than introducing a separate automated enforcement system not yet justified (option 3). |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | The specific operational distinction (if any) between "suspended" and "deactivated," and the grounds that justify each, are not settled here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — revisit if suspension volume warrants a less fully-manual process. |
+| Notes | Extends BDR-003's manual-control model to an approved Hotel's ongoing lifecycle, not just onboarding. |
+
+### BDR-013 — Hotel Information Validity & Restriction
+
+| Field | Value |
+|---|---|
+| Category | Platform Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | What happens if information a Hotel was required to provide (e.g. at approval) later becomes invalid or out of date. |
+| Options Considered | (1) No mechanism — required information is not actively enforced after initial approval. (2) A Hotel with invalid required information is restricted and placed into review under the applicable business process. |
+| Selected Decision | **Option 2.** If required Hotel information becomes invalid, the Hotel is restricted and placed into review, per the applicable business process. |
+| Business Rationale | Keeps the trust and fraud control BDR-003 established at onboarding meaningful on an ongoing basis — required information that becomes invalid after approval poses the same risk BDR-003 exists to control. |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | The specific "required information" fields, what makes them "invalid," and the exact review process are not defined here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — once the specific required-information fields and review process are defined in the Hotel Management Business Specification. |
+| Notes | Complements BDR-012 — restriction-and-review is a narrower, data-integrity-triggered mechanism, distinct from Platform-Administrator-initiated suspension. |
+
+### BDR-014 — Hotel Profile Change Review Policy
+
+| Field | Value |
+|---|---|
+| Category | Platform Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether every change a Hotel makes to its own profile after approval requires Platform Administrator re-review, or only some changes do. |
+| Options Considered | (1) Every profile change requires Platform Administrator re-review before taking effect. (2) No profile change ever requires re-review once a Hotel is approved. (3) A two-tier model — ordinary changes take effect immediately; critical changes require Platform Administrator review before taking full effect. |
+| Selected Decision | **Option 3.** Ordinary Hotel profile changes do not require re-review. Critical Hotel information changes require Platform Administrator review before the change becomes fully effective. |
+| Business Rationale | Option 1 would bottleneck every routine edit (e.g. a description update) on Platform Administrator availability, undermining BDR-001's self-service marketplace model. Option 2 would let critical information change unchecked, undermining the trust control BDR-003 established at onboarding. The two-tier model preserves self-service for routine changes while keeping manual review in place for anything as consequential as the original approval decision. |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | Which specific fields count as "ordinary" versus "critical" is not defined here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — once the specific ordinary/critical field classification is defined in the Hotel Management Business Specification. |
+| Notes | Extends BDR-003's manual-review control to post-approval profile changes, consistent with BDR-012 (suspension) and BDR-013 (restriction) doing the same for other post-approval scenarios. |
+
 ---
 
 ## Version History
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 2.2 | 2026-08-09 | Ahmed | Added BDR-010–BDR-014 (all `Approved`): five Hotel Management lifecycle decisions the team had already reached — rejected-application edit/resubmit (BDR-010), pending-application withdrawal (BDR-011), suspension authority (BDR-012), information-validity restriction (BDR-013), and ordinary-vs-critical profile-change review policy (BDR-014). Recorded ahead of Hotel Management's Business Specification, per §6's ordering rule. All five extend or complement BDR-003 (Hotel Approval Process)'s manual-control model to the approved Hotel's ongoing lifecycle, not just onboarding. |
 | 2.1 | 2026-08-03 | Ahmed | Added BDR-009 (Approved): Customer Registration Timing ("Hall-First" deferred registration), settled while authoring Authentication & Account Management's Business Specification |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved Business Decision Register, with six proposed (unapproved) initial decisions |
 | 1.1 | 2026-08-02 | Ahmed | Added BDR-007 (Proposed): a scope conflict between `Project-Overview.md` §7 and the newly-approved technology stack (React + Vite), surfaced while authoring `Architecture-Principles.md` and `technology-stack.md` |

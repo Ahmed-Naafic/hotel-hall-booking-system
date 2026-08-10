@@ -3,13 +3,17 @@
   "info": {
     "title": "Hotel Hall Booking Management System API",
     "version": "1.0.0",
-    "description": "Documented per docs/03-standards/api-standards.md §16. One `paths`/`components.schemas` section grows per module as each is implemented — this file currently covers Authentication & Account Management (Module 1) only."
+    "description": "Documented per docs/03-standards/api-standards.md §16. One `paths`/`components.schemas` section grows per module as each is implemented — this file currently covers Authentication & Account Management (Module 1) and Hotel Management (Module 3)."
   },
   "servers": [{ "url": "/api/v1", "description": "Version 1 (api-standards.md §3)" }],
   "tags": [
     {
       "name": "Authentication",
       "description": "Identity, login, account lifecycle (Module 1). Endpoints per docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md §10."
+    },
+    {
+      "name": "Hotels",
+      "description": "The Hotel business entity and its onboarding lifecycle (Module 3). Endpoints per docs/05-technical-design/modules/03-hotel-management/technical-design.md §11. No approve/reject/suspend/deactivate endpoint exists here — that action belongs to Administration & Platform Management's own future API surface (BR-HOTEL-14)."
     }
   ],
   "components": {
@@ -64,6 +68,33 @@
           },
           "isVerified": { "type": "boolean" },
           "isActive": { "type": "boolean" }
+        }
+      },
+      "PublicHotel": {
+        "type": "object",
+        "description": "The Hotel entity (Technical Design §4). profileData shape is deliberately unspecified — Business Specification Pending Business Decision #7.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "registeredByUserId": { "type": "string", "format": "uuid" },
+          "status": {
+            "type": "string",
+            "enum": ["REGISTERED", "PROFILE_COMPLETE", "UNDER_REVIEW", "APPROVED_ACTIVE", "REJECTED", "WITHDRAWN", "SUSPENDED", "DEACTIVATED", "RESTRICTED_UNDER_REVIEW"]
+          },
+          "profileData": { "type": "object", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PublicHotelApplication": {
+        "type": "object",
+        "description": "One review cycle (Technical Design §4) — a resubmission creates a new record, never overwrites a decided one.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "hotelId": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["OPEN", "APPROVED", "REJECTED", "WITHDRAWN"] },
+          "decidedByUserId": { "type": "string", "format": "uuid", "nullable": true },
+          "decidedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "submittedAt": { "type": "string", "format": "date-time" }
         }
       }
     }
@@ -314,6 +345,123 @@
           "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
           "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
           "422": { "description": "The current password is incorrect.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels": {
+      "post": {
+        "tags": ["Hotels"],
+        "summary": "Register a new Hotel",
+        "description": "HM1. Any authenticated Hotel Manager identity may register a Hotel (Technical Design §11).",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "profileData": { "type": "object" } } }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Hotel created (REGISTERED).",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotel" } } }] } } }
+          },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      },
+      "get": {
+        "tags": ["Hotels"],
+        "summary": "List Hotels, filterable by status",
+        "description": "Platform-Administrator-only query interface — the source the Hotel approval queue reads from (Technical Design §11). Paginated per api-standards.md §10.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["REGISTERED", "PROFILE_COMPLETE", "UNDER_REVIEW", "APPROVED_ACTIVE", "REJECTED", "WITHDRAWN", "SUSPENDED", "DEACTIVATED", "RESTRICTED_UNDER_REVIEW"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of Hotels.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHotel" } } } }] } } }
+          },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "Not a Platform Administrator.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{id}": {
+      "get": {
+        "tags": ["Hotels"],
+        "summary": "Retrieve a Hotel's own profile and current status",
+        "description": "Supports HM2–HM15. Own-Hotel only for a Hotel Manager, or any Hotel for a Platform Administrator (Technical Design §11).",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Hotel retrieved.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotel" } } }] } } }
+          },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager (api-standards.md §9, tenant isolation).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Hotels"],
+        "summary": "Update Hotel profile fields",
+        "description": "HM2 (initial completion, REGISTERED), HM7 (edit after rejection), HM12/HM13 (ordinary/critical change while Approved/Active) — Technical Design §8, §11. The Profile Component routes based on the Hotel's current status.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied immediately, or accepted pending Platform Administrator review (critical changes, BR-HOTEL-12).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } }
+          },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "422": { "description": "The Hotel's current status does not permit profile changes.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{id}/applications": {
+      "post": {
+        "tags": ["Hotels"],
+        "summary": "Submit or resubmit an application for review",
+        "description": "HM3 (from PROFILE_COMPLETE) or HM7–HM8 (resubmission from REJECTED, BDR-010) — Technical Design §7, §11. Modeled as a non-idempotent sub-resource action per api-standards.md §5.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "201": {
+            "description": "Application submitted; Hotel now UNDER_REVIEW.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotelApplication" } } }] } } }
+          },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "This Hotel already has an application under review.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "422": { "description": "The Hotel's profile is not complete, or its status does not permit submission (BR-HOTEL-02, BR-HOTEL-03).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{id}/applications/{applicationId}/withdrawal": {
+      "post": {
+        "tags": ["Hotels"],
+        "summary": "Withdraw a pending application",
+        "description": "HM9, BR-HOTEL-08 — Technical Design §11.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "applicationId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Application withdrawn; Hotel now WITHDRAWN.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotelApplication" } } }] } } }
+          },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "This Hotel has no open application to withdraw.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
         }
       }
     }

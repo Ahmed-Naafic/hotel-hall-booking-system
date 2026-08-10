@@ -14,7 +14,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiRequest(path, { method = 'GET', body, accessToken } = {}) {
+async function apiRequestRaw(path, { method = 'GET', body, accessToken } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`
@@ -41,5 +41,20 @@ export async function apiRequest(path, { method = 'GET', body, accessToken } = {
     })
   }
 
-  return payload.data
+  return payload
+}
+
+export async function apiRequest(path, options) {
+  const payload = await apiRequestRaw(path, options)
+  return payload === null ? null : payload.data
+}
+
+/**
+ * Same contract as apiRequest, but also returns `pagination`
+ * (api-standards.md §7) — for list endpoints a caller needs to page
+ * through, where `data` alone isn't enough.
+ */
+export async function apiRequestPage(path, options) {
+  const payload = await apiRequestRaw(path, options)
+  return payload === null ? { data: null, pagination: null } : { data: payload.data, pagination: payload.pagination }
 }

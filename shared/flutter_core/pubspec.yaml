@@ -1,0 +1,29 @@
+name: hotel_hall_core
+description: >
+  Shared Flutter authentication, API-client, and reusable-widget package for
+  the Hotel Hall Booking Management System's Customer and Hotel Manager
+  mobile apps (FE-03/FE-04/FE-06) — the concrete realization of "shares
+  FE-03/FE-04's components via Flutter shared/" (Implementation Plan §3.1),
+  per folder-structure.md §5 (two-or-more-app reusable code).
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+  flutter_secure_storage: ^9.2.4
+  provider: ^6.1.5
+  hotel_hall_design_tokens:
+    path: ../flutter_design_tokens
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

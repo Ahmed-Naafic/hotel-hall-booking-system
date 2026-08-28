@@ -2,9 +2,9 @@
 title: "Technology Stack"
 document_type: Architecture
 status: Approved
-version: 1.3
+version: 1.4
 owner: Ahmed
-last_updated: 2026-08-03
+last_updated: 2026-08-26
 ---
 
 # Technology Stack
@@ -30,7 +30,7 @@ and indexed in `docs/00-governance/decision-log.md`.
 | Database | PostgreSQL |
 | ORM | Prisma |
 | Authentication | JWT + Refresh Tokens, with Role-Based Access Control (RBAC) |
-| File / media storage | Provider-agnostic, behind an abstraction layer — Cloudinary is the default provider (see `Architecture-Principles.md` §10) |
+| File / media storage | Provider-agnostic, behind an abstraction layer — Supabase Storage is the default provider (ADR-0006; see `Architecture-Principles.md` §10) |
 | API style | REST, documented with OpenAPI (Swagger) |
 | Containerization | Docker |
 | Push notifications | Firebase Cloud Messaging (FCM) |
@@ -53,10 +53,14 @@ document has been updated to state it explicitly.
 
 ## Storage Provider Abstraction
 
-Cloudinary is the **default** storage provider, not a fixed dependency. Per
-`Architecture-Principles.md` §10, no business logic may depend on Cloudinary (or any
-specific provider) directly — all storage access goes through a provider-agnostic
-abstraction, so the provider can be replaced without touching business logic.
+Supabase Storage is the **default** storage provider (`ADR-0006`, 2026-08-26 — superseding
+`ADR-0001`'s original Cloudinary default, which was never actually implemented against), not
+a fixed dependency. Per `Architecture-Principles.md` §10, no business logic may depend on
+Supabase (or any specific provider) directly — all storage access goes through a
+provider-agnostic abstraction, so the provider can be replaced without touching business
+logic. First consumer: Hotel Management's Hotel Logo/Photos (`BDR-015`); the specific upload
+mechanism (bucket layout, client-vs-backend-mediated upload) is a Hotel Management Technical
+Design concern, not decided here.
 
 ---
 
@@ -72,6 +76,7 @@ before a Technical Design may rely on the change.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.4 | 2026-08-26 | Ahmed | Default storage provider changed Cloudinary → Supabase, per `ADR-0006` — the abstraction itself is unchanged, Cloudinary was never actually implemented against. |
 | 1.3 | 2026-08-03 | Ahmed | Added SMS delivery (Twilio), per `ADR-0005` — scoped to Authentication & Account Management's verification/password-reset flows |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved technology stack, per ADR-0001 |
 | 1.1 | 2026-08-02 | Ahmed | Web frontend scope resolved — `BDR-007` approved (Platform Administration dashboard only) |

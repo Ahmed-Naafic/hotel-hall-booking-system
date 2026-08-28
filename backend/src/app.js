@@ -7,6 +7,9 @@ import { corsPolicy } from './shared/middleware/corsPolicy.js'
 import { notFoundHandler } from './shared/middleware/notFoundHandler.js'
 import { errorHandler } from './shared/middleware/errorHandler.js'
 import { authenticationRouter } from './modules/authentication/authentication.routes.js'
+import { hotelRouter } from './modules/hotels/hotel.routes.js'
+import { hotelMediaRouter } from './modules/hotels/media.routes.js'
+import { hallRouter, hotelHallsRouter } from './modules/halls/hall.routes.js'
 
 const openapiSpecPath = fileURLToPath(new URL('./openapi/openapi.json', import.meta.url))
 const openapiSpec = JSON.parse(readFileSync(openapiSpecPath, 'utf-8'))
@@ -26,6 +29,10 @@ export function createApp() {
   // Feature-based modules, mounted under the versioned API prefix
   // (api-standards.md §3). One line per module as each is implemented.
   app.use('/api/v1/auth', authenticationRouter)
+  app.use('/api/v1/hotels', hotelRouter)
+  app.use('/api/v1/hotels/:hotelId/media', hotelMediaRouter)
+  app.use('/api/v1/hotels/:hotelId/halls', hotelHallsRouter)
+  app.use('/api/v1/halls', hallRouter)
 
   // OpenAPI/Swagger documentation (technology-stack.md, api-standards.md §16) —
   // a tooling/meta endpoint, unversioned like the health check pattern

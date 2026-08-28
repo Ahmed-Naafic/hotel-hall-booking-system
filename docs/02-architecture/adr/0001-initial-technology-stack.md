@@ -2,7 +2,7 @@
 title: "ADR-0001: Initial Technology Stack"
 document_type: Architecture Decision Record
 status: Approved
-last_updated: 2026-08-02
+last_updated: 2026-08-26
 ---
 
 # ADR-0001: Initial Technology Stack
@@ -59,6 +59,17 @@ Managers remain mobile-only. `Project-Overview.md` §7 has been updated to state
 explicitly as the one approved exception to mobile-application-first scope. This ADR's
 Decision (the stack itself) is unchanged — only the previously-open scope question is now
 resolved.
+
+## Update — 2026-08-26
+
+The Storage bullet's named default provider (Cloudinary) is **superseded by `ADR-0006`**
+(Hotel Media Storage Provider), which selects **Supabase** as the default instead —
+Cloudinary was never actually implemented against by any module, so this is a clean
+replacement, not a migration. This Decision's original text is left unedited above, per this
+project's rule against silently rewriting an `Approved` decision
+(`business-decision-register.md` §6, applied here to ADRs); `ADR-0006` is the authoritative
+record of the storage-provider change. Every other bullet in this ADR's Decision is
+unaffected.
 
 ## Related
 

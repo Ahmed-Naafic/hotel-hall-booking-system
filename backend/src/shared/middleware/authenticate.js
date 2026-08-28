@@ -24,3 +24,31 @@ export function authenticate(req, res, next) {
   req.identity = { userId: payload.sub, accountType: payload.accountType, sessionId: payload.sid }
   next()
 }
+
+/**
+ * Optional variant of the Access Gate, for endpoints that are public but
+ * behave differently when a valid identity is presented (Hall Management
+ * Technical Design §11/§12, `BDR-009`) — the first such endpoints in the
+ * project; every other module's endpoints are either fully public or fully
+ * required-auth. Never rejects a request: an absent, malformed, or
+ * expired token is treated identically to an anonymous caller, since these
+ * endpoints never require a token in the first place. `req.identity` is
+ * set only when a token is present and valid.
+ */
+export function optionalAuthenticate(req, res, next) {
+  const header = req.headers.authorization
+
+  if (!header || !header.startsWith('Bearer ')) {
+    return next()
+  }
+
+  try {
+    const payload = tokenService.verifyAccessToken(header.slice('Bearer '.length))
+    req.identity = { userId: payload.sub, accountType: payload.accountType, sessionId: payload.sid }
+  } catch {
+    // Invalid/expired token on a public endpoint — fall back to the
+    // anonymous view rather than rejecting the request.
+  }
+
+  next()
+}

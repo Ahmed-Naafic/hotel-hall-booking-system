@@ -1,0 +1,382 @@
+import 'package:flutter/material.dart';
+import 'package:hotel_hall_core/hotel_hall_core.dart';
+import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
+import 'package:provider/provider.dart';
+
+import '../../application/hotel_context_controller.dart';
+import '../../application/hotel_media_controller.dart';
+import '../../application/hotel_profile_form_controller.dart';
+import '../../application/image_picker_service.dart';
+import '../../data/hotel_models.dart';
+import '../../data/hotel_repository.dart';
+import '../widgets/hotel_profile_data_editor.dart';
+
+/// Manager → My Hotel → Complete Hotel Profile (HM2, `BR-HOTEL-02`) —
+/// `PATCH /hotels/:id` while the Hotel is `REGISTERED`. Structured per
+/// `BDR-015` (Required Hotel Business-Profile Content, `Approved`
+/// 2026-08-26): required standard fields, optional standard fields, and
+/// optional custom fields that can never substitute for a required one.
+///
+/// Hotel Logo/Photos (`ADR-0006`, Technical Design §8a) upload immediately
+/// on selection — independent of "Save & Continue," which only submits the
+/// standard/custom text fields — via `HotelMediaController`, which only
+/// ever calls this app's own `HotelRepository` (`POST`/`DELETE`/`GET
+/// /hotels/:hotelId/media...`). This screen never talks to Supabase
+/// directly and never holds a Supabase credential of any kind — the
+/// mandated architecture (Manager Mobile → Hotel Management Backend →
+/// Supabase Storage / Neon metadata) is enforced simply by this screen
+/// having no code path that could do otherwise.
+///
+/// Reads the Hotel to complete from the shared `HotelContextController` —
+/// the authenticated Manager's own, already-resolved Hotel — never an id
+/// passed in from the caller, so this screen has no way to target any other
+/// Hotel.
+class HotelProfileFormScreen extends StatefulWidget {
+  const HotelProfileFormScreen({super.key, this.pickImage = pickImageFromGallery});
+
+  /// Injectable so tests never drive the real platform image picker (no
+  /// platform channel in `flutter test`) — defaults to the real gallery
+  /// picker for actual app use.
+  final ImagePickerFn pickImage;
+
+  @override
+  State<HotelProfileFormScreen> createState() => _HotelProfileFormScreenState();
+}
+
+class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _customFieldsKey = GlobalKey<HotelProfileDataEditorState>();
+  late final HotelProfileFormController _controller;
+  late final HotelMediaController _mediaController;
+
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _locationController;
+  late final TextEditingController _contactPhoneController;
+  late final TextEditingController _emailController;
+  late final Map<String, dynamic> _existingCustomFields;
+
+  @override
+  void initState() {
+    super.initState();
+    final hotelContext = context.read<HotelContextController>();
+    final repository = HotelRepository(context.read<ApiClient>());
+    _controller = HotelProfileFormController(repository: repository, hotelContext: hotelContext);
+    _mediaController = HotelMediaController(
+      repository: repository,
+      hotelId: hotelContext.hotel!.id,
+      pickImage: widget.pickImage,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _mediaController.load());
+
+    final existing = hotelContext.hotel?.profileData ?? const <String, dynamic>{};
+    _nameController = TextEditingController(text: existing['name']?.toString() ?? '');
+    _descriptionController = TextEditingController(text: existing['description']?.toString() ?? '');
+    _locationController = TextEditingController(text: existing['location']?.toString() ?? '');
+    _contactPhoneController = TextEditingController(text: existing['contactPhone']?.toString() ?? '');
+    _emailController = TextEditingController(text: existing['email']?.toString() ?? '');
+    _existingCustomFields = Map.fromEntries(
+      existing.entries.where((entry) => !HotelProfileFormController.standardFieldKeys.contains(entry.key)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _contactPhoneController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final email = _emailController.text.trim();
+    final standardFields = <String, dynamic>{
+      'name': _nameController.text.trim(),
+      'description': _descriptionController.text.trim(),
+      'location': _locationController.text.trim(),
+      'contactPhone': _contactPhoneController.text.trim(),
+      if (email.isNotEmpty) 'email': email,
+    };
+    final customFields = _customFieldsKey.currentState!.collect();
+
+    final ok = await _controller.submitProfile(standardFields: standardFields, customFields: customFields);
+    if (ok && mounted) {
+      // The caller (MyHotelScreen) is still alive and already watches
+      // HotelContextController, which submitProfile() just updated — pop
+      // with a result flag so it can show success feedback on its own
+      // Scaffold, the same pattern HallFormScreen uses.
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {});
+    }
+  }
+
+  Widget _sectionHeader(String label) => Padding(
+        padding: const EdgeInsets.only(bottom: HHSpacing.space4),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: HHColors.textMuted,
+            fontWeight: HHTypeScale.weightSemibold,
+            fontSize: HHTypeScale.textXs,
+            letterSpacing: 0.8,
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<HotelProfileFormController>.value(value: _controller),
+        ChangeNotifierProvider<HotelMediaController>.value(value: _mediaController),
+      ],
+      child: Consumer2<HotelProfileFormController, HotelMediaController>(
+        builder: (context, controller, mediaController, _) {
+          return Scaffold(
+            backgroundColor: HHColors.surfacePage,
+            appBar: AppBar(title: const Text('Complete Hotel Profile')),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(HHSpacing.space7),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (controller.errorMessage != null) ...[
+                        HHErrorBanner(message: controller.errorMessage!),
+                        const SizedBox(height: HHSpacing.space5),
+                      ],
+                      _sectionHeader('HOTEL INFORMATION'),
+                      HHTextField(
+                        label: 'Hotel Name',
+                        controller: _nameController,
+                        enabled: !controller.isBusy,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Hotel Name is required.' : null,
+                      ),
+                      const SizedBox(height: HHSpacing.space5),
+                      HHTextField(
+                        label: 'Description',
+                        controller: _descriptionController,
+                        enabled: !controller.isBusy,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Description is required.' : null,
+                      ),
+                      const SizedBox(height: HHSpacing.space5),
+                      HHTextField(
+                        label: 'Location',
+                        controller: _locationController,
+                        enabled: !controller.isBusy,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Location is required.' : null,
+                      ),
+                      const SizedBox(height: HHSpacing.space5),
+                      HHTextField(
+                        label: 'Contact Phone',
+                        controller: _contactPhoneController,
+                        enabled: !controller.isBusy,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Contact Phone is required.' : null,
+                      ),
+                      const SizedBox(height: HHSpacing.space5),
+                      HHTextField(
+                        label: 'Email (optional)',
+                        controller: _emailController,
+                        enabled: !controller.isBusy,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                      ),
+                      const SizedBox(height: HHSpacing.space8),
+                      _sectionHeader('HOTEL MEDIA'),
+                      if (mediaController.errorMessage != null) ...[
+                        HHErrorBanner(message: mediaController.errorMessage!),
+                        const SizedBox(height: HHSpacing.space4),
+                      ],
+                      _LogoSection(mediaController: mediaController),
+                      const SizedBox(height: HHSpacing.space6),
+                      _PhotosSection(mediaController: mediaController),
+                      const SizedBox(height: HHSpacing.space8),
+                      _sectionHeader('ADDITIONAL INFORMATION'),
+                      Text(
+                        'Add any other details about your Hotel. These cannot replace the required '
+                        'information above.',
+                        style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm),
+                      ),
+                      const SizedBox(height: HHSpacing.space4),
+                      HotelProfileDataEditor(
+                        key: _customFieldsKey,
+                        initialData: _existingCustomFields,
+                        enabled: !controller.isBusy,
+                      ),
+                      const SizedBox(height: HHSpacing.space7),
+                      HHPrimaryButton(
+                        label: 'Save & Continue',
+                        isLoading: controller.isBusy,
+                        onPressed: _submit,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LogoSection extends StatelessWidget {
+  const _LogoSection({required this.mediaController});
+
+  final HotelMediaController mediaController;
+
+  @override
+  Widget build(BuildContext context) {
+    final logo = mediaController.logo;
+    final isDeleting = logo != null && mediaController.deletingMediaId == logo.id;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Hotel Logo', style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textMd)),
+        const SizedBox(height: HHSpacing.space3),
+        if (logo != null) ...[
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(HHRadii.image),
+                child: Image.network(
+                  logo.url,
+                  width: 64,
+                  height: 64,
+                  fit: BoxFit.cover,
+                  // A broken/unreachable URL shows a fallback icon rather
+                  // than crashing the screen — the same defensive posture
+                  // this app already takes for every other API failure.
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 64,
+                    height: 64,
+                    color: HHColors.surfaceSunken,
+                    child: Icon(Icons.image_not_supported_outlined, color: HHColors.textSubtle),
+                  ),
+                ),
+              ),
+              const SizedBox(width: HHSpacing.space4),
+              IconButton(
+                tooltip: 'Delete logo',
+                onPressed: isDeleting || mediaController.deletingMediaId != null
+                    ? null
+                    : () => mediaController.deleteMedia(logo.id),
+                icon: isDeleting
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(Icons.delete_outline, color: HHColors.danger700),
+              ),
+            ],
+          ),
+          const SizedBox(height: HHSpacing.space3),
+        ],
+        OutlinedButton.icon(
+          onPressed: mediaController.isUploadingLogo ? null : mediaController.uploadLogo,
+          icon: mediaController.isUploadingLogo
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.image_outlined, size: 18),
+          label: Text(logo != null ? 'Replace Logo' : 'Upload Logo'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhotosSection extends StatelessWidget {
+  const _PhotosSection({required this.mediaController});
+
+  final HotelMediaController mediaController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Hotel Photos', style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textMd)),
+        const SizedBox(height: HHSpacing.space3),
+        if (mediaController.photos.isNotEmpty) ...[
+          Wrap(
+            spacing: HHSpacing.space3,
+            runSpacing: HHSpacing.space3,
+            children: [
+              for (final photo in mediaController.photos) _PhotoThumbnail(photo: photo, mediaController: mediaController),
+            ],
+          ),
+          const SizedBox(height: HHSpacing.space3),
+        ],
+        OutlinedButton.icon(
+          onPressed: mediaController.isUploadingPhoto ? null : mediaController.uploadPhoto,
+          icon: mediaController.isUploadingPhoto
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.photo_library_outlined, size: 18),
+          label: const Text('Add Photos'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhotoThumbnail extends StatelessWidget {
+  const _PhotoThumbnail({required this.photo, required this.mediaController});
+
+  final HotelMedia photo;
+  final HotelMediaController mediaController;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDeleting = mediaController.deletingMediaId == photo.id;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(HHRadii.image),
+          child: Image.network(
+            photo.url,
+            width: 72,
+            height: 72,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 72,
+              height: 72,
+              color: HHColors.surfaceSunken,
+              child: Icon(Icons.image_not_supported_outlined, color: HHColors.textSubtle),
+            ),
+          ),
+        ),
+        Positioned(
+          top: -8,
+          right: -8,
+          child: InkWell(
+            onTap: isDeleting || mediaController.deletingMediaId != null
+                ? null
+                : () => mediaController.deleteMedia(photo.id),
+            child: CircleAvatar(
+              radius: 12,
+              backgroundColor: HHColors.danger700,
+              child: isDeleting
+                  ? const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.6, color: Colors.white),
+                    )
+                  : const Icon(Icons.close, size: 14, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

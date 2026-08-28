@@ -2,9 +2,9 @@
 title: "Data Architecture"
 document_type: Architecture
 status: Approved
-version: 1.0
+version: 1.2
 owner: Ahmed (Chief Data Architect)
-last_updated: 2026-08-03
+last_updated: 2026-08-25
 ---
 
 # Data Architecture
@@ -182,10 +182,11 @@ originated from).
 | Domain | Owns |
 |---|---|
 | Customer Domain | Customer profile data and its own business rules for eligibility (`BDR-005`). |
-| Hotel Domain | Hotel profile and Hall inventory data. |
+| Hotel Domain | Hotel profile, and the Hotel's application/approval and lifecycle status (`BDR-003`) — Hotel Management (Module 3) owns this data; Administration & Platform Management performs the review action against it through Hotel Management's defined interface. |
+| Hall Domain | Hall inventory data, including Hall attributes, availability, and amenities. |
 | Booking Domain | Booking records and the Booking Policy business rules (`BDR-006`). |
 | Payment Domain | Payment and Refund records and the Payment Flow business rules (`BDR-004`). |
-| Administration Domain | Hotel approval status and cross-tenant administrative data (`BDR-003`). |
+| Administration Domain | Cross-tenant administrative data. **Does not own Hotel approval status** — corrected 2026-08-10; see Hotel Domain row and `docs/05-technical-design/modules/03-hotel-management/technical-design.md` §18. |
 
 Each domain owns its own business rules and data — another domain that needs that data
 reads it through the owning domain's interface (`Architecture-Principles.md` §5), it never
@@ -359,4 +360,6 @@ specific additions only:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.2 | 2026-08-25 | Ahmed | §9 corrected — "Hall inventory data" removed from the Hotel Domain row and reassigned to a new Hall Domain row ("Hall inventory data, including Hall attributes, availability, and amenities"), resolving the staleness Hotel Management's Technical Design §18 (Item 5) already flagged: §3 of this document lists Hall as its own business domain, and `Project-Glossary.md` defines a Hall as inventory belonging to a Hotel, not part of the Hotel's own data. No business rule changed; this is an architecture-layer correction only, surfaced during Hall Management's Business Discovery and Business Specification (`04-hall-management/business-specification.md`, `Approved` v1.1). Hotel Domain narrowed to Hotel profile and application/approval/lifecycle status only. |
+| 1.1 | 2026-08-10 | Ahmed | §9 corrected — "Hotel approval status" reassigned from the Administration Domain to the Hotel Domain (Hotel Management, Module 3), resolving a data-ownership conflict discovered during Hotel Management's Technical Design review. Administration Domain narrowed to cross-tenant administrative data only; it performs the review action against Hotel Management's data through Hotel Management's defined interface, per that module's Technical Design §7. No business decision changed — `BDR-003` never assigned data ownership; this corrects an architecture-layer inference that had gone beyond it. Module 1's Technical Design corrected to match in the same pass. |
 | 1.0 | 2026-08-03 | Ahmed | Initial approved Data Architecture |

@@ -47,6 +47,14 @@ model User {
   verificationRequests  VerificationRequest[]
   passwordResetRequests PasswordResetRequest[]
 
+  /// Back-relations for Hotel Management (Module 3) — Prisma requires both
+  /// sides of a relation declared. Module 1 continues to own every field on
+  /// this model; Hotel Management owns Hotel/HotelApplication/
+  /// CriticalInformationChangeRequest below (Technical Design §4, §5).
+  registeredHotels                         Hotel[]
+  decidedHotelApplications                 HotelApplication[]
+  decidedCriticalInformationChangeRequests CriticalInformationChangeRequest[]
+
   @@map("users")
 }
 
@@ -118,4 +126,200 @@ model PasswordResetRequest {
 
   @@index([userId], map: "idx_password_reset_requests_user_id")
   @@map("password_reset_requests")
+}
+
+// ============================================================================
+// Hotel Management (Module 3)
+// Physical realization of the logical entities in
+// docs/05-technical-design/modules/03-hotel-management/technical-design.md §4-§5,
+// per database-standards.md and naming-conventions.md §8.
+// ============================================================================
+
+/// The Hotel business entity and tenant (Technical Design §4) — the
+/// aggregate root every other component in this module operates on. Never
+/// holds Hotel Manager identity/credentials (Module 1's User, §3.2).
+model Hotel {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// The Hotel Manager who registered this Hotel (HM1). Technical Design
+  /// §4.1 notes a Hotel may be referenced by more than one Hotel Manager
+  /// account per Project-Glossary.md ("at least one"), but no approved
+  /// journey exercises more than one — a single registering-owner reference
+  /// is the simplest design that satisfies every approved journey
+  /// (architecture-principles.md §2, Simplicity before complexity). A
+  /// many-to-many assignment table is a additive change if ever required.
+  registeredByUserId String @map("registered_by_user_id") @db.Uuid
+  registeredBy       User   @relation(fields: [registeredByUserId], references: [id])
+
+  /// The Hotel Lifecycle (Technical Design §6.1) — the single source of
+  /// truth for what a Hotel may currently do. Mutated only through the
+  /// Lifecycle (State) Component (lifecycle.service.js), never directly.
+  status HotelStatus @default(REGISTERED)
+
+  /// Profile content is deliberately unspecified — Business Specification
+  /// Pending Business Decision #7 (Required Business-Profile Content).
+  /// Held as a flexible field until that decision resolves; Technical
+  /// Design §4 explicitly avoids inventing named profile columns ahead of
+  /// an approved decision.
+  profileData Json? @map("profile_data")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  applications           HotelApplication[]
+  criticalChangeRequests CriticalInformationChangeRequest[]
+  halls                  Hall[]
+  media                  HotelMedia[]
+
+  @@index([status], map: "idx_hotels_status")
+  @@map("hotels")
+}
+
+enum HotelStatus {
+  REGISTERED
+  PROFILE_COMPLETE
+  UNDER_REVIEW
+  APPROVED_ACTIVE
+  REJECTED
+  WITHDRAWN
+  SUSPENDED
+  DEACTIVATED
+  RESTRICTED_UNDER_REVIEW
+
+  @@map("hotel_status")
+}
+
+/// A single uploaded Hotel Logo or Photo (BDR-015, ADR-0006, Technical
+/// Design §4, §8a). Stores only a reference to the file in Supabase
+/// Storage — never the binary itself (database-standards.md). At most one
+/// LOGO record per Hotel at a time is a business-level constraint enforced
+/// by the Media Component, not a database constraint (Technical Design §5)
+/// — PHOTO has no such limit.
+model HotelMedia {
+  id      String @id @default(uuid()) @db.Uuid
+  hotelId String @map("hotel_id") @db.Uuid
+  hotel   Hotel  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  type HotelMediaType
+
+  /// The Supabase Storage object path (bucket-relative) — e.g.
+  /// `hotels/{hotelId}/logo/{fileId}.jpg` — the permanent database
+  /// reference. Never a temporary signed URL (Technical Design §8a); a
+  /// stable public URL is derived from this path at read time.
+  storagePath String @map("storage_path")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([hotelId], map: "idx_hotel_media_hotel_id")
+  @@map("hotel_media")
+}
+
+enum HotelMediaType {
+  LOGO
+  PHOTO
+
+  @@map("hotel_media_type")
+}
+
+/// One review cycle (Technical Design §4) — the initial submission, or a
+/// new record for each resubmission after rejection (BR-HOTEL-07).
+/// Historical, append-only: never overwritten, never reopened once decided
+/// (Technical Design §5, §15.2).
+model HotelApplication {
+  id      String @id @default(uuid()) @db.Uuid
+  hotelId String @map("hotel_id") @db.Uuid
+  hotel   Hotel  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  status HotelApplicationStatus @default(OPEN)
+
+  /// The Platform Administrator who approved/rejected this Application
+  /// (Administration & Platform Management, Module 13 — referenced, never
+  /// owned, BR-HOTEL-14).
+  decidedByUserId String?   @map("decided_by_user_id") @db.Uuid
+  decidedBy       User?     @relation(fields: [decidedByUserId], references: [id])
+  decidedAt       DateTime? @map("decided_at")
+
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([hotelId], map: "idx_hotel_applications_hotel_id")
+  @@map("hotel_applications")
+}
+
+enum HotelApplicationStatus {
+  OPEN
+  APPROVED
+  REJECTED
+  WITHDRAWN
+
+  @@map("hotel_application_status")
+}
+
+/// A critical-information change awaiting Platform Administrator review
+/// (BR-HOTEL-12), independent of the Hotel's own status throughout its
+/// lifecycle (Technical Design §6, §15.3 — the deliberate design response
+/// to Pending Business Decision #6).
+model CriticalInformationChangeRequest {
+  id      String @id @default(uuid()) @db.Uuid
+  hotelId String @map("hotel_id") @db.Uuid
+  hotel   Hotel  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  status CriticalChangeStatus @default(PENDING)
+
+  /// The proposed change, shape TBD alongside Hotel.profileData (Pending
+  /// Business Decision #7).
+  proposedData Json @map("proposed_data")
+
+  decidedByUserId String?   @map("decided_by_user_id") @db.Uuid
+  decidedBy       User?     @relation(fields: [decidedByUserId], references: [id])
+  decidedAt       DateTime? @map("decided_at")
+
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([hotelId], map: "idx_critical_information_change_requests_hotel_id")
+  @@map("critical_information_change_requests")
+}
+
+enum CriticalChangeStatus {
+  PENDING
+  APPLIED
+  REJECTED
+
+  @@map("critical_change_status")
+}
+
+// ============================================================================
+// Hall Management (Module 4)
+// Physical realization of the logical entity in
+// docs/05-technical-design/modules/04-hall-management/technical-design.md §4-§5,
+// per docs/03-standards/database-standards.md and naming-conventions.md §8.
+// ============================================================================
+
+/// The Hall business entity — the Platform's bookable inventory (Technical
+/// Design §4). Deliberately has no status/visibility column: a Hall's
+/// visibility is computed live from its owning Hotel's operational-
+/// eligibility status (Technical Design §6), never persisted or
+/// synchronized here, so there is nothing to keep in sync or invalidate.
+model Hall {
+  id String @id @default(uuid()) @db.Uuid
+
+  hotelId String @map("hotel_id") @db.Uuid
+  hotel   Hotel  @relation(fields: [hotelId], references: [id], onDelete: Restrict)
+
+  /// Profile content (including Amenities, BR-HALL-06) is deliberately
+  /// unspecified — Business Specification Pending Business Decision #2
+  /// (Required Hall Information). Held as a flexible field until that
+  /// decision resolves, mirroring Hotel's own profileData design exactly
+  /// (Technical Design §4, §8).
+  profileData Json? @map("profile_data")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([hotelId], map: "idx_halls_hotel_id")
+  @@map("halls")
 }

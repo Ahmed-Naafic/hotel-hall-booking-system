@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/folder-structure.md", "docs/03-standards/coding-standards.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/03-standards/testing-standards.md", "docs/03-standards/git-workflow-and-branching.md"]
-version: 1.8
-last_updated: 2026-08-04
+version: 1.9
+last_updated: 2026-08-25
 ---
 
 # Authentication & Account Management — Implementation Plan
@@ -128,11 +128,28 @@ basis for Development, and per `git-workflow-and-branching.md` §4 a feature bra
 **`FE-01` and `FE-02` are Done** (2026-08-04) — implemented on
 `feature/authentication-admin-web-ui` and manually verified end-to-end in a browser against
 the real backend (login, change password including a server-side re-login check, logout).
-`FE-00`, `FE-03`–`FE-07` remain not yet built.
+
+**`FE-00` is Done** (2026-08-25) — the shared Flutter design-token/`ThemeData` package,
+`shared/flutter_design_tokens/` (`hotel_hall_design_tokens`), ports every token in
+`Hotel Hall Design System/tokens/*.css` (colors, typography, spacing, radii, motion,
+elevation) into Dart constants and a `buildHotelHallTheme()` builder, per
+`folder-structure.md` §5 (repository-root `shared/`, since it is genuinely reusable across
+both `apps/customer-mobile` and `apps/manager-mobile`, not one app's own `core/`). Font
+substitution (Cinzel, Cormorant Garamond, Jost via the `google_fonts` package) follows
+`fonts.css`'s own substitution notice verbatim — an implementation-time technology choice,
+per Technical Design §18.2, not a new decision. Both mobile apps now depend on the package
+(path dependency) and apply `buildHotelHallTheme()` in their `MaterialApp`; `flutter analyze`
+and `flutter test` are clean for the package and both apps (7 package tests passing). This
+unblocks `FE-03`–`FE-07` — prioritized ahead of them per explicit direction, resolving the
+blocker Hall Management's own Development phase surfaced (no Hall Management screens are
+built by this task; that remains its own future `FE-##`-equivalent scope once Hall
+Management's Business/Technical/Implementation documents define it).
+
+`FE-03`–`FE-07` remain not yet built.
 
 | ID | Task | Purpose | Description | Dependencies | Deliverables | Complexity |
 |---|---|---|---|---|---|---|
-| FE-00 | Flutter design-token port | Prerequisite for every mobile screen | Port `Hotel Hall Design System/tokens/*.css` (colors, type scale, spacing, radii, motion) into a Flutter `ThemeData`/design-tokens package shared by both mobile apps (`folder-structure.md` §5). Includes deciding a font-binary and icon-package approach (Technical Design §18.2) — an implementation-time technology choice, not decided here. | None | Shared Flutter theme package | Medium |
+| FE-00 | Flutter design-token port | Prerequisite for every mobile screen | Port `Hotel Hall Design System/tokens/*.css` (colors, type scale, spacing, radii, motion) into a Flutter `ThemeData`/design-tokens package shared by both mobile apps (`folder-structure.md` §5). Includes deciding a font-binary and icon-package approach (Technical Design §18.2) — an implementation-time technology choice, not decided here. **Done 2026-08-25** — `shared/flutter_design_tokens/`, `google_fonts` selected for the font substitution, Material Icons retained for icons (already `uses-material-design: true` in both apps; a Lucide-equivalent icon package remains a future, additive choice if a screen needs it). | None | Shared Flutter theme package | Medium |
 | FE-01 | Admin Web — Login screen | `A1` | `POST /login`, using the design system's `Input`/`Button` components directly (React + Vite, same stack — no token port needed). | Backend (done) | 1 screen | Low |
 | FE-02 | Admin Web — Change Password screen | `A3`, `BR-AUTH-08` | `PATCH /password`, direct component reuse. | Backend (done), FE-01 (shared layout/shell) | 1 screen | Low |
 | FE-03 | Customer Mobile — Register + Verify flow | `C2`, `C3`, `BR-AUTH-02` | `POST /register`, `POST /verifications`, `POST /verifications/confirm`. | FE-00 | 2 screens | Medium |
@@ -203,11 +220,13 @@ approval to wait on.
   (§8, §9).
 
 **Done (§3.1):** Admin Web Login and Change Password screens (`FE-01`, `FE-02`) —
-`apps/admin-web/src/`, verified against the real backend 2026-08-04.
+`apps/admin-web/src/`, verified against the real backend 2026-08-04. The shared Flutter
+design-token package (`FE-00`) — `shared/flutter_design_tokens/`, consumed by both
+`apps/customer-mobile` and `apps/manager-mobile`, 2026-08-25.
 
-**Not yet built (§3.1):** a shared Flutter design-token package (`FE-00`); Customer Mobile
-Register/Verify, Login/Logout, and Forgot/Change Password screens (`FE-03`–`FE-05`); Hotel
-Manager Mobile Register/Login and access-blocked screens (`FE-06`, `FE-07`).
+**Not yet built (§3.1):** Customer Mobile Register/Verify, Login/Logout, and Forgot/Change
+Password screens (`FE-03`–`FE-05`); Hotel Manager Mobile Register/Login and access-blocked
+screens (`FE-06`, `FE-07`) — all now unblocked at the token-package level (`FE-00` done).
 
 ---
 
@@ -424,6 +443,7 @@ be authored before that phase begins in earnest.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.9 | 2026-08-25 | Ahmed | `FE-00` (shared Flutter design-token package) marked Done — `shared/flutter_design_tokens/`, ports `Hotel Hall Design System/tokens/*.css` in full, consumed by both `apps/customer-mobile` and `apps/manager-mobile` via a path dependency, theme applied in both apps' `MaterialApp`. Prioritized ahead of `FE-03`–`FE-07` specifically to resolve a blocker Hall Management's (Module 4) own Development phase surfaced — no Hall Management screens are built by this task. §3.1 and §5 updated accordingly. |
 | 1.7 | 2026-08-04 | Ahmed | §3.1 (`FE-00`–`FE-07`) reviewed and approved by Mohamed — status changed from "proposed, pending review" to `Approved`, matching Technical Design §18. Scope only; still no Flutter/React code. |
 | 1.8 | 2026-08-04 | Ahmed | `FE-01` and `FE-02` marked Done — implemented on `feature/authentication-admin-web-ui`, manually verified end-to-end against the real backend (login, change password, logout). §3, §5 updated accordingly. `FE-00`, `FE-03`–`FE-07` remain not yet built. |
 | 1.6 | 2026-08-04 | Ahmed | Added §3.1, formalizing Technical Design §18's frontend scope into `FE-00`–`FE-07` WBS-shaped entries (design-token port, Admin Web/Customer Mobile/Hotel Manager Mobile screens). §5 and §6 updated to list the proposed deliverables and the `Hotel Hall Design System/` and Module 3/13 dependencies. **§3.1 is new scope pending its own review**, the same as Technical Design §18 it depends on — no Flutter/React code exists yet. |

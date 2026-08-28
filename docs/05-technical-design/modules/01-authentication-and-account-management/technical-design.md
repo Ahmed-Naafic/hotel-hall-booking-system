@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/02-architecture/mobile-application-architecture.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md"]
-version: 1.7
-last_updated: 2026-08-04
+version: 1.10
+last_updated: 2026-08-25
 ---
 
 # Authentication & Account Management — Technical Design
@@ -98,8 +98,8 @@ logic reaches into directly.
 |---|---|
 | PostgreSQL + Prisma (`technology-stack.md`) | This module's persistence layer, per `database-standards.md`. |
 | Customer Management (Module 2) | Owns the Customer's business profile; references this module's identity (§3, §5). |
-| Hotel Management (Module 3) | Owns the Hotel's business profile; references this module's identity (§3, §5). |
-| Administration & Platform Management (Module 13) | Owns Hotel approval status (`BDR-003`, `data-architecture.md` §9); this module reads it to gate access (`BR-AUTH-04`) but does not own or duplicate it. |
+| Hotel Management (Module 3) | Owns the Hotel's business profile and its application/approval and lifecycle status (`BDR-003`, `data-architecture.md` §9, corrected 2026-08-10); references this module's identity (§3, §5). This module reads that status to gate access (`BR-AUTH-04`) but does not own or duplicate it. |
+| Administration & Platform Management (Module 13) | Owns the Platform Administrator's review/approval/rejection/suspension **workflow and interface** (`BDR-003`) — not the underlying Hotel status data, which Hotel Management owns (corrected 2026-08-10, see above). Administration & Platform Management performs its review action against Hotel Management's data through Hotel Management's defined interface. |
 | Staff Management (Module 9) | Creates Staff identities under a Hotel; this module authenticates them the same as any other identity (Business Specification §3). |
 | Security & Access Control (Module 14) | Consumes this module's authenticated identity and role claim to enforce permission policy (`BR-AUTH-14`); this module does not depend on Module 14 to function, but Module 14 depends on this module. |
 | SMS delivery (see §11, §17) | Identity Verification (`BR-AUTH-02`) and Password Recovery (`BR-AUTH-09`) require delivering a message outside the app; Twilio is the approved provider (`ADR-0005`), behind the Verification Component's abstraction (§4, §11). |
@@ -125,10 +125,10 @@ logic reaches into directly.
 | Not Owned | Owning Module | This Module's Relationship to It |
 |---|---|---|
 | Customer onboarding (profile, preferences) | Customer Management (Module 2) | Creates the Identity a Customer profile references; never stores profile fields. |
-| Hotel onboarding (profile, application review/approval) | Hotel Management (Module 3) / Administration & Platform Management (Module 13) | Creates the Identity a Hotel account references; reads (never writes) the application/approval status Module 13 owns (`BDR-003`), to gate access (`BR-AUTH-04`, `BR-AUTH-07`). |
+| Hotel onboarding (profile, application review/approval) | Hotel Management (Module 3) | Creates the Identity a Hotel account references; reads (never writes) the application/approval status Hotel Management owns (`BDR-003`, corrected 2026-08-10 — previously misattributed to Administration & Platform Management), to gate access (`BR-AUTH-04`, `BR-AUTH-07`). Administration & Platform Management (Module 13) owns only the review workflow/interface through which that status changes, not the status data itself. |
 | Booking | Booking Management (Module 5) | No direct relationship; a Booking references a Customer's Identity only indirectly, through Customer Management. |
 | Payments | Payment Management (Module 7) | No relationship. |
-| Hotel Management (Hall inventory, operations) | Hotel Management (Module 3) | No relationship beyond the Identity reference above. |
+| Hall inventory, operations (`data-architecture.md` §9, corrected 2026-08-25 — previously misattributed to Hotel Management) | Hall Management (Module 4) | No relationship beyond the Identity reference above. |
 | Customer Management (profile/history) | Customer Management (Module 2) | See above. |
 | Notification Management | Notification Management (Module 10) | This module *triggers* identity-related notifications (verification codes, password-reset messages, account-status changes) through Notification Management's interface; it does not compose, template, or deliver messages itself. |
 | Permission / authorization policy (what a role may do) | Security & Access Control (Module 14) | This module produces the identity and role claim Module 14's policy evaluates (`BR-AUTH-14`). |
@@ -177,7 +177,7 @@ graph TD
     AG -->|authenticated identity + role claim| ModuleLogic["Requesting module's business logic"]
 
     VC -.->|SMS delivery request, Twilio via abstraction, ADR-0005| NotifMod["Notification Management (Module 10)"]
-    IC -.->|reads approval status, §3.2| AdminMod["Administration & Platform Management (Module 13)"]
+    IC -.->|reads approval status, §3.2, corrected 2026-08-10| HotelMod["Hotel Management (Module 3)"]
     AZC -.->|role claim consumed by| SecMod["Security & Access Control (Module 14)"]
 ```
 
@@ -214,7 +214,8 @@ SQL, no physical shape.
   one *active* Password Reset Request at a time.
 - A **Hotel**-type User Account's ability to reach operational features additionally depends
   on the Hotel's application/approval status (`BR-AUTH-04`), which this module reads from
-  the Administration domain (`BDR-003`, `data-architecture.md` §9) rather than owning.
+  the Hotel domain (`BDR-003`, `data-architecture.md` §9, corrected 2026-08-10) rather than
+  owning.
 
 ---
 
@@ -224,11 +225,15 @@ SQL, no physical shape.
   registration (`C2`); Customer Management creates the Customer profile referencing that
   User Account's identifier. Authentication never reads or writes Customer profile fields.
 - **Hotel Management (Module 3)** — Same pattern as Customer Management, for the Hotel
-  profile (`H1`–`H2`).
-- **Administration & Platform Management (Module 13)** — Authentication reads the Hotel's
-  application/approval status (owned by Module 13 per `BDR-003`) to evaluate `BR-AUTH-04`
-  when a Hotel account attempts to reach operational features (`H8`). Authentication never
-  performs the review/approve/reject action itself (§3.2).
+  profile (`H1`–`H2`). Authentication also reads the Hotel's application/approval status
+  (owned by Hotel Management per `BDR-003`, corrected 2026-08-10) to evaluate `BR-AUTH-04`
+  when a Hotel account attempts to reach operational features (`H8`).
+- **Administration & Platform Management (Module 13)** — Owns the review/approve/reject
+  workflow and interface (`BDR-003`), which acts on Hotel Management's data through Hotel
+  Management's defined interface (Hotel Management Technical Design §7). Authentication has
+  no direct relationship with Module 13 — it never performs, and never reads the result of,
+  the review/approve/reject action itself (§3.2); it reads the resulting status from Hotel
+  Management, above.
 - **Notification Management (Module 10)** — Authentication triggers a notification request
   (a verification code, a password-reset message, an account-deactivation notice) through
   Module 10's interface; Module 10 owns composition and delivery. The verification-code and
@@ -264,20 +269,24 @@ sequenceDiagram
     Auth-->>Client: Registration accepted, verification required (C3)
 ```
 
-### 6.2 Sequence — Hotel Access Attempt Before Approval (Reading Module 13's Status)
+### 6.2 Sequence — Hotel Access Attempt Before Approval (Reading Hotel Management's Status)
+
+**Corrected 2026-08-10:** this diagram previously showed the Access Gate reading approval
+status from Administration & Platform Management (Module 13); that status is owned by Hotel
+Management (Module 3), not Module 13 (§2.4, §3.2) — corrected below.
 
 ```mermaid
 sequenceDiagram
     participant Client as Hotel Manager App
     participant AG as Access Gate (Middleware)
     participant Auth as Authentication (Identity Component)
-    participant Admin as Administration & Platform Management (Module 13)
+    participant Hotel as Hotel Management (Module 3)
 
     Client->>AG: Request an operational feature (with token) — H8
     AG->>Auth: Validate token, resolve identity
     Auth-->>AG: Identity confirmed (Hotel-type)
-    AG->>Admin: Read application/approval status (BDR-003)
-    Admin-->>AG: Status = Under Review (not Approved)
+    AG->>Hotel: Read application/approval status (BDR-003)
+    Hotel-->>AG: Status = Under Review (not Approved)
     AG-->>Client: 403 — blocked, actual status explained (BR-AUTH-04, BR-AUTH-07)
 ```
 
@@ -668,7 +677,7 @@ stateDiagram-v2
 ```
 
 *Note: the Hotel-type application states (Registered → Rejected) are owned by Hotel
-Management / Administration & Platform Management (§3.2); they are shown here only because
+Management (Module 3) (§3.2, corrected 2026-08-10); they are shown here only because
 this module's access-gating logic (`BR-AUTH-04`) reads them.*
 
 ### 13.2 Session
@@ -949,7 +958,8 @@ addition to this feature has gone through.
    a decision on formally adopting it as `ui-ux-and-accessibility-standards.md`'s source
    (§18.1). Ahmed's call, not made here.
 2. **Flutter token translation doesn't exist yet** (FE-00) — blocks every mobile screen; does
-   not block Admin Web.
+   not block Admin Web. **Resolved 2026-08-25** — `shared/flutter_design_tokens/`, see
+   `implementation-plan.md` §3.1/§5 v1.9.
 3. **Font binaries and an icon package are undecided** for Flutter (§18.2) — an
    implementation-time technology choice when FE-00 is actually built.
 4. **FE-07's exact blocked-state copy can't be fully scoped yet** — it needs to show the
@@ -969,6 +979,9 @@ addition to this feature has gone through.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.10 | 2026-08-25 | Ahmed | §18.5 Item 2 (FE-00 gap) marked Resolved — the shared Flutter design-token package (`shared/flutter_design_tokens/`) is built and consumed by both mobile apps; see `implementation-plan.md` §3.1/§5 v1.9. No architecture changed by this entry; it records that a previously-flagged gap closed. |
+| 1.9 | 2026-08-25 | Ahmed | Corrected a second, smaller staleness in §3.2's "Does Not Own" table: the row attributing "Hall inventory, operations" to Hotel Management (Module 3) is corrected to Hall Management (Module 4), matching `data-architecture.md` §9 v1.2 (corrected in the same pass, per Hotel Management's own Technical Design §18 Item 5) and the `Approved` Hall Management Business Specification §2–§3. No business decision changed; this is an architecture-layer correction only, and does not affect this module's own design (§3.1's Owns list, API, or component architecture are all unaffected — this module never had a relationship to Hall data beyond the row corrected here). |
+| 1.8 | 2026-08-10 | Ahmed | Corrected a data-ownership conflict discovered during Hotel Management's Technical Design review: every reference to "Hotel approval status" previously attributed to Administration & Platform Management (Module 13) is corrected to Hotel Management (Module 3), matching `data-architecture.md` §9 (corrected in the same pass) and the `Approved` Hotel Management Business Specification §3. §2.4, §3.2, §4 (component diagram), §5.1, §6 (sequence diagram §6.2), and §13.1 updated. Module 13's role is narrowed to owning the review workflow/interface only, acting on Hotel Management's data through Hotel Management's defined interface — no business decision changed; `BDR-003` never assigned data ownership, this corrects an architecture-layer inference that had gone beyond it. |
 | 1.7 | 2026-08-04 | Ahmed | §18 (Frontend Integration Scope) reviewed and approved by Mohamed — status changed from "proposed, pending review" to `Approved`, matching `implementation-plan.md` §3.1's `FE-##` tasks it feeds. Scope only; still no Flutter/React code. |
 | 1.6 | 2026-08-04 | Ahmed | Added §18, Frontend Integration Scope — maps §10's API to Customer Mobile, Hotel Manager Mobile, and Admin Web using `Hotel Hall Design System/` (repo root, untracked). Scoping only, no Flutter/React code. Flags the React-vs-Flutter format mismatch, a Flutter token-translation prerequisite (FE-00), and that Hotel Manager's access-blocked screen can't be fully scoped until Modules 3/13 have Business Specifications. **This section is new scope pending its own review** — not covered by Mohamed's earlier approval through v1.5. |
 | 1.5 | 2026-08-04 | Ahmed | Milestone M3 implemented (Identity Verification, Password Reset) via the SmsProvider abstraction, `MockSmsProvider`/`TwilioSmsProvider`. §10's `PATCH /password-resets/:id` **corrected** to `PATCH /password-resets` (body: `mobileNumber`, `code`) — the original `:id` shape was discovered, during implementation, to be incompatible with this same endpoint's own anti-enumeration requirement (an id in the `POST` response would reveal account existence). §7.4 sequence diagram updated to match. |

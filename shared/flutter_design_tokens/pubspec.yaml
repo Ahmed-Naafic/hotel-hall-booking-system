@@ -1,0 +1,24 @@
+name: hotel_hall_design_tokens
+description: >
+  Shared Flutter design-token / ThemeData package for the Hotel Hall Booking
+  Management System's Customer and Hotel Manager mobile apps (FE-00). Ports
+  the values from "Hotel Hall Design System/tokens/*.css" — never a second,
+  independently-maintained token set.
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

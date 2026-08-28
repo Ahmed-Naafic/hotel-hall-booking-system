@@ -2,9 +2,9 @@
 title: "Architecture Principles"
 document_type: Architecture
 status: Approved
-version: 1.0
+version: 1.1
 owner: Ahmed (Chief Software Architect)
-last_updated: 2026-08-02
+last_updated: 2026-08-26
 ---
 
 # Architecture Principles
@@ -244,14 +244,14 @@ management). This section adds only what's specific to this system's architectur
 
 ## 10. Storage Principles
 
-**Business logic must never depend on Cloudinary, or any specific storage provider,
+**Business logic must never depend on Supabase, or any specific storage provider,
 directly.** Storage access goes through a provider-agnostic abstraction layer that Business
-Logic and the API call — the concrete provider (Cloudinary is the current default, per
-`technology-stack.md`) is an implementation of that abstraction, swappable without touching
-any module's business logic. This is the direct application of §5's "Infrastructure must
-not leak into business logic" to the storage layer specifically, and it is what makes a
-future provider change (S3, Supabase, or otherwise) a §15 (Evolution) concern, not a
-rewrite.
+Logic and the API call — the concrete provider (Supabase is the current default, per
+`technology-stack.md`, `ADR-0006`) is an implementation of that abstraction, swappable
+without touching any module's business logic. This is the direct application of §5's
+"Infrastructure must not leak into business logic" to the storage layer specifically, and it
+is what makes a future provider change (S3, Cloudinary, or otherwise) a §15 (Evolution)
+concern, not a rewrite.
 
 ---
 
@@ -359,4 +359,5 @@ what simplicity, applied consistently over time, actually produces.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.1 | 2026-08-26 | Ahmed | §10's illustrative example updated: Supabase is now the current default storage provider (`ADR-0006`), Cloudinary the hypothetical future-swap example — the two traded places. No principle changed, only the example naming. |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved Architecture Principles; separated out of the planned `system-architecture-overview.md` merge (see `documentation-architecture.md` §16), grounded in the technology stack approved by ADR-0001 |

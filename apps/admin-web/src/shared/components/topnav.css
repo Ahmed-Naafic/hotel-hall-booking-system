@@ -1,0 +1,52 @@
+/* Top navigation — a permanent header, never a sidebar. Center nav collapses
+   into a hamburger-triggered panel below the breakpoint so the header never
+   causes horizontal overflow or overlapping controls on narrow screens. */
+.hh-topnav-links {
+  display: flex;
+}
+.hh-topnav-toggle {
+  display: none;
+}
+.hh-topnav-mobile-panel {
+  display: none;
+}
+
+@media (max-width: 879px) {
+  .hh-topnav-links {
+    display: none;
+  }
+  .hh-topnav-toggle {
+    display: inline-flex;
+  }
+  .hh-topnav-mobile-panel.is-open {
+    display: flex;
+  }
+}
+
+.hh-topnav-link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-on-navy);
+  opacity: 0.75;
+  text-decoration: none;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  transition: var(--transition-control);
+  white-space: nowrap;
+}
+.hh-topnav-link:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+.hh-topnav-link.is-active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+}

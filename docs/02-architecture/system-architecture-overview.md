@@ -2,9 +2,9 @@
 title: "System Architecture Overview"
 document_type: Architecture
 status: Approved
-version: 1.1
+version: 1.2
 owner: Ahmed (Chief Solution Architect)
-last_updated: 2026-08-03
+last_updated: 2026-08-26
 ---
 
 # System Architecture Overview
@@ -73,7 +73,7 @@ tribal knowledge.
                               │
               ┌───────────────┴───────────────┐
               ▼                                ▼
-         Cloudinary                    Firebase Cloud Messaging
+          Supabase                    Firebase Cloud Messaging
         (storage, §8)                    (notifications, §8)
 ```
 
@@ -169,7 +169,7 @@ governance) and `database-standards.md` (physical schema) — not duplicated her
 
 | Integration | Role |
 |---|---|
-| **Cloudinary** | Default storage provider, behind a provider-agnostic abstraction (`Architecture-Principles.md` §10, `technology-stack.md`). |
+| **Supabase (Storage)** | Default storage provider, behind a provider-agnostic abstraction (`Architecture-Principles.md` §10, `technology-stack.md`). Approved via **ADR-0006** (`docs/02-architecture/adr/0006-hotel-media-storage-provider.md`), superseding `ADR-0001`'s original Cloudinary default — first consumer is Hotel Management's Hotel Logo/Photos (`BDR-015`). |
 | **Firebase Cloud Messaging** | Push notification delivery (`mobile-application-architecture.md` §11). |
 | **Payment Gateway** | **Not yet selected** — `Project-Overview.md` §13 lists this as `TBD`; `BDR-004` approved the payment *policy*, not the provider. Introduced via a future ADR once chosen. |
 | **Twilio (SMS)** | Approved via **ADR-0005** (`docs/02-architecture/adr/0005-sms-delivery-provider.md`) — scoped specifically to Authentication & Account Management's identity-verification (`BR-AUTH-02`) and password-reset (`BR-AUTH-09`) flows, behind a provider-agnostic abstraction (`Architecture-Principles.md` §10–§11). Not a general-purpose SMS capability for other modules without their own approval. |
@@ -244,7 +244,7 @@ Flutter Apps, React Admin
         ↓
     PostgreSQL
         ↓
-Cloudinary, Firebase (external)
+Supabase, Firebase (external)
 ```
 
 Nginx and Docker are approved (`technology-stack.md`, ADR-0001, ADR-0002). **Hosting/cloud
@@ -349,5 +349,6 @@ to this document's scope:
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.2 | 2026-08-26 | Ahmed | §8 and both diagrams: default storage provider changed Cloudinary → Supabase, per `ADR-0006` (superseding `ADR-0001`'s original default, never actually implemented against). |
 | 1.1 | 2026-08-03 | Ahmed | §8: Twilio (SMS) added as an approved integration per `ADR-0005`, scoped to Authentication & Account Management's verification/password-reset flows; Email and Maps remain not currently approved. |
 | 1.0 | 2026-08-03 | Ahmed | Initial approved System Architecture Overview |

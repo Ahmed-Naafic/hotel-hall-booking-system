@@ -5,7 +5,9 @@ const base = {
   textTransform: "uppercase",
   letterSpacing: "var(--tracking-wider)",
   fontWeight: "var(--weight-medium)",
-  border: "1px solid transparent",
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderColor: "transparent",
   borderRadius: "var(--radius-control)",
   cursor: "pointer",
   display: "inline-flex",
@@ -29,6 +31,7 @@ const variants = {
   secondary: { background: "transparent", color: "var(--text-heading)", borderColor: "var(--border-default)" },
   ghost: { background: "transparent", color: "var(--text-heading)" },
   inverse: { background: "var(--white)", color: "var(--navy-700)" },
+  danger: { background: "transparent", color: "var(--danger-700)", borderColor: "var(--danger-500)" },
 };
 
 const hovers = {
@@ -38,6 +41,7 @@ const hovers = {
   secondary: { background: "var(--surface-navy-tint)", borderColor: "var(--border-strong)" },
   ghost: { background: "var(--surface-navy-tint)" },
   inverse: { background: "var(--navy-050)" },
+  danger: { background: "var(--danger-100)" },
 };
 
 const actives = {
@@ -47,6 +51,7 @@ const actives = {
   secondary: { background: "var(--navy-100)" },
   ghost: { background: "var(--navy-100)" },
   inverse: { background: "var(--navy-100)" },
+  danger: { background: "var(--danger-100)" },
 };
 
 export function Button({

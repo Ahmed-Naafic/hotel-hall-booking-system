@@ -2,9 +2,9 @@
 title: "Project Overview"
 document_type: Foundational / Governance
 status: Approved
-version: 2.4
+version: 2.5
 owner: Ahmed (Project Lead, Business Architect, Technical Architect)
-last_updated: 2026-08-03
+last_updated: 2026-08-26
 audience: Every human contributor and every AI assistant working on this project
 ---
 
@@ -263,7 +263,7 @@ summary.
 | Backend / API framework | Node.js + Express.js |
 | Database | PostgreSQL, via Prisma ORM |
 | Authentication | JWT + Refresh Tokens, RBAC |
-| File / media storage | Provider-agnostic abstraction; Cloudinary default |
+| File / media storage | Provider-agnostic abstraction; Supabase default (`ADR-0006`) |
 | API style | REST, documented with OpenAPI (Swagger) |
 | Containerization | Docker |
 | Push notifications | Firebase Cloud Messaging |
@@ -510,3 +510,4 @@ apply).
 | 2.2 | 2026-08-03 | Ahmed | §15 mentions `03-standards/naming-conventions.md` |
 | 2.3 | 2026-08-03 | Ahmed | Per ADR-0003, §14 and §21 updated — repository initialized with an empty top-level skeleton; module/feature code still waits for each module's Phase 8 |
 | 2.4 | 2026-08-03 | Ahmed | Per ADR-0004, §21 updated — engineering workspace (backend, Prisma, Admin Web, both Flutter apps, dev tooling, dev Docker config) initialized; module/feature implementation still waits for each module's Phase 8 |
+| 2.5 | 2026-08-26 | Ahmed | Default storage provider changed Cloudinary → Supabase, per `ADR-0006`. No other stack element changed. |

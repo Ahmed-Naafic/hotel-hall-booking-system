@@ -2,9 +2,9 @@
 title: "Business Decision Register"
 document_type: Business / Governance
 status: Approved
-version: 2.1
+version: 2.6
 owner: Ahmed (Product Governance Architect)
-last_updated: 2026-08-03
+last_updated: 2026-08-26
 ---
 
 # Business Decision Register
@@ -147,6 +147,13 @@ Every decision recorded in §5 uses this template:
 | BDR-007 | Platform Administration Web Interface | Business Model | Approved | Ahmed | 2026-08-02 | Administration & Platform Management |
 | BDR-008 | Multi-Branch Hotels | Business Model | Approved | Ahmed | 2026-08-02 | Hotel Management, Hall Management |
 | BDR-009 | Customer Registration Timing | Customer Policies | Approved | Ahmed | 2026-08-03 | Authentication & Account Management, Customer Management, Hall Management, Booking Management |
+| BDR-010 | Rejected Hotel Application Handling | Hotel Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
+| BDR-011 | Pending Hotel Application Withdrawal | Hotel Policies | Approved | Ahmed | 2026-08-09 | Hotel Management |
+| BDR-012 | Hotel Suspension Authority | Platform Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
+| BDR-013 | Hotel Information Validity & Restriction | Platform Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
+| BDR-014 | Hotel Profile Change Review Policy | Platform Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
+| BDR-015 | Required Hotel Business-Profile Content | Hotel Policies | Approved | Ahmed | 2026-08-26 | Hotel Management |
+| BDR-016 | Required Hall Information | Hotel Policies | Approved | Ahmed | 2026-08-26 | Hall Management |
 
 This table grows for the life of the project. Full records for each entry above follow in
 §9. New entries follow the same pattern: a row here, plus a full record using the §3
@@ -209,11 +216,14 @@ template.
 
 ## 9. Decisions
 
-All eight decisions below are **`Approved`**, per the process in
+All fourteen decisions below are **`Approved`**, per the process in
 `Decision-Making-Principles.md` §5: each was analyzed, at least two genuine options were
 weighed against the evaluation criteria in §6 of that document, a recommendation was drafted
 by AI assistance, and the decision itself was made by Ahmed — consistent with §4 (Business
-Decisions: Ahmed) and §8 (AI may recommend; AI never becomes the decision maker).
+Decisions: Ahmed) and §8 (AI may recommend; AI never becomes the decision maker). BDR-010
+through BDR-014 record five Hotel Management lifecycle decisions the team had already reached
+consensus on; Ahmed's sign-off recorded here formalizes them into the register per §6's
+ordering rule (recorded here before any dependent Business Specification).
 
 ### BDR-001 — Platform Type
 
@@ -377,12 +387,143 @@ Decisions: Ahmed) and §8 (AI may recommend; AI never becomes the decision maker
 | Future Review Required | No. |
 | Notes | Directly informs Authentication & Account Management's account-creation trigger (Business Specification, §5–§7). |
 
+### BDR-010 — Rejected Hotel Application Handling
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether a Hotel application rejected under BDR-003's Platform Administrator review is final, or whether the Hotel has a path to pursue approval after rejection. |
+| Options Considered | (1) Rejection is final — a rejected applicant must start over with an entirely new application. (2) The rejected Hotel may edit its existing application to address the rejection reason and resubmit it for another Platform Administrator review. (3) Automatic resubmission without any edit, as a retry. |
+| Selected Decision | **Option 2.** A rejected Hotel may edit its application and resubmit it for another Platform Administrator review. |
+| Business Rationale | A rejection reason (e.g. missing or incorrect information) is often correctable — treating it as final (option 1) would permanently lose a legitimate Hotel over a fixable problem, with no offsetting trust or fraud-control benefit over option 2. Requiring resubmission to go through Platform Administrator review again (rather than option 3's unreviewed retry) preserves BDR-003's manual-control gate rather than weakening it. |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | A Hotel could cycle between rejection and resubmission indefinitely without ever meeting requirements; whether a cap or other handling applies is not decided here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — revisit if repeated-rejection cycling becomes an operational problem. |
+| Notes | Extends BDR-003 (Hotel Approval Process) — a rejection is no longer necessarily final; it now has a defined recourse path. |
+
+### BDR-011 — Pending Hotel Application Withdrawal
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether a Hotel that has submitted an application still awaiting Platform Administrator review (BDR-003) may withdraw it before a decision is made. |
+| Options Considered | (1) No withdrawal — a submitted application must be resolved (approved or rejected) by the Platform Administrator. (2) The Hotel may withdraw its own application at any time while it remains pending. |
+| Selected Decision | **Option 2.** A Hotel may withdraw its application while it remains pending Platform Administrator review. |
+| Business Rationale | Gives a Hotel control over an application it no longer wants reviewed (e.g. submitted in error, or the Hotel changed its mind), and avoids the Platform Administrator spending review effort on an application the applicant has already abandoned. |
+| Impacted Documents | Hotel Management Business Specification |
+| Impacted Modules | Hotel Management |
+| Risks | None significant identified — withdrawal only affects the Hotel's own not-yet-approved application. |
+| Future Review Required | No. |
+| Notes | Distinct from BDR-010 — this concerns a still-pending application, not a rejected one. |
+
+### BDR-012 — Hotel Suspension Authority
+
+| Field | Value |
+|---|---|
+| Category | Platform Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether an already-approved, operating Hotel can subsequently be suspended or deactivated, and who holds the authority to do so. |
+| Options Considered | (1) No suspension mechanism — an approved Hotel remains approved indefinitely once it passes BDR-003's approval gate. (2) An approved Hotel may be suspended or deactivated, with the Platform Administrator holding sole authority to do so. (3) Suspension authority shared between the Platform Administrator and an automated policy-violation system. |
+| Selected Decision | **Option 2.** An approved Hotel may be suspended (or deactivated); the Platform Administrator is the sole authority controlling suspension and deactivation of approved Hotels. |
+| Business Rationale | BDR-003's approval gate only controls onboarding — it provides no ongoing control if an approved Hotel later needs to be taken offline. Concentrating this authority in the Platform Administrator keeps it consistent with BDR-003's existing manual-control model rather than introducing a separate automated enforcement system not yet justified (option 3). |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | The specific operational distinction (if any) between "suspended" and "deactivated," and the grounds that justify each, are not settled here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — revisit if suspension volume warrants a less fully-manual process. |
+| Notes | Extends BDR-003's manual-control model to an approved Hotel's ongoing lifecycle, not just onboarding. |
+
+### BDR-013 — Hotel Information Validity & Restriction
+
+| Field | Value |
+|---|---|
+| Category | Platform Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | What happens if information a Hotel was required to provide (e.g. at approval) later becomes invalid or out of date. |
+| Options Considered | (1) No mechanism — required information is not actively enforced after initial approval. (2) A Hotel with invalid required information is restricted and placed into review under the applicable business process. |
+| Selected Decision | **Option 2.** If required Hotel information becomes invalid, the Hotel is restricted and placed into review, per the applicable business process. |
+| Business Rationale | Keeps the trust and fraud control BDR-003 established at onboarding meaningful on an ongoing basis — required information that becomes invalid after approval poses the same risk BDR-003 exists to control. |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | The specific "required information" fields, what makes them "invalid," and the exact review process are not defined here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — once the specific required-information fields and review process are defined in the Hotel Management Business Specification. |
+| Notes | Complements BDR-012 — restriction-and-review is a narrower, data-integrity-triggered mechanism, distinct from Platform-Administrator-initiated suspension. |
+
+### BDR-014 — Hotel Profile Change Review Policy
+
+| Field | Value |
+|---|---|
+| Category | Platform Policies |
+| Status | Approved |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-09 |
+| Business Problem | Whether every change a Hotel makes to its own profile after approval requires Platform Administrator re-review, or only some changes do. |
+| Options Considered | (1) Every profile change requires Platform Administrator re-review before taking effect. (2) No profile change ever requires re-review once a Hotel is approved. (3) A two-tier model — ordinary changes take effect immediately; critical changes require Platform Administrator review before taking full effect. |
+| Selected Decision | **Option 3.** Ordinary Hotel profile changes do not require re-review. Critical Hotel information changes require Platform Administrator review before the change becomes fully effective. |
+| Business Rationale | Option 1 would bottleneck every routine edit (e.g. a description update) on Platform Administrator availability, undermining BDR-001's self-service marketplace model. Option 2 would let critical information change unchecked, undermining the trust control BDR-003 established at onboarding. The two-tier model preserves self-service for routine changes while keeping manual review in place for anything as consequential as the original approval decision. |
+| Impacted Documents | Hotel Management, Administration & Platform Management Business Specifications |
+| Impacted Modules | Hotel Management, Administration & Platform Management |
+| Risks | Which specific fields count as "ordinary" versus "critical" is not defined here — left to the Hotel Management Business Specification. |
+| Future Review Required | Yes — once the specific ordinary/critical field classification is defined in the Hotel Management Business Specification. |
+| Notes | Extends BDR-003's manual-review control to post-approval profile changes, consistent with BDR-012 (suspension) and BDR-013 (restriction) doing the same for other post-approval scenarios. |
+
+### BDR-015 — Required Hotel Business-Profile Content
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | **Approved** — recommendation drafted by AI assistance per `Decision-Making-Principles.md` §8 (AI may recommend; AI never becomes the decision maker); reviewed and approved by Ahmed, exactly as proposed, per §4 (Business Decisions: Ahmed). |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-26 |
+| Business Problem | Hotel Management Business Specification §11 Pending Business Decision #7 ("Required Business-Profile Content") has been open since that document's `Approved` v1.1: what a Hotel's profile must contain before it can reach `PROFILE_COMPLETE` (`BR-HOTEL-02`) is undefined. The current implementation (`profile.service.js#completeProfile`) only enforces "at least one field, of any shape" — no real minimum bar a Customer or Platform Administrator could rely on. This blocks building a real Hotel Profile Completion UI (Manager Mobile), which today can only offer a generic key/value editor. |
+| Options Considered | (1) **Status quo** — profile content remains entirely unconstrained free-form JSON; the "at least one field" check is the only gate, no field is ever required by name. (2) **Fully fixed schema** — a rigid, closed set of profile fields (e.g. Name, Description, Location, Contact Phone, Email); no Hotel-specific custom fields permitted. (3) **Hybrid** — a small set of standard fields (some required, some optional) plus optional media (Logo, Photos) plus optional Hotel-defined custom key/value fields, with custom fields explicitly unable to substitute for a required standard field. |
+| Selected Decision | **Option 3 — Hybrid.** Required standard fields: Hotel Name, Description, Location, Contact Phone. Optional standard fields: Email, Hotel Logo, Hotel Photos. Optional extensibility: Hotel Manager-defined custom key/value fields, which must never satisfy or replace a required standard field. Approved by Ahmed exactly as proposed. |
+| Business Rationale | Option 1 (status quo) gives Customers and the Platform Administrator no reliable minimum to evaluate a Hotel by, undermining the trust/fraud control `BDR-003`'s approval gate exists to provide — a Hotel could reach `PROFILE_COMPLETE` with a single arbitrary field. Option 2 (fully fixed) forecloses genuine per-Hotel variation (amenities, policies, specialties) that real Hotels will want to list, and breaks from the precedent this project already set for Hall's own `profileData` (deliberately unconstrained, Hall Management Business Specification Pending Decision #2) — a Hotel is a superset of that same "we don't yet know every field a real Hotel needs" problem, at a business-critical (not merely descriptive) level. Option 3 provides the minimum bar options 1 lacks, without options 2's rigidity — the required set is small and genuinely universal to any Hotel, while custom fields absorb whatever a real Hotel needs beyond that, an approach consistent with `architecture-principles.md`'s extensibility-by-default stance. |
+| Impacted Documents | Hotel Management Business Specification (§2.3, §7 `BR-HOTEL-02`, §11 — Pending Decision #7 now resolved); Hotel Management Technical Design (§4 Domain Model, §8 Profile Management, §18); Manager Mobile Hotel Profile screen (not yet built — next implementation step, tracked outside this register) |
+| Impacted Modules | Hotel Management |
+| Risks | (a) The required-field list is a real constraint on every already-`REGISTERED` Hotel in any environment — a migration/backfill question for Hotels registered under the old "any field" rule (none exist yet in this project's live environments beyond development/test fixtures, confirmed 2026-08-26). (b) Logo/Photos being "optional standard fields" required an approved storage mechanism before they could actually be built — this BDR did not select one itself (a storage *provider* is an architecture decision, not a business one). **Resolved 2026-08-26 via `ADR-0006`:** Supabase is now the approved Hotel media storage provider. This BDR still approves only that Logo/Photos exist as *optional* profile attributes; `ADR-0006` is the authoritative record of the provider choice. |
+| Future Review Required | Yes — revisit the required-field list once real Hotel onboarding data exists, the same review posture already applied to `BDR-003`, `BDR-006`, and `BDR-012`–`014`. |
+| Notes | Resolves Hotel Management Business Specification §11 Pending Decision #7, per this register's own ordering rule (§6: recorded here first, dependent documents updated next — the Business Specification and Technical Design updates follow this approval in the same change). Distinct from the separate Cloudinary-vs-Supabase architecture question raised in Risks above, which this BDR never resolved itself — that question is now resolved, but by `ADR-0006`, not by this entry. |
+
+### BDR-016 — Required Hall Information
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | **Approved** — Ahmed directed the field model directly (the same pattern `ADR-0006` used); the full Options/Rationale analysis is still recorded in full, per `Decision-Making-Principles.md` §4/§8. |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-26 |
+| Business Problem | Hall Management Business Specification §11 Pending Business Decision #2 ("Required Hall Information") has been open since that document's `Approved` v1.1: what a Hall's profile must contain is undefined, mirroring Hotel Management's own pre-`BDR-015` gap. The current implementation (`profile.service.js#updateHallProfile`) only enforces "at least one field, of any shape" — no real minimum bar exists, and the Manager Mobile Create/Edit Hall screens can only offer a generic key/value editor. |
+| Options Considered | (1) **Status quo** — `profileData` remains entirely unconstrained free-form JSON; no field is ever required by name. (2) **Fully fixed schema** — a rigid, closed set of Hall fields; no Hotel-specific custom fields permitted. (3) **Hybrid**, the same model `BDR-015` already established for Hotel — a small set of standard fields (some required, some optional), optional media, and optional Hotel Manager-defined custom fields that can never substitute for a required standard field. |
+| Selected Decision | **Option 3 — Hybrid.** Required standard fields: **Hall Name, Capacity**. Optional standard fields: **Description, Location / Area**. Optional standard media: **Hall Photos**. Optional extensibility: Hotel Manager-defined custom key/value fields, which must never satisfy or replace Hall Name or Capacity. Approved by Ahmed, directed exactly as specified. |
+| Business Rationale | Same reasoning `BDR-015` already established for Hotel, applied to Hall: Option 1 gives a Hotel Manager no reliable minimum to describe a bookable space by — a Hall could exist with zero identifying information. Option 2 forecloses genuine per-Hall variation Halls legitimately have (a wedding hall and a conference room don't share every attribute) and breaks the `profileData` precedent this project has now used twice. Option 3 provides the minimum bar (a Hall must at least have a name and a capacity — the two facts a Customer or Manager cannot reasonably do without) while custom fields absorb everything else, consistent with `architecture-principles.md`'s extensibility-by-default stance. Location / Area is kept as a *named standard* field (not folded into custom fields) per explicit instruction, even though optional — it is common enough across real Halls to warrant a first-class slot, the same treatment Email received for Hotel despite also being optional. |
+| Impacted Documents | Hall Management Business Specification (§2.3, §7 `BR-HALL-06`/`BR-HALL-07`, §11 — Pending Decision #2 now resolved); Hall Management Technical Design (§4 Domain Model, §7, §8 Profile Management, §18); Manager Mobile Create/Edit Hall screens (implemented in the same change) |
+| Impacted Modules | Hall Management |
+| Risks | (a) The required-field list is a real constraint on every already-created Hall in any environment — a migration/backfill question for Halls created under the old "any field" rule (none exist yet in this project's live environments beyond development/test fixtures, confirmed 2026-08-26). (b) This BDR does **not** resolve `BR-HALL-06`'s separate, still-open question of a *definitive Amenity list* — Amenities remain expressible only through the generic custom-field mechanism until (and unless) a future decision formalizes a dedicated Amenity taxonomy (Hall Management Technical Design §9); the two are related but distinct questions, and this entry resolves only the former. (c) Hall Photos being an "optional standard field" does **not** itself approve a storage/upload mechanism — unlike Hotel (`ADR-0006`, Supabase), no architecture decision yet extends Hall Photos to a real storage provider or upload contract; that remains a separate, unresolved dependency, tracked outside this register until an ADR addresses it. This BDR approves only that Hall Photos exist as an *optional* profile attribute. (d) This BDR does not resolve Pending Decision #7 (Hall Capacity Changes — whether/how capacity may be changed *after* creation); it only establishes that a Capacity *value* is required and must be a valid positive number, the same class of request-shape validation every other field already receives, not a business-permission gate on later changes. |
+| Future Review Required | Yes — revisit the required-field list once real Hall creation data exists, the same review posture `BDR-015` already applies to Hotel. |
+| Notes | Resolves Hall Management Business Specification §11 Pending Decision #2, per this register's own ordering rule (§6: recorded here first, dependent documents updated next). Distinct from, and does not resolve, Pending Decisions #6 (Hall Deletion), #7 (Hall Capacity Changes), or `BR-HALL-06`'s Amenity-list question — none of those are touched by this entry. |
+
 ---
 
 ## Version History
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 2.6 | 2026-08-26 | Ahmed | Added BDR-016 (**Approved**): Required Hall Information — resolves Hall Management Business Specification §11 Pending Decision #2, the same hybrid model `BDR-015` established for Hotel (required: Hall Name, Capacity; optional: Description, Location/Area, Hall Photos; optional custom fields). Directed by Ahmed with the field list already specified. Does not resolve `BR-HALL-06`'s separate Amenity-list question, Pending Decision #7 (Hall Capacity Changes), or approve any Hall-media storage mechanism (no Hall equivalent of `ADR-0006` exists yet). |
+| 2.5 | 2026-08-26 | Ahmed | BDR-015's Risks/Notes fields updated: the separate Cloudinary-vs-Supabase media-storage question they flagged as open is now resolved by `ADR-0006` (Supabase selected) — an architecture decision, tracked in `docs/02-architecture/adr/`, not a change to BDR-015's own Selected Decision. No BDR content changed, only the surrounding cross-reference. |
+| 2.4 | 2026-08-26 | Ahmed | **BDR-015 resolved to `Approved`**, exactly as proposed in v2.3: required Hotel profile fields (Hotel Name, Description, Location, Contact Phone), optional fields (Email, Hotel Logo, Hotel Photos), and optional Hotel Manager-defined custom fields that may never substitute for a required field. Resolves Hotel Management Business Specification §11 Pending Decision #7. Hotel Management Business Specification (→ v1.2) and Technical Design updated in the same change to reflect this decision, per §6's ordering rule. The separate Cloudinary-vs-Supabase media-storage architecture question remains open and unresolved. |
+| 2.3 | 2026-08-26 | Ahmed (AI-drafted, pending Ahmed's approval) | Added BDR-015 (**Proposed**, not yet Approved): Required Hotel Business-Profile Content — resolves Hotel Management Business Specification §11 Pending Decision #7. Drafted per `Decision-Making-Principles.md` §8 (AI may recommend; AI never becomes the decision maker) in response to a hybrid-profile-model request (standard required/optional fields + optional media + optional custom fields). No dependent document (Business Specification, Technical Design) has been updated — per §6's ordering rule, that happens only once this entry reaches `Approved`. Also surfaced, but does not resolve, a separate architecture-level conflict: the request specified Supabase for Hotel media storage, but `ADR-0001`/`technology-stack.md` currently designate Cloudinary as the approved provider — flagged as its own open question, not decided by this BDR. |
+| 2.2 | 2026-08-09 | Ahmed | Added BDR-010–BDR-014 (all `Approved`): five Hotel Management lifecycle decisions the team had already reached — rejected-application edit/resubmit (BDR-010), pending-application withdrawal (BDR-011), suspension authority (BDR-012), information-validity restriction (BDR-013), and ordinary-vs-critical profile-change review policy (BDR-014). Recorded ahead of Hotel Management's Business Specification, per §6's ordering rule. All five extend or complement BDR-003 (Hotel Approval Process)'s manual-control model to the approved Hotel's ongoing lifecycle, not just onboarding. |
 | 2.1 | 2026-08-03 | Ahmed | Added BDR-009 (Approved): Customer Registration Timing ("Hall-First" deferred registration), settled while authoring Authentication & Account Management's Business Specification |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved Business Decision Register, with six proposed (unapproved) initial decisions |
 | 1.1 | 2026-08-02 | Ahmed | Added BDR-007 (Proposed): a scope conflict between `Project-Overview.md` §7 and the newly-approved technology stack (React + Vite), surfaced while authoring `Architecture-Principles.md` and `technology-stack.md` |

@@ -29,7 +29,18 @@ export async function requestVerification(userId) {
     throw new ConflictError('A verification code has already been sent. Please wait for it to expire, or use it.')
   }
 
-  const code = generateVerificationCode()
+  // Dev/test convenience: DEV_FIXED_VERIFICATION_CODE, if set, replaces the
+  // random code — but only while no Twilio credentials are configured
+  // (MockSmsProvider in use), so this can never silently weaken a real
+  // SMS-backed environment. Safe here specifically because
+  // VerificationRequest.codeHash carries no uniqueness constraint (unlike
+  // PasswordResetRequest.tokenHash — see verificationCode.js's own
+  // docstring for why that flow never applies this override).
+  const { accountSid, authToken, fromNumber } = env.sms.twilio
+  const twilioConfigured = Boolean(accountSid && authToken && fromNumber)
+  const code = !twilioConfigured && env.auth.devFixedVerificationCode
+    ? env.auth.devFixedVerificationCode
+    : generateVerificationCode()
   const codeHash = sha256Hex(code)
   const expiresAt = new Date(Date.now() + env.auth.verificationCodeTtlMinutes * 60 * 1000)
 

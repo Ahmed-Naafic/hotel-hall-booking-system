@@ -1,0 +1,25 @@
+/* Two markups, one dataset: a real <table> at comfortable widths, a
+   stacked card list below the breakpoint. CSS toggles which one is in the
+   layout (not just visually hidden) so a narrow viewport never causes the
+   table to force horizontal scroll on the page. */
+.hh-table-view {
+  display: block;
+}
+.hh-card-view {
+  display: none;
+}
+
+@media (max-width: 719px) {
+  .hh-table-view {
+    display: none;
+  }
+  .hh-card-view {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+}
+
+.hh-row-hover:hover {
+  background: var(--surface-navy-tint);
+}

@@ -2,9 +2,9 @@
 title: "API Standards"
 document_type: Standard
 status: Approved
-version: 1.0
+version: 1.1
 owner: Ahmed (Lead API Architect)
-last_updated: 2026-08-03
+last_updated: 2026-08-26
 ---
 
 # API Standards
@@ -315,8 +315,8 @@ RBAC is enforced on **every** request, at the API layer, after authentication su
 
 ## 15. File Upload Standards
 
-Storage is provider-agnostic, Cloudinary default, per `Architecture-Principles.md` §10 and
-`technology-stack.md` — an upload endpoint never talks to Cloudinary directly from a
+Storage is provider-agnostic, Supabase default (`ADR-0006`), per `Architecture-Principles.md`
+§10 and `technology-stack.md` — an upload endpoint never talks to Supabase directly from a
 controller; it goes through the storage abstraction (`coding-standards.md` §5).
 
 | Aspect | Standard |
@@ -325,7 +325,7 @@ controller; it goes through the storage abstraction (`coding-standards.md` §5).
 | Image validation | File type is checked by content (magic bytes), not by trusting the client-supplied extension or `Content-Type`. |
 | Maximum file size | Defined per upload endpoint's Technical Design; enforced both client-side (UX) and server-side (security) — the server-side check is the one that's authoritative. |
 | Supported formats | Defined per upload endpoint's Technical Design (e.g. Hall photos vs. a document upload have different valid formats) — not assumed globally. |
-| Provider abstraction | The response returns a stable, provider-independent reference (e.g. a URL or asset ID) — a client never receives a Cloudinary-specific payload shape it would need to change if the provider changes. |
+| Provider abstraction | The response returns a stable, provider-independent reference (e.g. a URL or asset ID) — a client never receives a Supabase-specific payload shape it would need to change if the provider changes. |
 
 ---
 
@@ -428,4 +428,5 @@ Implementation Review approval itself is `review-checklists.md` and
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.1 | 2026-08-26 | Ahmed | §15: default storage provider example updated Cloudinary → Supabase, per `ADR-0006`. No standard changed, only the provider name. |
 | 1.0 | 2026-08-03 | Ahmed | Initial approved API Standards |

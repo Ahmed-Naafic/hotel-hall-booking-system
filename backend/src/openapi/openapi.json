@@ -3,7 +3,7 @@
   "info": {
     "title": "Hotel Hall Booking Management System API",
     "version": "1.0.0",
-    "description": "Documented per docs/03-standards/api-standards.md §16. One `paths`/`components.schemas` section grows per module as each is implemented — this file currently covers Authentication & Account Management (Module 1) and Hotel Management (Module 3)."
+    "description": "Documented per docs/03-standards/api-standards.md §16. One `paths`/`components.schemas` section grows per module as each is implemented — this file currently covers Authentication & Account Management (Module 1), Hotel Management (Module 3), and Hall Management (Module 4, partial — only the endpoints actually implemented so far)."
   },
   "servers": [{ "url": "/api/v1", "description": "Version 1 (api-standards.md §3)" }],
   "tags": [
@@ -14,6 +14,10 @@
     {
       "name": "Hotels",
       "description": "The Hotel business entity and its onboarding lifecycle (Module 3). Endpoints per docs/05-technical-design/modules/03-hotel-management/technical-design.md §11. No approve/reject/suspend/deactivate endpoint exists here — that action belongs to Administration & Platform Management's own future API surface (BR-HOTEL-14)."
+    },
+    {
+      "name": "Halls",
+      "description": "The Hall entity — the Platform's bookable inventory (Module 4). Endpoints per docs/05-technical-design/modules/04-hall-management/technical-design.md §11. Includes the public, platform-wide browse endpoint and the own-Hotel-scoped create/retrieve/update/list-for-Hotel endpoints (WBS-05), authorized through Hotel Management's Hotel Ownership Query Interface (Technical Design v1.5)."
     }
   ],
   "components": {
@@ -95,6 +99,29 @@
           "decidedByUserId": { "type": "string", "format": "uuid", "nullable": true },
           "decidedAt": { "type": "string", "format": "date-time", "nullable": true },
           "submittedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PublicHotelMedia": {
+        "type": "object",
+        "description": "A single uploaded Hotel Logo or Photo (BDR-015, ADR-0006, Technical Design §4, §8a). `url` is a stable, non-expiring public URL derived from the stored path at read time — never a temporary signed URL.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "hotelId": { "type": "string", "format": "uuid" },
+          "type": { "type": "string", "enum": ["LOGO", "PHOTO"] },
+          "url": { "type": "string", "format": "uri" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PublicHall": {
+        "type": "object",
+        "description": "The Hall entity (Technical Design §4). profileData's required/optional/custom structure is defined by BDR-016 (name, capacity required; description, location optional; any other key is a custom field) — the object itself remains unstructured JSON, no per-field schema properties. No visibility/status field is returned — visibility (Hidden/Visible) is computed live, never persisted (Technical Design §6), and its only observable effect is whether a request for a given Hall succeeds at all.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "hotelId": { "type": "string", "format": "uuid" },
+          "profileData": { "type": "object", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
         }
       }
     }
@@ -462,6 +489,239 @@
           },
           "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
           "409": { "description": "This Hotel has no open application to withdraw.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/media/logo": {
+      "post": {
+        "tags": ["Hotels"],
+        "summary": "Upload or replace the Hotel Logo",
+        "description": "BDR-015, ADR-0006 — Technical Design §8a, §11. At most one Logo per Hotel; a second upload replaces the first.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "multipart/form-data": { "schema": { "type": "object", "properties": { "file": { "type": "string", "format": "binary" } }, "required": ["file"] } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Logo uploaded (or replaced).",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotelMedia" } } }] } } }
+          },
+          "400": { "description": "Missing file, unsupported file type, or file exceeds the maximum size.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/media/photos": {
+      "post": {
+        "tags": ["Hotels"],
+        "summary": "Add a Hotel Photo",
+        "description": "BDR-015, ADR-0006 — Technical Design §8a, §11. No replacement semantics; a Hotel may have any number of Photos.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "multipart/form-data": { "schema": { "type": "object", "properties": { "file": { "type": "string", "format": "binary" } }, "required": ["file"] } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Photo uploaded.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotelMedia" } } }] } } }
+          },
+          "400": { "description": "Missing file, unsupported file type, or file exceeds the maximum size.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/media/{mediaId}": {
+      "delete": {
+        "tags": ["Hotels"],
+        "summary": "Delete a Hotel Media record (Logo or Photo)",
+        "description": "BDR-015, ADR-0006 — Technical Design §8a, §11. Deletes the underlying Supabase object as well as the metadata record.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "mediaId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Deleted." },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/media": {
+      "get": {
+        "tags": ["Hotels"],
+        "summary": "Retrieve the Hotel's current media",
+        "description": "BDR-015, ADR-0006 — Technical Design §8a, §11. Own-Hotel for a Hotel Manager, any Hotel for a Platform Administrator.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "The Hotel's current Logo (or null) and full Photos list.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "object", "properties": { "logo": { "allOf": [{ "$ref": "#/components/schemas/PublicHotelMedia" }], "nullable": true }, "photos": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHotelMedia" } } } } } }] } } }
+          },
+          "404": { "description": "Hotel not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/halls": {
+      "post": {
+        "tags": ["Halls"],
+        "summary": "Create a Hall belonging to a Hotel",
+        "description": "HL1, HL2, BR-HALL-02 — Technical Design §11. Own-Hotel only. No precondition on the owning Hotel's own status — a Hall may be created whether the Hotel is REGISTERED, APPROVED_ACTIVE, or anything between. Per BDR-016 (Approved), profileData.name and profileData.capacity are required.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profileData": {
+                    "type": "object",
+                    "description": "BDR-016: name and capacity required; description, location, and any custom key are optional.",
+                    "properties": {
+                      "name": { "type": "string", "description": "Required — Hall Name." },
+                      "capacity": { "type": "integer", "minimum": 1, "description": "Required — a valid positive integer." },
+                      "description": { "type": "string", "description": "Optional." },
+                      "location": { "type": "string", "description": "Optional — Location / Area." }
+                    },
+                    "required": ["name", "capacity"]
+                  }
+                },
+                "required": ["profileData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Hall created.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHall" } } }] } } }
+          },
+          "400": { "description": "Malformed request shape, missing/empty Hall Name, or missing/invalid Capacity (BDR-016).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "hotelId doesn't exist, or isn't owned by the caller (api-standards.md §13, tenant isolation — never 403).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      },
+      "get": {
+        "tags": ["Halls"],
+        "summary": "List one Hotel's Halls",
+        "description": "Technical Design §11. Public, with conditional behavior: the owning Hotel Manager sees every Hall regardless of visibility; anyone else sees the full page only while the Hotel is eligible (BR-HOTEL-04/05), or an empty page otherwise — every Hall under one Hotel shares the identical eligibility outcome (Technical Design §6). Offset pagination (coding-standards.md §6 — a bounded, per-Hotel list), distinct from the platform-wide GET /halls' cursor pagination.",
+        "security": [{ "bearerAuth": [] }, {}],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of Halls — every Hall if the caller is the owning Hotel Manager, otherwise only Visible ones (possibly an empty page).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessEnvelope" },
+                    {
+                      "properties": {
+                        "data": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHall" } },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "page": { "type": "integer" },
+                            "limit": { "type": "integer" },
+                            "total": { "type": "integer" },
+                            "totalPages": { "type": "integer" },
+                            "hasNext": { "type": "boolean" },
+                            "hasPrevious": { "type": "boolean" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Request validation failed (page/limit).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "hotelId doesn't exist.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/halls/{id}": {
+      "get": {
+        "tags": ["Halls"],
+        "summary": "Retrieve a single Hall",
+        "description": "HL2, HL5, HL6 — Technical Design §11, §14.3. Public, with conditional behavior: if a valid token for the owning Hotel Manager is presented, the Hall is returned regardless of visibility; otherwise (no token, or a token for a different Hotel) it is returned only if Visible.",
+        "security": [{ "bearerAuth": [] }, {}],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hall retrieved.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHall" } } }] } } }
+          },
+          "404": { "description": "Hall doesn't exist, belongs to a different Hotel, or is Hidden and the caller isn't its owning Hotel Manager — never distinguished (api-standards.md §9, \"never leak existence\", generalized to visibility per Technical Design §6/§12).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Halls"],
+        "summary": "Update a Hall's profile information",
+        "description": "HL3, BR-HALL-07 — Technical Design §11. Own-Hotel only. Every well-formed, authorized change applies immediately — no review step exists for Halls. If name or capacity is included, per BDR-016 it is content-validated (non-empty name, valid positive-integer capacity); every other key (description, location, custom fields) is merged unvalidated beyond shape.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "One or more profile fields to change; at least one field required.",
+                "properties": {
+                  "name": { "type": "string", "description": "Optional on update; if present, must be non-empty (BDR-016)." },
+                  "capacity": { "type": "integer", "minimum": 1, "description": "Optional on update; if present, must be a valid positive integer (BDR-016)." },
+                  "description": { "type": "string" },
+                  "location": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hall updated.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHall" } } }] } } }
+          },
+          "400": { "description": "Malformed fields, an empty update body, or an included name/capacity that fails content validation (BDR-016).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hall not found, or belongs to a Hotel the caller doesn't own (never 403).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/halls": {
+      "get": {
+        "tags": ["Halls"],
+        "summary": "Browse Visible Halls platform-wide",
+        "description": "BR-HALL-08, BDR-009 — Technical Design §11 (added during that design, mirroring GET /hotels' own precedent). Public, unconditionally; never returns a Hidden Hall to anyone, including an authenticated Hotel Manager. Cursor pagination (coding-standards.md §6, Technical Design v1.2).",
+        "parameters": [
+          { "name": "hotelId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of Visible Halls.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHall" } } } }] } } }
+          },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
         }
       }
     }

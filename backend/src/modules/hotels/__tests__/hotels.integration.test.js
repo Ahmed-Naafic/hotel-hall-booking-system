@@ -5,6 +5,7 @@ import { prisma } from '../../../shared/prismaClient.js'
 import * as applicationService from '../application.service.js'
 import * as suspensionService from '../suspension.service.js'
 import * as hotelService from '../hotel.service.js'
+import * as ownershipService from '../ownership.service.js'
 
 /**
  * Integration tests (testing-standards.md §6) — real Prisma queries against
@@ -301,6 +302,46 @@ describe('Platform-Administrator-only Hotel list (Technical Design §11)', () =>
     assert.equal(res.status, 200)
     assert.ok(Array.isArray(res.body.data))
     assert.ok(res.body.pagination)
+  })
+})
+
+describe('Hotel Ownership Query Interface (Technical Design §3, §10, §18 Item 6)', () => {
+  test('returns true for the Hotel Manager who registered the Hotel', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
+
+    const owned = await ownershipService.isOwnedByUser(created.data.id, created.data.registeredByUserId)
+    assert.equal(owned, true)
+  })
+
+  test('returns false for a different Hotel Manager', async () => {
+    const { accessToken: tokenA } = await registerAndLoginHotelManager()
+    const { accessToken: tokenB } = await registerAndLoginHotelManager()
+    const { body: hotelA } = await post('/api/v1/hotels', {}, authHeader(tokenA))
+    const { body: hotelB } = await post('/api/v1/hotels', {}, authHeader(tokenB))
+
+    const owned = await ownershipService.isOwnedByUser(hotelA.data.id, hotelB.data.registeredByUserId)
+    assert.equal(owned, false)
+  })
+
+  test('returns false for a nonexistent Hotel id', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
+
+    const owned = await ownershipService.isOwnedByUser(
+      '00000000-0000-0000-0000-000000000000',
+      created.data.registeredByUserId,
+    )
+    assert.equal(owned, false)
+  })
+
+  test('returns false for a soft-deleted Hotel, even for its real owner (fail-closed, not an error)', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
+    await prisma.hotel.update({ where: { id: created.data.id }, data: { deletedAt: new Date() } })
+
+    const owned = await ownershipService.isOwnedByUser(created.data.id, created.data.registeredByUserId)
+    assert.equal(owned, false)
   })
 })
 

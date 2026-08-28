@@ -1,0 +1,25 @@
+/* Shared loading-skeleton shimmer — used by shared/components/Skeleton.jsx.
+   A single calm pulse (motion.css's --dur-slower), not a moving shimmer
+   band, consistent with the design system's "no bounce" motion principle. */
+@keyframes hh-skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.hh-skeleton {
+  display: block;
+  background: var(--gray-200);
+  border-radius: var(--radius-sm);
+  animation: hh-skeleton-pulse var(--dur-slower) var(--ease-standard) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hh-skeleton {
+    animation: none;
+    opacity: 0.7;
+  }
+}

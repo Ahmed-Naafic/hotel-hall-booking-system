@@ -35,9 +35,23 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Shared design-token / ThemeData package (FE-00), also consumed by
+  # apps/manager-mobile — folder-structure.md §5 (two-or-more-app shared
+  # code lives under repository-root shared/, as a path dependency here).
+  hotel_hall_design_tokens:
+    path: ../../shared/flutter_design_tokens
+
+  # Shared auth/API-client/reusable-widget package (FE-03/FE-04/FE-06),
+  # also consumed by apps/manager-mobile — the concrete realization of
+  # "shares FE-03/FE-04's components via Flutter shared/".
+  hotel_hall_core:
+    path: ../../shared/flutter_core
+  provider: ^6.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  http: ^1.6.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

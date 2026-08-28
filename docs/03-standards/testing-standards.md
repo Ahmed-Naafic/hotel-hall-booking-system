@@ -2,9 +2,9 @@
 title: "Testing Standards"
 document_type: Standard
 status: Approved
-version: 1.0
+version: 1.1
 owner: Ahmed (Lead Quality Assurance Architect)
-last_updated: 2026-08-03
+last_updated: 2026-08-26
 ---
 
 # Testing Standards
@@ -129,7 +129,7 @@ matters:
 - **Authentication** — protected endpoints are integration-tested with real JWT
   verification, not a bypassed/mocked auth layer, since auth is exactly the kind of
   cross-cutting concern a unit test would miss.
-- **External services** — Cloudinary, Firebase Cloud Messaging, and any payment provider
+- **External services** — Supabase, Firebase Cloud Messaging, and any payment provider
   are tested via mocks or test doubles (`Architecture-Principles.md` §11) — an integration
   test does not depend on a real external service being reachable to pass.
 
@@ -302,4 +302,5 @@ accumulates, not stay frozen at what seemed sufficient before any code existed.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.1 | 2026-08-26 | Ahmed | External-services example updated Cloudinary → Supabase, per `ADR-0006`. No standard changed, only the provider name. |
 | 1.0 | 2026-08-03 | Ahmed | Initial approved Testing Standards |

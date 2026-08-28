@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4, no self-review)
 depends_on: ["docs/Project-Overview.md", "docs/04-business/stakeholders-and-personas.md", "docs/04-business/business-decision-register.md", "docs/Project-Glossary.md", "docs/04-business/modules/01-authentication-and-account-management/business-specification.md"]
-version: 1.1
-last_updated: 2026-08-09
+version: 1.2
+last_updated: 2026-08-26
 ---
 
 # Hotel Management — Business Specification
@@ -101,6 +101,7 @@ the following approved decisions:
 | `BDR-012` | Hotel Suspension Authority | An approved Hotel may be suspended or deactivated; only the Platform Administrator may do so (§6, §7, HM11). |
 | `BDR-013` | Hotel Information Validity & Restriction | Invalid required information triggers restriction and review (§6, §7, HM14). |
 | `BDR-014` | Hotel Profile Change Review Policy | Ordinary changes require no re-review; critical changes require Platform Administrator review before taking full effect (§6, §7, HM12–HM13). |
+| `BDR-015` | Required Hotel Business-Profile Content | Defines the required, optional, and custom-field structure a Hotel's profile must satisfy before it may reach Profile Complete (§7, BR-HOTEL-02). |
 
 ---
 
@@ -205,7 +206,7 @@ Review**, are not settled by any approved decision (§11).
 | ID | Rule |
 |---|---|
 | BR-HOTEL-01 | A Hotel Manager must have an authenticated account (Module 1) before a Hotel may be registered on the Platform; this module governs the Hotel's own registration and lifecycle, not the account itself (§3). |
-| BR-HOTEL-02 | A Hotel must complete its required business-profile information before it may submit an application for Platform Administrator review. |
+| BR-HOTEL-02 | A Hotel must complete its required business-profile information before it may submit an application for Platform Administrator review. Required fields: Hotel Name, Description, Location, Contact Phone. Optional fields: Email, Hotel Logo, Hotel Photos. A Hotel Manager may also supply optional custom key/value fields, which may never substitute for or satisfy a required field (`BDR-015`). |
 | BR-HOTEL-03 | A Hotel must submit an application before it can be reviewed by a Platform Administrator; while Under Review, the Hotel is not operationally eligible (`BDR-003`). |
 | BR-HOTEL-04 | A Hotel may prepare its Halls before its application is approved, but its Halls remain hidden from Customers until the Hotel reaches Approved / Active (`BDR-003`); the mechanics of hall visibility are Hall Management's concern (§3). |
 | BR-HOTEL-05 | A Hotel only becomes operationally eligible — able to list Halls and receive Bookings — once its application reaches Approved / Active (`BDR-003`). |
@@ -321,7 +322,7 @@ corresponding behavior.
 | 4 | Restriction Scope & Applicable Business Process | Platform Policies | `BDR-013` approves restriction-and-review for invalid required information but does not define which fields are "required," what makes them "invalid," or the review process itself. | BR-HOTEL-10, HM14 |
 | 5 | Ordinary vs. Critical Information Classification | Platform Policies | `BDR-014` approves the two-tier review model but does not define which specific profile fields are "ordinary" versus "critical." | BR-HOTEL-11, BR-HOTEL-12, HM12–HM13 |
 | 6 | Hotel Operational Status During Critical-Change Review | Platform Policies | `BDR-014` does not define whether a Hotel remains fully operational (on its prior information) while a critical change is pending review, or is restricted during that window. | BR-HOTEL-12, HM12 |
-| 7 | Required Business-Profile Content | Hotel Policies | The specific fields that constitute a Hotel's "complete" profile are not yet defined by any approved decision — this module assumes profile completion is a gate (per Module 1's BR-AUTH-03), but the content itself is undefined. | BR-HOTEL-02, HM2 |
+| ~~7~~ | ~~Required Business-Profile Content~~ — **RESOLVED 2026-08-26, see `BDR-015`** | Hotel Policies | Required: Hotel Name, Description, Location, Contact Phone. Optional: Email, Hotel Logo, Hotel Photos. Optional custom key/value fields are permitted but may never substitute for a required field. | BR-HOTEL-02, HM2 |
 
 ---
 
@@ -349,5 +350,6 @@ corresponding behavior.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.2 | 2026-08-26 | Ahmed | Resolves Pending Business Decision #7 (§11): `BDR-015` (Required Hotel Business-Profile Content) reached `Approved`. §2.3 references the new BDR; §7 `BR-HOTEL-02` now states the actual required fields (Hotel Name, Description, Location, Contact Phone), optional fields (Email, Hotel Logo, Hotel Photos), and the custom-field rule (never a substitute for a required field); §11 item 7 marked resolved rather than removed, preserving the traceability record. No other business rule or journey changed. Ahmed directed and reviewed this change directly in the same session `BDR-015` was approved; no separate Mohamed/Abukar review round occurred for this specific update, the same transparently-flagged deviation this module's own Technical Design v1.3 already used for an analogous Ahmed-directed correction. |
 | 1.1 | 2026-08-09 | Ahmed | Status changed `Draft` → `Approved`: independent review by Mohamed or Abukar is complete, per `documentation-architecture.md` §4's no-self-review rule and the pre-review documentation-quality check performed prior to review. This document is now the authoritative business source of truth for Hotel Management — Technical Design may begin. |
 | 1.0 | 2026-08-09 | Ahmed | Initial draft Business Specification for Hotel Management, grounded in `BDR-001`, `BDR-003`, `BDR-008`, and newly-recorded `BDR-010`–`BDR-014`. Not yet reviewed — see status. |

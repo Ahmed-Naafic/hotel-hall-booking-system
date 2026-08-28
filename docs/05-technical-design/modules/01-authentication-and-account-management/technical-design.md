@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/02-architecture/mobile-application-architecture.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md"]
-version: 1.8
-last_updated: 2026-08-10
+version: 1.10
+last_updated: 2026-08-25
 ---
 
 # Authentication & Account Management — Technical Design
@@ -128,7 +128,7 @@ logic reaches into directly.
 | Hotel onboarding (profile, application review/approval) | Hotel Management (Module 3) | Creates the Identity a Hotel account references; reads (never writes) the application/approval status Hotel Management owns (`BDR-003`, corrected 2026-08-10 — previously misattributed to Administration & Platform Management), to gate access (`BR-AUTH-04`, `BR-AUTH-07`). Administration & Platform Management (Module 13) owns only the review workflow/interface through which that status changes, not the status data itself. |
 | Booking | Booking Management (Module 5) | No direct relationship; a Booking references a Customer's Identity only indirectly, through Customer Management. |
 | Payments | Payment Management (Module 7) | No relationship. |
-| Hotel Management (Hall inventory, operations) | Hotel Management (Module 3) | No relationship beyond the Identity reference above. |
+| Hall inventory, operations (`data-architecture.md` §9, corrected 2026-08-25 — previously misattributed to Hotel Management) | Hall Management (Module 4) | No relationship beyond the Identity reference above. |
 | Customer Management (profile/history) | Customer Management (Module 2) | See above. |
 | Notification Management | Notification Management (Module 10) | This module *triggers* identity-related notifications (verification codes, password-reset messages, account-status changes) through Notification Management's interface; it does not compose, template, or deliver messages itself. |
 | Permission / authorization policy (what a role may do) | Security & Access Control (Module 14) | This module produces the identity and role claim Module 14's policy evaluates (`BR-AUTH-14`). |
@@ -958,7 +958,8 @@ addition to this feature has gone through.
    a decision on formally adopting it as `ui-ux-and-accessibility-standards.md`'s source
    (§18.1). Ahmed's call, not made here.
 2. **Flutter token translation doesn't exist yet** (FE-00) — blocks every mobile screen; does
-   not block Admin Web.
+   not block Admin Web. **Resolved 2026-08-25** — `shared/flutter_design_tokens/`, see
+   `implementation-plan.md` §3.1/§5 v1.9.
 3. **Font binaries and an icon package are undecided** for Flutter (§18.2) — an
    implementation-time technology choice when FE-00 is actually built.
 4. **FE-07's exact blocked-state copy can't be fully scoped yet** — it needs to show the
@@ -978,6 +979,8 @@ addition to this feature has gone through.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.10 | 2026-08-25 | Ahmed | §18.5 Item 2 (FE-00 gap) marked Resolved — the shared Flutter design-token package (`shared/flutter_design_tokens/`) is built and consumed by both mobile apps; see `implementation-plan.md` §3.1/§5 v1.9. No architecture changed by this entry; it records that a previously-flagged gap closed. |
+| 1.9 | 2026-08-25 | Ahmed | Corrected a second, smaller staleness in §3.2's "Does Not Own" table: the row attributing "Hall inventory, operations" to Hotel Management (Module 3) is corrected to Hall Management (Module 4), matching `data-architecture.md` §9 v1.2 (corrected in the same pass, per Hotel Management's own Technical Design §18 Item 5) and the `Approved` Hall Management Business Specification §2–§3. No business decision changed; this is an architecture-layer correction only, and does not affect this module's own design (§3.1's Owns list, API, or component architecture are all unaffected — this module never had a relationship to Hall data beyond the row corrected here). |
 | 1.8 | 2026-08-10 | Ahmed | Corrected a data-ownership conflict discovered during Hotel Management's Technical Design review: every reference to "Hotel approval status" previously attributed to Administration & Platform Management (Module 13) is corrected to Hotel Management (Module 3), matching `data-architecture.md` §9 (corrected in the same pass) and the `Approved` Hotel Management Business Specification §3. §2.4, §3.2, §4 (component diagram), §5.1, §6 (sequence diagram §6.2), and §13.1 updated. Module 13's role is narrowed to owning the review workflow/interface only, acting on Hotel Management's data through Hotel Management's defined interface — no business decision changed; `BDR-003` never assigned data ownership, this corrects an architecture-layer inference that had gone beyond it. |
 | 1.7 | 2026-08-04 | Ahmed | §18 (Frontend Integration Scope) reviewed and approved by Mohamed — status changed from "proposed, pending review" to `Approved`, matching `implementation-plan.md` §3.1's `FE-##` tasks it feeds. Scope only; still no Flutter/React code. |
 | 1.6 | 2026-08-04 | Ahmed | Added §18, Frontend Integration Scope — maps §10's API to Customer Mobile, Hotel Manager Mobile, and Admin Web using `Hotel Hall Design System/` (repo root, untracked). Scoping only, no Flutter/React code. Flags the React-vs-Flutter format mismatch, a Flutter token-translation prerequisite (FE-00), and that Hotel Manager's access-blocked screen can't be fully scoped until Modules 3/13 have Business Specifications. **This section is new scope pending its own review** — not covered by Mohamed's earlier approval through v1.5. |

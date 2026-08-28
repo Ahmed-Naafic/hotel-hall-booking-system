@@ -10,13 +10,22 @@ import { logger } from '../../config/logger.js'
 // eslint-disable-next-line no-unused-vars
 export function errorHandler(err, req, res, next) {
   const isAppError = err instanceof AppError
-  const statusCode = isAppError ? err.statusCode : 500
-  const errorCode = isAppError ? err.errorCode : 'INTERNAL_SERVER_ERROR'
+  // express.json() (body-parser) throws a plain SyntaxError — not an
+  // AppError — for malformed JSON in the request body. That's a client
+  // mistake (400), never a server fault (500); without this check it fell
+  // through to the generic 500 branch below, misreporting every malformed
+  // request as an internal server error.
+  const isBodyParseError = !isAppError && (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400))
+
+  const statusCode = isAppError ? err.statusCode : isBodyParseError ? 400 : 500
+  const errorCode = isAppError ? err.errorCode : isBodyParseError ? 'VALIDATION_ERROR' : 'INTERNAL_SERVER_ERROR'
   const message = isAppError
     ? err.message
-    : 'An unexpected error occurred. Please try again later.'
+    : isBodyParseError
+      ? 'The request could not be processed due to invalid input.'
+      : 'An unexpected error occurred. Please try again later.'
 
-  if (!isAppError || statusCode >= 500) {
+  if (statusCode >= 500) {
     logger.error('Unhandled error', {
       requestId: req.requestId,
       path: req.originalUrl,

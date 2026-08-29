@@ -97,8 +97,26 @@ async function createAndLoginPlatformAdministrator() {
 async function registerHotelToProfileComplete(token) {
   const { body } = await post('/api/v1/hotels', {}, authHeader(token))
   const hotelId = body.data.id
-  await patch(`/api/v1/hotels/${hotelId}`, { name: 'Grand Test Hotel' }, authHeader(token))
+  await patch(`/api/v1/hotels/${hotelId}`, completeHotelProfile(), authHeader(token))
   return hotelId
+}
+
+async function registerAndLoginCustomer() {
+  const mobileNumber = uniqueMobileNumber()
+  const password = 'correct-horse-battery-staple'
+  await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER' })
+  const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
+  return loginRes.body.data
+}
+
+function completeHotelProfile(overrides = {}) {
+  return {
+    name: 'Grand Test Hotel',
+    description: 'A comfortable city hotel with flexible halls.',
+    location: 'Downtown',
+    contactPhone: '+15550001111',
+    ...overrides,
+  }
 }
 
 before(async () => {
@@ -128,16 +146,32 @@ describe('Hotel registration and profile completion (HM1, HM2)', () => {
     assert.equal(res.body.data.status, 'REGISTERED')
   })
 
+  test('refuses Hotel creation for a non-Hotel-Manager account (403)', async () => {
+    const { accessToken } = await registerAndLoginCustomer()
+    const res = await post('/api/v1/hotels', {}, authHeader(accessToken))
+    assert.equal(res.status, 403)
+  })
+
   test('completes the profile, reaching PROFILE_COMPLETE', async () => {
     const { accessToken } = await registerAndLoginHotelManager()
     const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
     const res = await patch(
       `/api/v1/hotels/${created.data.id}`,
-      { name: 'Grand Test Hotel' },
+      completeHotelProfile(),
       authHeader(accessToken),
     )
     assert.equal(res.status, 200)
     assert.equal(res.body.data.status, 'PROFILE_COMPLETE')
+  })
+
+  test('discovers the authenticated Manager Hotel from the server', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await registerHotelToProfileComplete(accessToken)
+    const res = await get('/api/v1/hotels/me', authHeader(accessToken))
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.hotel.id, hotelId)
+    assert.equal(res.body.data.latestApplication, null)
   })
 })
 
@@ -206,7 +240,7 @@ describe('Rejected hotel editing and resubmission (HM7, HM8, BDR-010)', () => {
 
     const editRes = await patch(
       `/api/v1/hotels/${hotelId}`,
-      { name: 'Grand Test Hotel (corrected)' },
+      completeHotelProfile({ name: 'Grand Test Hotel (corrected)' }),
       authHeader(accessToken),
     )
     assert.equal(editRes.status, 200)
@@ -250,7 +284,75 @@ describe('Pending application withdrawal (HM9, BR-HOTEL-08)', () => {
       undefined,
       authHeader(accessToken),
     )
-    assert.equal(res.status, 409)
+    assert.equal(res.status, 404)
+  })
+
+  test('does not withdraw a different application id while another is open', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await registerHotelToProfileComplete(accessToken)
+    await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
+
+    const res = await post(
+      `/api/v1/hotels/${hotelId}/applications/00000000-0000-0000-0000-000000000000/withdrawal`,
+      undefined,
+      authHeader(accessToken),
+    )
+    assert.equal(res.status, 404)
+
+    const stillOpen = await prisma.hotelApplication.findFirst({ where: { hotelId, status: 'OPEN' } })
+    assert.ok(stillOpen)
+  })
+})
+
+describe('Administration API — Hotel application decisions', () => {
+  test('approves an open application through the admin API', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await registerHotelToProfileComplete(accessToken)
+    const { body: application } = await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
+    const admin = await createAndLoginPlatformAdministrator()
+
+    const res = await post(
+      `/api/v1/admin/hotels/${hotelId}/applications/${application.data.id}/approval`,
+      undefined,
+      authHeader(admin.accessToken),
+    )
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'APPROVED')
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'APPROVED_ACTIVE')
+  })
+
+  test('rejects an open application with a persisted reason through the admin API', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await registerHotelToProfileComplete(accessToken)
+    const { body: application } = await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
+    const admin = await createAndLoginPlatformAdministrator()
+
+    const res = await post(
+      `/api/v1/admin/hotels/${hotelId}/applications/${application.data.id}/rejection`,
+      { reason: 'Business registration could not be verified.' },
+      authHeader(admin.accessToken),
+    )
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'REJECTED')
+    assert.equal(res.body.data.decisionReason, 'Business registration could not be verified.')
+    const myHotel = await get('/api/v1/hotels/me', authHeader(accessToken))
+    assert.equal(myHotel.body.data.latestApplication.decisionReason, 'Business registration could not be verified.')
+  })
+
+  test('refuses admin decisions from a Hotel Manager token', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await registerHotelToProfileComplete(accessToken)
+    const { body: application } = await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
+
+    const res = await post(
+      `/api/v1/admin/hotels/${hotelId}/applications/${application.data.id}/approval`,
+      undefined,
+      authHeader(accessToken),
+    )
+    assert.equal(res.status, 403)
   })
 })
 

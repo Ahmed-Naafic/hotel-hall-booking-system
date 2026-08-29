@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../shared/auth/useAuth.js'
-import { getHotel } from '../../shared/api/hotelsApi.js'
+import { approveHotelApplication, getHotel, listHotelApplications, rejectHotelApplication } from '../../shared/api/hotelsApi.js'
 import { ApiError } from '../../shared/api/apiClient.js'
 import { Button } from '../../shared/components/Button.jsx'
 import { StateMessage } from '../../shared/components/StateMessage.jsx'
@@ -20,32 +20,31 @@ import { getHotelDisplayName, getHotelLocation } from './hotelProfile.js'
  * shows) adapts to the Hotel's real `status`, so there's no second
  * near-duplicate page to keep in sync.
  *
- * Only what the endpoint actually returns is shown
- * (`hotel.mapper.js#toPublicHotel`: id, registeredByUserId, status,
- * profileData, createdAt, updatedAt). No separate Application record
- * (submittedAt, decidedAt, decidedBy) is available from any admin-facing
- * endpoint — Administration & Platform Management (Module 13, BR-HOTEL-14)
- * owns that, and isn't built. The "Review Information" section says so
- * honestly instead of inventing a reviewer or a date.
- *
- * The Approve/Reject controls in the decision panel are permanently
- * disabled for the same reason: `hotel.routes.js` exposes no
- * approve/reject/suspend/deactivate endpoint. They're shown (not hidden)
- * because the spec asks the approval workflow to be visually obvious —
- * but disabled + explained, never wired to a call the backend can't serve.
+ * The page reads the Hotel plus its application history through the
+ * Administration API and wires Approve/Reject only when the Hotel has an
+ * open application under review. Suspension/deactivation remain outside this
+ * implementation slice.
  */
 export function HotelDetailPage({ hotelId, onBack }) {
   const { accessToken } = useAuth()
   const [hotel, setHotel] = useState(null)
+  const [applications, setApplications] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [error, setError] = useState('')
+  const [decisionState, setDecisionState] = useState('idle')
+  const [decisionError, setDecisionError] = useState('')
+  const [rejectReason, setRejectReason] = useState('')
 
   const load = useCallback(async () => {
     setLoadState('loading')
     setError('')
     try {
-      const data = await getHotel(accessToken, hotelId)
-      setHotel(data)
+      const [hotelData, applicationData] = await Promise.all([
+        getHotel(accessToken, hotelId),
+        listHotelApplications(accessToken, hotelId),
+      ])
+      setHotel(hotelData)
+      setApplications(applicationData)
       setLoadState('ready')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
@@ -58,6 +57,7 @@ export function HotelDetailPage({ hotelId, onBack }) {
   }, [load])
 
   const isUnderReview = hotel?.status === 'UNDER_REVIEW'
+  const openApplication = applications.find((application) => application.status === 'OPEN')
   const { text: displayName, variant: nameVariant } = hotel ? getHotelDisplayName(hotel) : { text: '', variant: 'named' }
   const location = hotel ? getHotelLocation(hotel) : null
   const profileEntries = hotel?.profileData ? Object.entries(hotel.profileData) : []
@@ -115,18 +115,43 @@ export function HotelDetailPage({ hotelId, onBack }) {
               <p style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--text-sm)', color: 'var(--navy-800)' }}>
                 This application is awaiting a decision.
               </p>
+              {decisionError ? (
+                <p style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--text-sm)', color: 'var(--danger-700)' }}>
+                  {decisionError}
+                </p>
+              ) : null}
+              <textarea
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+                placeholder="Rejection reason"
+                rows={3}
+                style={{
+                  width: '100%',
+                  margin: '0 0 var(--space-3)',
+                  padding: 'var(--space-3)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  resize: 'vertical',
+                }}
+              />
               <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                <Button variant="accent" size="sm" disabled title="Not available — Administration & Platform Management (Module 13) is not yet built">
+                <Button
+                  variant="accent"
+                  size="sm"
+                  disabled={!openApplication || decisionState !== 'idle'}
+                  onClick={() => decide('approve')}
+                >
                   Approve Application
                 </Button>
-                <Button variant="danger" size="sm" disabled title="Not available — Administration & Platform Management (Module 13) is not yet built">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={!openApplication || decisionState !== 'idle'}
+                  onClick={() => decide('reject')}
+                >
                   Reject Application
                 </Button>
               </div>
-              <p style={{ margin: 'var(--space-3) 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Approval and rejection are performed through Administration &amp; Platform Management, which isn’t
-                built yet — this view is read-only.
-              </p>
             </div>
           ) : null}
 
@@ -164,15 +189,42 @@ export function HotelDetailPage({ hotelId, onBack }) {
           </Section>
 
           <Section title="Review Information">
-            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-              Reviewer and decision-date details aren’t exposed by the current API — Administration &amp; Platform
-              Management (Module 13) owns that data and isn’t built yet.
-            </p>
+            {applications.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>No application has been submitted yet.</p>
+            ) : (
+              <DefinitionList
+                items={applications.map((application) => ({
+                  term: application.status,
+                  value: `${new Date(application.submittedAt).toLocaleString()}${
+                    application.decisionReason ? ` — ${application.decisionReason}` : ''
+                  }`,
+                }))}
+              />
+            )}
           </Section>
         </>
       )}
     </div>
   )
+
+  async function decide(action) {
+    if (!openApplication) return
+    setDecisionState(action)
+    setDecisionError('')
+    try {
+      if (action === 'approve') {
+        await approveHotelApplication(accessToken, hotel.id, openApplication.id)
+      } else {
+        await rejectHotelApplication(accessToken, hotel.id, openApplication.id, rejectReason)
+      }
+      setRejectReason('')
+      await load()
+    } catch (err) {
+      setDecisionError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setDecisionState('idle')
+    }
+  }
 }
 
 function Section({ title, children }) {

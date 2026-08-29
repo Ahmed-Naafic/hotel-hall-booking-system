@@ -33,11 +33,11 @@ export function isValidTransition(fromStatus, toStatus) {
  * Callers pass the Hotel record they already loaded, not just an id, so
  * this never has to re-fetch to know the current status.
  */
-export async function transition(hotel, toStatus) {
+export async function transition(hotel, toStatus, { client } = {}) {
   if (!isValidTransition(hotel.status, toStatus)) {
     throw new ConflictError(
       `Cannot move a Hotel from ${hotel.status} to ${toStatus}.`,
     )
   }
-  return hotelRepository.updateStatus(hotel.id, toStatus)
+  return hotelRepository.updateStatus(hotel.id, toStatus, client)
 }

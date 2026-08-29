@@ -91,11 +91,20 @@ async function prismaOpenApplicationId(hotelId) {
 async function createApprovedHotel(accessToken) {
   const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
   const hotelId = created.data.id
-  await patch(`/api/v1/hotels/${hotelId}`, { name: 'Grand Test Hotel' }, authHeader(accessToken))
+  await patch(`/api/v1/hotels/${hotelId}`, completeHotelProfile(), authHeader(accessToken))
   await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
   const hotel = await hotelService.getHotelById(hotelId)
   await applicationService.recordDecision(hotel, await prismaOpenApplicationId(hotelId), 'APPROVED', adminStubUserId)
   return hotelId
+}
+
+function completeHotelProfile() {
+  return {
+    name: 'Grand Test Hotel',
+    description: 'A comfortable city hotel with flexible halls.',
+    location: 'Downtown',
+    contactPhone: '+15550001111',
+  }
 }
 
 /** Registers a Hotel that never reaches Approved/Active — remains REGISTERED. */

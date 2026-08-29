@@ -18,6 +18,10 @@
     {
       "name": "Halls",
       "description": "The Hall entity — the Platform's bookable inventory (Module 4). Endpoints per docs/05-technical-design/modules/04-hall-management/technical-design.md §11. Includes the public, platform-wide browse endpoint and the own-Hotel-scoped create/retrieve/update/list-for-Hotel endpoints (WBS-05), authorized through Hotel Management's Hotel Ownership Query Interface (Technical Design v1.5)."
+    },
+    {
+      "name": "Administration",
+      "description": "Platform Administrator hotel application review endpoints required to complete the implemented Hotel onboarding workflow."
     }
   ],
   "components": {
@@ -98,8 +102,18 @@
           "status": { "type": "string", "enum": ["OPEN", "APPROVED", "REJECTED", "WITHDRAWN"] },
           "decidedByUserId": { "type": "string", "format": "uuid", "nullable": true },
           "decidedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "decisionReason": { "type": "string", "nullable": true },
           "submittedAt": { "type": "string", "format": "date-time" }
         }
+      },
+      "MyHotelSnapshot": {
+        "type": "object",
+        "description": "Server-backed Hotel Manager context for Manager Mobile: the latest Hotel owned by the caller, plus its latest application when one exists.",
+        "properties": {
+          "hotel": { "$ref": "#/components/schemas/PublicHotel", "nullable": true },
+          "latestApplication": { "$ref": "#/components/schemas/PublicHotelApplication", "nullable": true }
+        },
+        "required": ["hotel", "latestApplication"]
       },
       "PublicHotelMedia": {
         "type": "object",
@@ -418,6 +432,22 @@
         }
       }
     },
+    "/hotels/me": {
+      "get": {
+        "tags": ["Hotels"],
+        "summary": "Retrieve the authenticated Hotel Manager's latest Hotel context",
+        "description": "Manager-Mobile support query. Returns the latest Hotel owned by the caller and the latest application decision state when one exists.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "The caller's Hotel context, or nulls when no Hotel exists yet.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/MyHotelSnapshot" } } }] } } }
+          },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "Not a Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
     "/hotels/{id}": {
       "get": {
         "tags": ["Hotels"],
@@ -470,6 +500,21 @@
           "409": { "description": "This Hotel already has an application under review.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
           "422": { "description": "The Hotel's profile is not complete, or its status does not permit submission (BR-HOTEL-02, BR-HOTEL-03).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
         }
+      },
+      "get": {
+        "tags": ["Hotels"],
+        "summary": "List a Hotel's application history",
+        "description": "Own-Hotel scoped application history for Hotel Managers. Resubmissions create additional historical records.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Application history for the Hotel.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHotelApplication" } } } }] } } }
+          },
+          "403": { "description": "Not a Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
       }
     },
     "/hotels/{id}/applications/{applicationId}/withdrawal": {
@@ -489,6 +534,70 @@
           },
           "404": { "description": "Not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
           "409": { "description": "This Hotel has no open application to withdraw.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/admin/hotels/{hotelId}/applications": {
+      "get": {
+        "tags": ["Administration"],
+        "summary": "List a Hotel's application history for admin review",
+        "description": "Platform Administrator review support endpoint. Returns all application cycles for the selected Hotel.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Application history for the Hotel.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHotelApplication" } } } }] } } }
+          },
+          "403": { "description": "Not a Platform Administrator.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/admin/hotels/{hotelId}/applications/{applicationId}/approval": {
+      "post": {
+        "tags": ["Administration"],
+        "summary": "Approve a Hotel application",
+        "description": "Approves an open application and transitions the Hotel to APPROVED_ACTIVE.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "applicationId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Application approved.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotelApplication" } } }] } } }
+          },
+          "403": { "description": "Not a Platform Administrator.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel or application not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "Application is not open for decision.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/admin/hotels/{hotelId}/applications/{applicationId}/rejection": {
+      "post": {
+        "tags": ["Administration"],
+        "summary": "Reject a Hotel application",
+        "description": "Rejects an open application with a non-empty reason and transitions the Hotel to REJECTED.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "applicationId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["reason"], "properties": { "reason": { "type": "string", "minLength": 1, "maxLength": 1000 } } } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Application rejected.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotelApplication" } } }] } } }
+          },
+          "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "Not a Platform Administrator.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel or application not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "Application is not open for decision.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
         }
       }
     },

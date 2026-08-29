@@ -10,6 +10,7 @@ import { authenticationRouter } from './modules/authentication/authentication.ro
 import { hotelRouter } from './modules/hotels/hotel.routes.js'
 import { hotelMediaRouter } from './modules/hotels/media.routes.js'
 import { hallRouter, hotelHallsRouter } from './modules/halls/hall.routes.js'
+import { administrationRouter } from './modules/administration/administration.routes.js'
 
 const openapiSpecPath = fileURLToPath(new URL('./openapi/openapi.json', import.meta.url))
 const openapiSpec = JSON.parse(readFileSync(openapiSpecPath, 'utf-8'))
@@ -33,6 +34,7 @@ export function createApp() {
   app.use('/api/v1/hotels/:hotelId/media', hotelMediaRouter)
   app.use('/api/v1/hotels/:hotelId/halls', hotelHallsRouter)
   app.use('/api/v1/halls', hallRouter)
+  app.use('/api/v1/admin', administrationRouter)
 
   // OpenAPI/Swagger documentation (technology-stack.md, api-standards.md §16) —
   // a tooling/meta endpoint, unversioned like the health check pattern

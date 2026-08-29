@@ -2,6 +2,7 @@ import { Router } from 'express'
 import * as mediaController from './media.controller.js'
 import * as mediaValidation from './media.validation.js'
 import { authenticate } from '../../shared/middleware/authenticate.js'
+import { requireAccountType } from '../../shared/middleware/authorize.js'
 
 /**
  * Route definitions only (coding-standards.md §5) — maps method + path to
@@ -16,6 +17,7 @@ export const hotelMediaRouter = Router({ mergeParams: true })
 hotelMediaRouter.post(
   '/logo',
   authenticate,
+  requireAccountType('HOTEL_MANAGER'),
   mediaValidation.uploadMiddleware,
   mediaValidation.handleUploadError,
   mediaValidation.validateUploadedFile,
@@ -25,12 +27,13 @@ hotelMediaRouter.post(
 hotelMediaRouter.post(
   '/photos',
   authenticate,
+  requireAccountType('HOTEL_MANAGER'),
   mediaValidation.uploadMiddleware,
   mediaValidation.handleUploadError,
   mediaValidation.validateUploadedFile,
   mediaController.uploadPhoto,
 )
 
-hotelMediaRouter.delete('/:mediaId', authenticate, mediaController.deleteMedia)
+hotelMediaRouter.delete('/:mediaId', authenticate, requireAccountType('HOTEL_MANAGER'), mediaController.deleteMedia)
 
 hotelMediaRouter.get('/', authenticate, mediaController.getMedia)

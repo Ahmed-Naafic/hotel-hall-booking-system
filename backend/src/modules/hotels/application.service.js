@@ -1,6 +1,7 @@
 import * as applicationRepository from './application.repository.js'
 import * as lifecycleService from './lifecycle.service.js'
 import { recordAuditEvent } from './audit.js'
+import { prisma } from '../../shared/prismaClient.js'
 import { BusinessRuleError, ConflictError, NotFoundError } from '../../shared/errors/errorTypes.js'
 
 /**
@@ -36,8 +37,23 @@ export async function submitOrResubmitApplication(hotel) {
   }
 
   const wasRejected = hotel.status === 'REJECTED'
-  const application = await applicationRepository.create(hotel.id)
-  await lifecycleService.transition(hotel, 'UNDER_REVIEW')
+  let application
+  try {
+    application = await prisma.$transaction(async (client) => {
+      const existingOpen = await applicationRepository.findOpenByHotelId(hotel.id, client)
+      if (existingOpen) {
+        throw new ConflictError('This Hotel already has an application under review.')
+      }
+      const created = await applicationRepository.create(hotel.id, client)
+      await lifecycleService.transition(hotel, 'UNDER_REVIEW', { client })
+      return created
+    })
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      throw new ConflictError('This Hotel already has an application under review.')
+    }
+    throw error
+  }
   recordAuditEvent(wasRejected ? 'APPLICATION_RESUBMITTED' : 'APPLICATION_SUBMITTED', {
     hotelId: hotel.id,
     actorUserId: hotel.registeredByUserId,
@@ -47,18 +63,23 @@ export async function submitOrResubmitApplication(hotel) {
 }
 
 /** Withdrawal (HM9, BR-HOTEL-08) — only while the Application is still open. */
-export async function withdrawApplication(hotel) {
-  const openApplication = await applicationRepository.findOpenByHotelId(hotel.id)
-  if (!openApplication) {
-    throw new ConflictError('This Hotel has no open application to withdraw.')
-  }
-
-  const withdrawn = await applicationRepository.withdraw(openApplication.id)
-  await lifecycleService.transition(hotel, 'WITHDRAWN')
+export async function withdrawApplication(hotel, applicationId) {
+  const withdrawn = await prisma.$transaction(async (client) => {
+    const application = await applicationRepository.findById(applicationId, client)
+    if (!application || application.hotelId !== hotel.id) {
+      throw new NotFoundError('Hotel application not found.')
+    }
+    if (application.status !== 'OPEN') {
+      throw new ConflictError('This Hotel application is not open for withdrawal.')
+    }
+    const updated = await applicationRepository.withdraw(application.id, client)
+    await lifecycleService.transition(hotel, 'WITHDRAWN', { client })
+    return updated
+  })
   recordAuditEvent('APPLICATION_WITHDRAWN', {
     hotelId: hotel.id,
     actorUserId: hotel.registeredByUserId,
-    details: { applicationId: openApplication.id },
+    details: { applicationId: withdrawn.id },
   })
   return withdrawn
 }
@@ -69,22 +90,36 @@ export async function withdrawApplication(hotel) {
  * 13's own, separately-authorized review workflow invokes — this function
  * performs no role check itself (BR-HOTEL-14, Technical Design §7, §12).
  */
-export async function recordDecision(hotel, applicationId, decision, decidedByUserId) {
-  const application = await applicationRepository.findById(applicationId)
-  if (!application || application.hotelId !== hotel.id) {
-    throw new NotFoundError('Hotel application not found.')
-  }
-  if (application.status !== 'OPEN') {
-    throw new ConflictError('This application has already been decided or withdrawn.')
-  }
-
+export async function recordDecision(hotel, applicationId, decision, decidedByUserId, { decisionReason } = {}) {
   const nextHotelStatus = decision === 'APPROVED' ? 'APPROVED_ACTIVE' : 'REJECTED'
-  await applicationRepository.decide(application.id, { status: decision, decidedByUserId })
-  await lifecycleService.transition(hotel, nextHotelStatus)
+  const decided = await prisma.$transaction(async (client) => {
+    const application = await applicationRepository.findById(applicationId, client)
+    if (!application || application.hotelId !== hotel.id) {
+      throw new NotFoundError('Hotel application not found.')
+    }
+    if (application.status !== 'OPEN') {
+      throw new ConflictError('This application has already been decided or withdrawn.')
+    }
+    const updated = await applicationRepository.decide(
+      application.id,
+      { status: decision, decidedByUserId, decisionReason },
+      client,
+    )
+    await lifecycleService.transition(hotel, nextHotelStatus, { client })
+    return updated
+  })
   recordAuditEvent(decision === 'APPROVED' ? 'APPLICATION_APPROVED' : 'APPLICATION_REJECTED', {
     hotelId: hotel.id,
     actorUserId: decidedByUserId,
-    details: { applicationId: application.id },
+    details: { applicationId: decided.id },
   })
-  return applicationRepository.findById(application.id)
+  return decided
+}
+
+export function getLatestApplicationForHotel(hotelId) {
+  return applicationRepository.findLatestByHotelId(hotelId)
+}
+
+export function listApplicationsForHotel(hotelId) {
+  return applicationRepository.listByHotelId(hotelId)
 }

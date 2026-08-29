@@ -17,8 +17,18 @@ class CustomerMobileApp extends StatelessWidget {
     return ChangeNotifierProvider<AuthController>(
       create: (_) {
         final sessionStore = SessionStore();
-        final apiClient = ApiClient(accessTokenProvider: () => sessionStore.accessToken);
-        return AuthController(repository: AuthRepository(apiClient), sessionStore: sessionStore);
+        late final AuthController authController;
+        final apiClient = ApiClient(
+          accessTokenProvider: () => sessionStore.accessToken,
+          refreshTokenProvider: () => sessionStore.refreshToken,
+          tokenPairSaver: sessionStore.save,
+          sessionExpiredHandler: () => authController.expireSession(),
+        );
+        authController = AuthController(
+          repository: AuthRepository(apiClient),
+          sessionStore: sessionStore,
+        );
+        return authController;
       },
       child: MaterialApp(
         title: 'Customer Mobile',

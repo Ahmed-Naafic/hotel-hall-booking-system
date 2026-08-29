@@ -13,6 +13,11 @@ class HotelRepository {
 
   final ApiClient _client;
 
+  Future<MyHotelSnapshot> getMyHotel() async {
+    final data = await _client.get('/hotels/me');
+    return MyHotelSnapshot.fromJson(data as Map<String, dynamic>);
+  }
+
   /// `POST /api/v1/hotels` — creates a Hotel owned by the authenticated
   /// caller (Hotel Management Technical Design §11). Hall Management
   /// "begins from the premise that a Hotel entity already exists" (Hall
@@ -43,7 +48,10 @@ class HotelRepository {
   /// `REGISTERED`; the same endpoint behaves differently for `REJECTED` or
   /// `APPROVED_ACTIVE` Hotels (Technical Design §8), which this app does not
   /// call this method for.
-  Future<Hotel> completeProfile(String hotelId, Map<String, dynamic> profileData) async {
+  Future<Hotel> completeProfile(
+    String hotelId,
+    Map<String, dynamic> profileData,
+  ) async {
     final data = await _client.patch('/hotels/$hotelId', body: profileData);
     return Hotel.fromJson(data as Map<String, dynamic>);
   }
@@ -64,15 +72,31 @@ class HotelRepository {
   /// Hotel Logo (`BDR-015`, `ADR-0006`, Technical Design §8a). At most one
   /// Logo per Hotel; the backend handles replacement, this app never
   /// deletes the previous one itself.
-  Future<HotelMedia> uploadLogo(String hotelId, {required List<int> bytes, required String filename}) async {
-    final data = await _client.postMultipart('/hotels/$hotelId/media/logo', bytes: bytes, filename: filename);
+  Future<HotelMedia> uploadLogo(
+    String hotelId, {
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final data = await _client.postMultipart(
+      '/hotels/$hotelId/media/logo',
+      bytes: bytes,
+      filename: filename,
+    );
     return HotelMedia.fromJson(data as Map<String, dynamic>);
   }
 
   /// `POST /api/v1/hotels/:hotelId/media/photos` — adds a Hotel Photo. No
   /// replacement semantics — a Hotel may have any number of Photos.
-  Future<HotelMedia> uploadPhoto(String hotelId, {required List<int> bytes, required String filename}) async {
-    final data = await _client.postMultipart('/hotels/$hotelId/media/photos', bytes: bytes, filename: filename);
+  Future<HotelMedia> uploadPhoto(
+    String hotelId, {
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final data = await _client.postMultipart(
+      '/hotels/$hotelId/media/photos',
+      bytes: bytes,
+      filename: filename,
+    );
     return HotelMedia.fromJson(data as Map<String, dynamic>);
   }
 

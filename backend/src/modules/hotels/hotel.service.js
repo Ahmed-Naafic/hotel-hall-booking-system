@@ -39,6 +39,10 @@ export async function getOwnHotelById(id, requestingUserId) {
   return hotel
 }
 
+export async function getLatestOwnHotel(requestingUserId) {
+  return hotelRepository.findLatestByOwner(requestingUserId)
+}
+
 export function listHotels({ status, page = 1, limit = 20 }) {
   const skip = (page - 1) * limit
   return Promise.all([

@@ -20,12 +20,19 @@ export function findByIdForOwner(id, registeredByUserId) {
   return prisma.hotel.findFirst({ where: { id, registeredByUserId, deletedAt: null } })
 }
 
-export function updateProfileData(id, profileData) {
-  return prisma.hotel.update({ where: { id }, data: { profileData } })
+export function findLatestByOwner(registeredByUserId) {
+  return prisma.hotel.findFirst({
+    where: { registeredByUserId, deletedAt: null },
+    orderBy: { createdAt: 'desc' },
+  })
 }
 
-export function updateStatus(id, status) {
-  return prisma.hotel.update({ where: { id }, data: { status } })
+export function updateProfileData(id, profileData, client = prisma) {
+  return client.hotel.update({ where: { id }, data: { profileData } })
+}
+
+export function updateStatus(id, status, client = prisma) {
+  return client.hotel.update({ where: { id }, data: { status } })
 }
 
 export function list({ status, skip, take }) {

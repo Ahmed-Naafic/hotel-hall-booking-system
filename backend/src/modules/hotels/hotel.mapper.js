@@ -20,6 +20,7 @@ export function toPublicApplication(application) {
     status: application.status,
     decidedByUserId: application.decidedByUserId,
     decidedAt: application.decidedAt,
+    decisionReason: application.decisionReason,
     submittedAt: application.submittedAt,
   }
 }

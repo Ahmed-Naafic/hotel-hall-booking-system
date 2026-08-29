@@ -29,3 +29,22 @@ export async function countHotels(accessToken, { status } = {}) {
 export function getHotel(accessToken, id) {
   return apiRequest(`/hotels/${id}`, { accessToken })
 }
+
+export function listHotelApplications(accessToken, hotelId) {
+  return apiRequest(`/admin/hotels/${hotelId}/applications`, { accessToken })
+}
+
+export function approveHotelApplication(accessToken, hotelId, applicationId) {
+  return apiRequest(`/admin/hotels/${hotelId}/applications/${applicationId}/approval`, {
+    method: 'POST',
+    accessToken,
+  })
+}
+
+export function rejectHotelApplication(accessToken, hotelId, applicationId, reason) {
+  return apiRequest(`/admin/hotels/${hotelId}/applications/${applicationId}/rejection`, {
+    method: 'POST',
+    accessToken,
+    body: { reason },
+  })
+}

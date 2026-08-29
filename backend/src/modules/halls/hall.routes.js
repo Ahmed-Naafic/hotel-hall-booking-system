@@ -2,6 +2,7 @@ import { Router } from 'express'
 import * as hallController from './hall.controller.js'
 import * as hallValidation from './hall.validation.js'
 import { authenticate, optionalAuthenticate } from '../../shared/middleware/authenticate.js'
+import { requireAccountType } from '../../shared/middleware/authorize.js'
 
 /**
  * Route definitions only (coding-standards.md §5) — maps method + path to
@@ -20,7 +21,19 @@ hallRouter.get('/', hallValidation.validateBrowseHalls, hallController.browseHal
 
 export const hotelHallsRouter = Router({ mergeParams: true })
 
-hotelHallsRouter.post('/', authenticate, hallValidation.validateCreateHall, hallController.createHall)
+hotelHallsRouter.post(
+  '/',
+  authenticate,
+  requireAccountType('HOTEL_MANAGER'),
+  hallValidation.validateCreateHall,
+  hallController.createHall,
+)
 hotelHallsRouter.get('/', optionalAuthenticate, hallValidation.validateListHallsForHotel, hallController.listHallsForHotel)
 hotelHallsRouter.get('/:id', optionalAuthenticate, hallController.getHall)
-hotelHallsRouter.patch('/:id', authenticate, hallValidation.validateUpdateHall, hallController.updateHall)
+hotelHallsRouter.patch(
+  '/:id',
+  authenticate,
+  requireAccountType('HOTEL_MANAGER'),
+  hallValidation.validateUpdateHall,
+  hallController.updateHall,
+)

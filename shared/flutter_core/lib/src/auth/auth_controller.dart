@@ -69,32 +69,48 @@ class AuthController extends ChangeNotifier {
     required String mobileNumber,
     required String password,
     required String accountType,
-  }) =>
-      _run(() async {
-        await repository.register(mobileNumber: mobileNumber, password: password, accountType: accountType);
-        await _authenticate(mobileNumber: mobileNumber, password: password);
-        await repository.requestVerification();
-      });
+  }) => _run(() async {
+    await repository.register(
+      mobileNumber: mobileNumber,
+      password: password,
+      accountType: accountType,
+    );
+    await _authenticate(mobileNumber: mobileNumber, password: password);
+    await repository.requestVerification();
+  });
 
   /// `POST /auth/login` — C4, H7, A1.
-  Future<bool> login({required String mobileNumber, required String password}) =>
+  Future<bool> login({
+    required String mobileNumber,
+    required String password,
+  }) =>
       _run(() => _authenticate(mobileNumber: mobileNumber, password: password));
 
-  Future<void> _authenticate({required String mobileNumber, required String password}) async {
-    final result = await repository.login(mobileNumber: mobileNumber, password: password);
-    await sessionStore.save(accessToken: result.accessToken, refreshToken: result.refreshToken);
+  Future<void> _authenticate({
+    required String mobileNumber,
+    required String password,
+  }) async {
+    final result = await repository.login(
+      mobileNumber: mobileNumber,
+      password: password,
+    );
+    await sessionStore.save(
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    );
     currentUser = result.user;
     status = AuthStatus.authenticated;
   }
 
   /// `POST /auth/verifications` — resend, reusing the same request the
   /// initial registration flow already calls.
-  Future<bool> resendVerificationCode() => _run(() => repository.requestVerification());
+  Future<bool> resendVerificationCode() =>
+      _run(() => repository.requestVerification());
 
   /// `POST /auth/verifications/confirm` — C3.
   Future<bool> confirmVerification(String code) => _run(() async {
-        currentUser = await repository.confirmVerification(code);
-      });
+    currentUser = await repository.confirmVerification(code);
+  });
 
   /// `POST /auth/logout` — C5, A2, BR-AUTH-13. Clears local session state
   /// regardless of the request's outcome — logout must be effective
@@ -105,6 +121,13 @@ class AuthController extends ChangeNotifier {
     } catch (_) {
       // Best-effort — the session is cleared locally either way.
     }
+    await sessionStore.clear();
+    currentUser = null;
+    status = AuthStatus.unauthenticated;
+    notifyListeners();
+  }
+
+  Future<void> expireSession() async {
     await sessionStore.clear();
     currentUser = null;
     status = AuthStatus.unauthenticated;

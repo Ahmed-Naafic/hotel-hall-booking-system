@@ -20,12 +20,36 @@ import { BusinessRuleError, ConflictError } from '../../shared/errors/errorTypes
  * resolves.
  */
 const DEFAULT_CRITICAL_FIELDS = []
+const REQUIRED_PROFILE_FIELDS = ['name', 'description', 'location', 'contactPhone']
+const TEXT_FIELD_MAX_LENGTH = 500
+
+function collectRequiredProfileErrors(profileData) {
+  const details = []
+  for (const field of REQUIRED_PROFILE_FIELDS) {
+    const value = profileData?.[field]
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      details.push({ field, message: `${field} is required.` })
+    } else if (value.trim().length > TEXT_FIELD_MAX_LENGTH) {
+      details.push({ field, message: `${field} must be ${TEXT_FIELD_MAX_LENGTH} characters or fewer.` })
+    }
+  }
+
+  if (
+    profileData?.email !== undefined &&
+    profileData.email !== null &&
+    profileData.email !== '' &&
+    (typeof profileData.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileData.email.trim()))
+  ) {
+    details.push({ field: 'email', message: 'email must be a valid email address.' })
+  }
+
+  return details
+}
 
 /**
- * Profile completion (HM2) — from REGISTERED only. Required-field content
- * is Pending Business Decision #7 (Required Business-Profile Content); the
- * only check made here — that some profile data was actually supplied — is
- * generic and does not assume any specific field.
+ * Profile completion (HM2) — from REGISTERED only. BDR-015 requires Hotel
+ * Name, Description, Location, and Contact Phone; optional custom fields
+ * may be present but never satisfy those required standard fields.
  */
 export async function completeProfile(hotel, profileData) {
   if (hotel.status !== 'REGISTERED') {
@@ -35,6 +59,10 @@ export async function completeProfile(hotel, profileData) {
   }
   if (!profileData || typeof profileData !== 'object' || Object.keys(profileData).length === 0) {
     throw new BusinessRuleError('Profile information is required to complete a Hotel profile.')
+  }
+  const details = collectRequiredProfileErrors(profileData)
+  if (details.length > 0) {
+    throw new BusinessRuleError('Required Hotel profile information is incomplete.', details)
   }
 
   await hotelRepository.updateProfileData(hotel.id, profileData)
@@ -58,11 +86,16 @@ export async function editRejectedApplication(hotel, changedFields) {
   if (!changedFields || typeof changedFields !== 'object' || Object.keys(changedFields).length === 0) {
     throw new BusinessRuleError('At least one profile field must be provided to edit.')
   }
-
-  const updated = await hotelRepository.updateProfileData(hotel.id, {
+  const mergedProfile = {
     ...(hotel.profileData ?? {}),
     ...changedFields,
-  })
+  }
+  const details = collectRequiredProfileErrors(mergedProfile)
+  if (details.length > 0) {
+    throw new BusinessRuleError('Required Hotel profile information is incomplete.', details)
+  }
+
+  const updated = await hotelRepository.updateProfileData(hotel.id, mergedProfile)
   recordAuditEvent('APPLICATION_EDITED_AFTER_REJECTION', {
     hotelId: hotel.id,
     actorUserId: hotel.registeredByUserId,
@@ -85,6 +118,14 @@ export async function changeProfile(hotel, changedFields, { criticalFields } = {
   if (!changedFields || typeof changedFields !== 'object' || Object.keys(changedFields).length === 0) {
     throw new BusinessRuleError('At least one profile field must be provided to change.')
   }
+  const mergedProfile = {
+    ...(hotel.profileData ?? {}),
+    ...changedFields,
+  }
+  const details = collectRequiredProfileErrors(mergedProfile)
+  if (details.length > 0) {
+    throw new BusinessRuleError('Required Hotel profile information is incomplete.', details)
+  }
 
   const classificationRuleset = criticalFields ?? DEFAULT_CRITICAL_FIELDS
   const touchesCriticalField = Object.keys(changedFields).some((field) =>
@@ -92,10 +133,7 @@ export async function changeProfile(hotel, changedFields, { criticalFields } = {
   )
 
   if (!touchesCriticalField) {
-    const updated = await hotelRepository.updateProfileData(hotel.id, {
-      ...(hotel.profileData ?? {}),
-      ...changedFields,
-    })
+    const updated = await hotelRepository.updateProfileData(hotel.id, mergedProfile)
     recordAuditEvent('ORDINARY_PROFILE_CHANGE_APPLIED', {
       hotelId: hotel.id,
       actorUserId: hotel.registeredByUserId,

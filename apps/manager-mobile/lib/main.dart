@@ -17,16 +17,24 @@ class ManagerMobileApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sessionStore = SessionStore();
-    final apiClient = ApiClient(accessTokenProvider: () => sessionStore.accessToken);
+    late final AuthController authController;
+    final apiClient = ApiClient(
+      accessTokenProvider: () => sessionStore.accessToken,
+      refreshTokenProvider: () => sessionStore.refreshToken,
+      tokenPairSaver: sessionStore.save,
+      sessionExpiredHandler: () => authController.expireSession(),
+    );
+    authController = AuthController(
+      repository: AuthRepository(apiClient),
+      sessionStore: sessionStore,
+    );
 
     return MultiProvider(
       providers: [
         // Shared, stateless — Hotel/Hall repositories are built from this
         // wherever they're needed, never a second HTTP client instance.
         Provider<ApiClient>.value(value: apiClient),
-        ChangeNotifierProvider<AuthController>(
-          create: (_) => AuthController(repository: AuthRepository(apiClient), sessionStore: sessionStore),
-        ),
+        ChangeNotifierProvider<AuthController>(create: (_) => authController),
         // Hotel context is Manager-Mobile-only (Customer Mobile never has
         // one) — its own cached id, independent of the shared SessionStore
         // (`HotelContextController`'s own doc comment explains why).

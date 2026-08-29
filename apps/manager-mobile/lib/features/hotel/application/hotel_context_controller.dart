@@ -6,39 +6,14 @@ import '../data/hotel_repository.dart';
 
 enum HotelContextStatus { unknown, none, loading, ready, error }
 
-/// Resolves "which Hotel does the authenticated Hotel Manager manage" — the
+/// Resolves "which Hotel does the authenticated Hotel Manager manage" - the
 /// one piece of context Hall Management's own endpoints require
-/// (`/hotels/:hotelId/halls...`) that nothing in the currently-approved
-/// backend contract can answer on its own.
+/// (`/hotels/:hotelId/halls...`).
 ///
-/// **Why this exists (read before changing):** Hotel Management's API
-/// exposes `POST /hotels` (create, owned by the caller) and `GET
-/// /hotels/:id` (retrieve, own-Hotel scoped) — but no "list/find my own
-/// Hotel(s)" query. `GET /hotels` is Platform-Administrator-only (`403` for
-/// a Hotel Manager). `PublicUser` (the authenticated identity) carries no
-/// Hotel reference either. So a freshly-authenticated Hotel Manager's
-/// `hotelId` cannot be discovered from the API alone — only remembered,
-/// once known, from the moment their Hotel was created.
-///
-/// Hall Management's own Business Specification §3 states this module
-/// "begins from the premise that a Hotel entity already exists" — Hotel
-/// creation is explicitly Hotel Management's concern, not Hall
-/// Management's, and Hotel Management has no approved frontend task list
-/// (`FE-##`-equivalent) of its own yet. Rather than block Hall Management's
-/// Manager Mobile screens entirely on that gap (as Manager Mobile itself
-/// was blocked on Module 1's missing auth foundation), this controller
-/// resolves it with the narrowest possible action: call Hotel Management's
-/// own existing, unmodified, already-approved `POST /hotels` endpoint —
-/// never a new backend endpoint, never a new business rule — and cache the
-/// returned id locally so it never needs to ask again on this device.
-///
-/// **Known limitation, not hidden:** the cached id lives only in this
-/// device's secure storage, scoped independently of the shared
-/// `SessionStore` (a Hotel is Manager-Mobile-only context; `hotel_hall_core`
-/// stays Hall/Hotel-agnostic). A Manager who reinstalls the app or signs in
-/// on a second device has no way to reconnect to an *existing* Hotel
-/// through this app — the same underlying gap (no "find my Hotel" query),
-/// surfaced honestly rather than worked around with a second guess.
+/// Hotel Management exposes `GET /hotels/me`, which returns the Hotel
+/// Manager's latest Hotel plus the latest application decision state. The
+/// local cache remains only as a convenience for existing app state between
+/// refreshes.
 class HotelContextController extends ChangeNotifier {
   HotelContextController({required this.repository, required this.storage});
 
@@ -49,32 +24,27 @@ class HotelContextController extends ChangeNotifier {
 
   HotelContextStatus status = HotelContextStatus.unknown;
   Hotel? hotel;
+  HotelApplication? latestApplication;
   String? errorMessage;
 
   Future<void> load() async {
     status = HotelContextStatus.loading;
     notifyListeners();
 
-    final cachedId = await storage.read(_hotelIdKey);
-    if (cachedId == null) {
-      status = HotelContextStatus.none;
-      notifyListeners();
-      return;
-    }
-
     try {
-      hotel = await repository.getHotel(cachedId);
-      status = HotelContextStatus.ready;
-    } on ApiException catch (e) {
-      if (e.isNotFound) {
-        // The cached id no longer resolves to a Hotel this account owns —
-        // never re-invent one silently; ask again explicitly.
+      final snapshot = await repository.getMyHotel();
+      hotel = snapshot.hotel;
+      latestApplication = snapshot.latestApplication;
+      if (hotel == null) {
         await storage.delete(_hotelIdKey);
         status = HotelContextStatus.none;
       } else {
-        errorMessage = e.message;
-        status = HotelContextStatus.error;
+        await storage.write(_hotelIdKey, hotel!.id);
+        status = HotelContextStatus.ready;
       }
+    } on ApiException catch (e) {
+      errorMessage = e.message;
+      status = HotelContextStatus.error;
     } on NetworkException catch (e) {
       errorMessage = e.message;
       status = HotelContextStatus.error;
@@ -91,6 +61,7 @@ class HotelContextController extends ChangeNotifier {
     notifyListeners();
     try {
       hotel = await repository.createHotel();
+      latestApplication = null;
       await storage.write(_hotelIdKey, hotel!.id);
       status = HotelContextStatus.ready;
       notifyListeners();
@@ -111,6 +82,7 @@ class HotelContextController extends ChangeNotifier {
   Future<void> clearOnLogout() async {
     await storage.delete(_hotelIdKey);
     hotel = null;
+    latestApplication = null;
     status = HotelContextStatus.unknown;
   }
 
@@ -141,7 +113,9 @@ class HotelContextController extends ChangeNotifier {
     notifyListeners();
     try {
       await repository.submitApplication(current.id);
-      hotel = await repository.getHotel(current.id);
+      final snapshot = await repository.getMyHotel();
+      hotel = snapshot.hotel;
+      latestApplication = snapshot.latestApplication;
       isSubmittingApplication = false;
       notifyListeners();
       return true;

@@ -43,6 +43,19 @@ export const getHotel = asyncHandler(async (req, res) => {
   })
 })
 
+export const getMyHotel = asyncHandler(async (req, res) => {
+  const hotel = await hotelService.getLatestOwnHotel(req.identity.userId)
+  const latestApplication = hotel ? await applicationService.getLatestApplicationForHotel(hotel.id) : null
+  sendSuccess(res, {
+    statusCode: 200,
+    message: hotel ? 'Hotel retrieved successfully.' : 'No Hotel is registered for this account.',
+    data: {
+      hotel: hotel ? toPublicHotel(hotel) : null,
+      latestApplication: latestApplication ? toPublicApplication(latestApplication) : null,
+    },
+  })
+})
+
 /**
  * Routes to the Profile Component function matching the Hotel's current
  * status (Technical Design §8) — completion (REGISTERED), editing a
@@ -99,11 +112,21 @@ export const submitApplication = asyncHandler(async (req, res) => {
 
 export const withdrawApplication = asyncHandler(async (req, res) => {
   const hotel = await hotelService.getOwnHotelById(req.params.id, req.identity.userId)
-  const application = await applicationService.withdrawApplication(hotel)
+  const application = await applicationService.withdrawApplication(hotel, req.params.applicationId)
   sendSuccess(res, {
     statusCode: 200,
     message: 'Application withdrawn successfully.',
     data: toPublicApplication(application),
+  })
+})
+
+export const listApplications = asyncHandler(async (req, res) => {
+  const hotel = await hotelService.getOwnHotelById(req.params.id, req.identity.userId)
+  const applications = await applicationService.listApplicationsForHotel(hotel.id)
+  sendSuccess(res, {
+    statusCode: 200,
+    message: 'Hotel applications retrieved successfully.',
+    data: applications.map(toPublicApplication),
   })
 })
 

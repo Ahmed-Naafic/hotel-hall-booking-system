@@ -13,8 +13,14 @@ class HallRepository {
 
   /// `POST /api/v1/hotels/:hotelId/halls` — HL1/HL2, `BR-HALL-02`: no
   /// precondition on the owning Hotel's own status.
-  Future<Hall> createHall({required String hotelId, Map<String, dynamic>? profileData}) async {
-    final data = await _client.post('/hotels/$hotelId/halls', body: {'profileData': ?profileData});
+  Future<Hall> createHall({
+    required String hotelId,
+    Map<String, dynamic>? profileData,
+  }) async {
+    final data = await _client.post(
+      '/hotels/$hotelId/halls',
+      body: {'profileData': profileData},
+    );
     return Hall.fromJson(data as Map<String, dynamic>);
   }
 
@@ -24,12 +30,18 @@ class HallRepository {
   /// envelope (`hall.controller.js#listHallsForHotel`), never nested inside
   /// it — `getPaginated` is what exposes it (plain `get()` would discard
   /// it).
-  Future<HallPage> listHalls({required String hotelId, int page = 1, int limit = 20}) async {
-    final result = await _client.getPaginated('/hotels/$hotelId/halls', query: {
-      'page': '$page',
-      'limit': '$limit',
-    });
-    final halls = (result.data as List<dynamic>).map((h) => Hall.fromJson(h as Map<String, dynamic>)).toList();
+  Future<HallPage> listHalls({
+    required String hotelId,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final result = await _client.getPaginated(
+      '/hotels/$hotelId/halls',
+      query: {'page': '$page', 'limit': '$limit'},
+    );
+    final halls = (result.data as List<dynamic>)
+        .map((h) => Hall.fromJson(h as Map<String, dynamic>))
+        .toList();
     final pagination = result.pagination ?? const {};
     return HallPage(
       halls: halls,
@@ -49,8 +61,15 @@ class HallRepository {
 
   /// `PATCH /api/v1/hotels/:hotelId/halls/:id` — HL3, `BR-HALL-07`: applies
   /// immediately, no review step.
-  Future<Hall> updateHall({required String hotelId, required String id, required Map<String, dynamic> profileData}) async {
-    final data = await _client.patch('/hotels/$hotelId/halls/$id', body: profileData);
+  Future<Hall> updateHall({
+    required String hotelId,
+    required String id,
+    required Map<String, dynamic> profileData,
+  }) async {
+    final data = await _client.patch(
+      '/hotels/$hotelId/halls/$id',
+      body: profileData,
+    );
     return Hall.fromJson(data as Map<String, dynamic>);
   }
 }

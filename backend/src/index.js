@@ -13,8 +13,12 @@ try {
   logger.info('Database connected successfully.')
 } catch (error) {
   logger.error('Database connection failed — the server will not start.', {
+    code: error.code,
     message: error.message,
   })
+  console.error('Database connection failed — the server will not start.')
+  console.error(`Code: ${error.code || 'UNKNOWN'}`)
+  console.error(error.message || error)
   process.exit(1)
 }
 

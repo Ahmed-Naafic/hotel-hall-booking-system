@@ -29,8 +29,24 @@ model User {
   passwordResetRequests                    PasswordResetRequest[]
   sessions                                 Session[]
   verificationRequests                     VerificationRequest[]
+  customerProfile                          CustomerProfile?
 
   @@map("users")
+}
+
+/// Customer-owned business profile, deliberately separate from Authentication.
+/// Profile fields remain empty/flexible until the pending M02 business decisions
+/// approve an explicit allowlist and completion policy.
+model CustomerProfile {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @map("user_id") @db.Uuid
+  profileData Json      @default("{}") @map("profile_data")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("customer_profiles")
 }
 
 /// One authenticated session (Technical Design §5, §9). Session and Refresh
@@ -130,17 +146,18 @@ model Hotel {
 /// by the Media Component, not a database constraint (Technical Design §5)
 /// — PHOTO has no such limit.
 model HotelMedia {
-  id          String         @id @default(uuid()) @db.Uuid
-  hotelId     String         @map("hotel_id") @db.Uuid
-  type        HotelMediaType
+  id           String    @id @default(uuid()) @db.Uuid
+  hotelId      String    @map("hotel_id") @db.Uuid
+  type         MediaType
   /// The Supabase Storage object path (bucket-relative) — e.g.
   /// `hotels/{hotelId}/logo/{fileId}.jpg` — the permanent database
   /// reference. Never a temporary signed URL (Technical Design §8a); a
   /// stable public URL is derived from this path at read time.
-  storagePath String         @map("storage_path")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
-  hotel       Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  storagePath  String    @map("storage_path")
+  displayOrder Int?      @map("display_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  hotel        Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 
   @@index([hotelId], map: "idx_hotel_media_hotel_id")
   @@map("hotel_media")
@@ -197,21 +214,39 @@ model CriticalInformationChangeRequest {
 /// eligibility status (Technical Design §6), never persisted or
 /// synchronized here, so there is nothing to keep in sync or invalidate.
 model Hall {
-  id          String    @id @default(uuid()) @db.Uuid
-  hotelId     String    @map("hotel_id") @db.Uuid
+  id          String      @id @default(uuid()) @db.Uuid
+  hotelId     String      @map("hotel_id") @db.Uuid
   /// Profile content (including Amenities, BR-HALL-06) is deliberately
   /// unspecified — Business Specification Pending Business Decision #2
   /// (Required Hall Information). Held as a flexible field until that
   /// decision resolves, mirroring Hotel's own profileData design exactly
   /// (Technical Design §4, §8).
-  profileData Json?     @map("profile_data")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
-  hotel       Hotel     @relation(fields: [hotelId], references: [id])
+  profileData Json?       @map("profile_data")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  deletedAt   DateTime?   @map("deleted_at")
+  hotel       Hotel       @relation(fields: [hotelId], references: [id])
+  media       HallMedia[]
 
   @@index([hotelId], map: "idx_halls_hotel_id")
   @@map("halls")
+}
+
+/// A single uploaded Hall Photo (BDR-016, ADR-0007). Stores only a
+/// bucket-relative Supabase Storage reference, never the binary itself.
+/// Hall media supports Photos only; no Hall Logo business field exists.
+model HallMedia {
+  id           String    @id @default(uuid()) @db.Uuid
+  hallId       String    @map("hall_id") @db.Uuid
+  type         MediaType
+  storagePath  String    @map("storage_path")
+  displayOrder Int?      @map("display_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  hall         Hall      @relation(fields: [hallId], references: [id], onDelete: Cascade)
+
+  @@index([hallId], map: "idx_hall_media_hall_id")
+  @@map("hall_media")
 }
 
 enum UserAccountType {
@@ -237,11 +272,11 @@ enum HotelStatus {
   @@map("hotel_status")
 }
 
-enum HotelMediaType {
+enum MediaType {
   LOGO
   PHOTO
 
-  @@map("hotel_media_type")
+  @@map("media_type")
 }
 
 enum HotelApplicationStatus {

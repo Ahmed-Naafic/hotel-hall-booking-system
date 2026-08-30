@@ -11,7 +11,18 @@ export function HotelIdentity({ hotel }) {
   const { text, variant } = getHotelDisplayName(hotel)
   const location = getHotelLocation(hotel)
   return (
-    <div style={{ minWidth: 0 }}>
+    <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+      {hotel.logo?.url ? (
+        <img
+          src={hotel.logo.url}
+          alt=""
+          width={42}
+          height={42}
+          loading="lazy"
+          style={{ flex: '0 0 auto', objectFit: 'cover', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}
+        />
+      ) : null}
+      <div style={{ minWidth: 0 }}>
       <span
         style={{
           display: 'block',
@@ -37,6 +48,7 @@ export function HotelIdentity({ hotel }) {
           {location}
         </span>
       ) : null}
+      </div>
     </div>
   )
 }

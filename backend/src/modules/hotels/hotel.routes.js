@@ -15,6 +15,9 @@ import { requireAccountType } from '../../shared/middleware/authorize.js'
  */
 export const hotelRouter = Router()
 
+hotelRouter.get('/public', hotelValidation.validatePublicHotels, hotelController.listPublicHotels)
+hotelRouter.get('/public/:id', hotelValidation.validateHotelId, hotelController.getPublicHotel)
+
 // GET /hotels (Platform-Administrator-only query interface) must be
 // registered before GET /hotels/:id so it isn't shadowed by the param route.
 hotelRouter.get('/', authenticate, hotelValidation.validateListHotels, hotelController.listHotels)

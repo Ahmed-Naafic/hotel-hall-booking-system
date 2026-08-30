@@ -18,7 +18,7 @@ export function findById(id) {
 
 /** Own-Hotel scoping (Technical Design §12) — a Hall belonging to a different Hotel is never returned. */
 export function findByIdForHotel(id, hotelId) {
-  return prisma.hall.findFirst({ where: { id, hotelId, deletedAt: null } })
+  return prisma.hall.findFirst({ where: { id, hotelId, deletedAt: null }, include: { media: true } })
 }
 
 export function updateProfileData(id, profileData) {
@@ -32,6 +32,7 @@ export function listByHotelId({ hotelId, skip, take }) {
     skip,
     take,
     orderBy: { createdAt: 'desc' },
+    include: { media: true },
   })
 }
 
@@ -53,5 +54,6 @@ export function listCandidatesForBrowse({ hotelId, cursor, take }) {
     take,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     orderBy: { createdAt: 'desc' },
+    include: { media: true },
   })
 }

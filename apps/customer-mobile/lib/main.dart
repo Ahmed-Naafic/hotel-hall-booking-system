@@ -4,6 +4,9 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import 'core/auth_gate.dart';
+import 'core/pending_action_controller.dart';
+import 'features/discovery/application/discovery_controller.dart';
+import 'features/discovery/data/discovery_repository.dart';
 
 void main() {
   runApp(const CustomerMobileApp());
@@ -14,22 +17,40 @@ class CustomerMobileApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<AuthController>(
-      create: (_) {
-        final sessionStore = SessionStore();
-        late final AuthController authController;
-        final apiClient = ApiClient(
-          accessTokenProvider: () => sessionStore.accessToken,
-          refreshTokenProvider: () => sessionStore.refreshToken,
-          tokenPairSaver: sessionStore.save,
-          sessionExpiredHandler: () => authController.expireSession(),
-        );
-        authController = AuthController(
-          repository: AuthRepository(apiClient),
-          sessionStore: sessionStore,
-        );
-        return authController;
-      },
+    late AuthController authController;
+    return MultiProvider(
+      providers: [
+        Provider<SessionStore>(create: (_) => SessionStore()),
+        Provider<ApiClient>(
+          create: (context) {
+            final sessionStore = context.read<SessionStore>();
+            final apiClient = ApiClient(
+              accessTokenProvider: () => sessionStore.accessToken,
+              refreshTokenProvider: () => sessionStore.refreshToken,
+              tokenPairSaver: sessionStore.save,
+              sessionExpiredHandler: () => authController.expireSession(),
+            );
+            return apiClient;
+          },
+        ),
+        ChangeNotifierProvider<AuthController>(
+          create: (context) {
+            final apiClient = context.read<ApiClient>();
+            final sessionStore = context.read<SessionStore>();
+            authController = AuthController(
+              repository: AuthRepository(apiClient),
+              sessionStore: sessionStore,
+            );
+            return authController;
+          },
+        ),
+        ChangeNotifierProvider(create: (_) => PendingActionController()),
+        ChangeNotifierProvider(
+          create: (context) => DiscoveryController(
+            DiscoveryRepository(context.read<ApiClient>()),
+          ),
+        ),
+      ],
       child: MaterialApp(
         title: 'Customer Mobile',
         theme: buildHotelHallTheme(),

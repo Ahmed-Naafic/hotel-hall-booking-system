@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import * as mediaController from './media.controller.js'
-import * as mediaValidation from './media.validation.js'
+import * as mediaValidation from '../../shared/media/imageValidation.js'
 import { authenticate } from '../../shared/middleware/authenticate.js'
 import { requireAccountType } from '../../shared/middleware/authorize.js'
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import * as mediaRepository from './media.repository.js'
-import { storageProvider } from '../../shared/providers/storageProvider.js'
-import { extensionForMimeType } from './media.validation.js'
+import { deleteStoredMedia, uploadAndPersist as sharedUploadAndPersist } from '../../shared/media/mediaUpload.js'
+import { extensionForMimeType } from '../../shared/media/imageValidation.js'
 import { recordAuditEvent } from './audit.js'
 import { NotFoundError } from '../../shared/errors/errorTypes.js'
 
@@ -12,9 +12,9 @@ import { NotFoundError } from '../../shared/errors/errorTypes.js'
  * component in this module remains storage-agnostic.
  */
 
-function buildStoragePath({ hotelId, kind, mimeType }) {
+function buildStoragePath({ hotelId, kind, mediaId, mimeType }) {
   const extension = extensionForMimeType(mimeType)
-  return `hotels/${hotelId}/${kind}/${randomUUID()}.${extension}`
+  return `hotels/${hotelId}/${kind}/${mediaId}.${extension}`
 }
 
 /**
@@ -23,15 +23,14 @@ function buildStoragePath({ hotelId, kind, mimeType }) {
  * §8a, §16) — no orphaned file is left behind.
  */
 async function uploadAndPersist({ hotelId, kind, type, buffer, mimeType }) {
-  const storagePath = buildStoragePath({ hotelId, kind, mimeType })
-  await storageProvider.upload({ path: storagePath, buffer, contentType: mimeType })
-
-  try {
-    return await mediaRepository.create({ hotelId, type, storagePath })
-  } catch (err) {
-    await storageProvider.delete({ path: storagePath }).catch(() => {})
-    throw err
-  }
+  const mediaId = randomUUID()
+  const storagePath = buildStoragePath({ hotelId, kind, mediaId, mimeType })
+  return sharedUploadAndPersist({
+    path: storagePath,
+    buffer,
+    mimeType,
+    persist: ({ storagePath }) => mediaRepository.create({ id: mediaId, hotelId, type, storagePath }),
+  })
 }
 
 /**
@@ -54,7 +53,7 @@ export async function uploadLogo(hotel, { buffer, mimeType }) {
   })
 
   if (previousLogo) {
-    await storageProvider.delete({ path: previousLogo.storagePath }).catch(() => {})
+    await deleteStoredMedia(previousLogo.storagePath).catch(() => {})
     await mediaRepository.remove(previousLogo.id).catch(() => {})
   }
 
@@ -93,7 +92,7 @@ export async function deleteMedia(hotel, mediaId) {
     throw new NotFoundError('Hotel media not found.')
   }
 
-  await storageProvider.delete({ path: media.storagePath })
+  await deleteStoredMedia(media.storagePath)
   await mediaRepository.remove(media.id)
 
   recordAuditEvent('HOTEL_MEDIA_DELETED', {

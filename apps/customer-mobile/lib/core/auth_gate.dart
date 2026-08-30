@@ -3,9 +3,7 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
-import '../features/authentication/presentation/screens/home_screen.dart';
-import '../features/authentication/presentation/screens/login_screen.dart';
-import '../features/authentication/presentation/screens/verify_screen.dart';
+import '../features/discovery/presentation/discover_screen.dart';
 
 /// Root routing decision: which screen the app shows for the current
 /// `AuthController.status` (and, once authenticated, `currentUser.isVerified`)
@@ -38,9 +36,8 @@ class _AuthGateState extends State<AuthGate> {
           body: const Center(child: CircularProgressIndicator()),
         );
       case AuthStatus.unauthenticated:
-        return const LoginScreen();
       case AuthStatus.authenticated:
-        return auth.currentUser?.isVerified == true ? const HomeScreen() : const VerifyScreen();
+        return const DiscoverScreen();
     }
   }
 }

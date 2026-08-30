@@ -24,20 +24,34 @@ class LoginScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: HHSpacing.space12),
-              Text('Hotel Hall', style: HHTypography.displayMd, textAlign: TextAlign.center),
+              Text(
+                'Hotel Hall',
+                style: HHTypography.displayMd,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: HHSpacing.space2),
               Text(
                 'Log in to book your next event',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(
+                  fontSize: HHTypeScale.textMd,
+                  color: HHColors.textMuted,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: HHSpacing.space10),
               LoginForm(
                 isBusy: auth.isBusy,
                 errorMessage: auth.errorMessage,
-                onSubmit: ({required mobileNumber, required password}) {
+                onSubmit: ({required mobileNumber, required password}) async {
                   auth.clearError();
-                  return auth.login(mobileNumber: mobileNumber, password: password);
+                  final ok = await auth.login(
+                    mobileNumber: mobileNumber,
+                    password: password,
+                  );
+                  if (ok && context.mounted) {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  }
+                  return ok;
                 },
               ),
               const SizedBox(height: HHSpacing.space6),
@@ -45,7 +59,9 @@ class LoginScreen extends StatelessWidget {
                 child: TextButton(
                   onPressed: () {
                     auth.clearError();
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen()));
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                    );
                   },
                   child: const Text("Don't have an account? Register"),
                 ),

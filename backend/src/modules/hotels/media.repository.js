@@ -6,8 +6,8 @@ import { prisma } from '../../shared/prismaClient.js'
  * query, returns data.
  */
 
-export function create({ hotelId, type, storagePath }) {
-  return prisma.hotelMedia.create({ data: { hotelId, type, storagePath } })
+export function create({ id, hotelId, type, storagePath }) {
+  return prisma.hotelMedia.create({ data: { id, hotelId, type, storagePath } })
 }
 
 export function findById(id) {

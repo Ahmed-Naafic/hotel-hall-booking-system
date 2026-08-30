@@ -1,7 +1,7 @@
 import * as hotelService from './hotel.service.js'
 import * as profileService from './profile.service.js'
 import * as applicationService from './application.service.js'
-import { toPublicHotel, toPublicApplication } from './hotel.mapper.js'
+import { toPublicHotel, toPublicApplication, toCustomerVisibleHotel } from './hotel.mapper.js'
 import { sendSuccess } from '../../shared/utils/responseEnvelope.js'
 import { asyncHandler } from '../../shared/utils/asyncHandler.js'
 import { AuthorizationError, BusinessRuleError } from '../../shared/errors/errorTypes.js'
@@ -149,4 +149,23 @@ export const listHotels = asyncHandler(async (req, res) => {
       hasPrevious: page > 1,
     },
   })
+})
+
+function withMediaUrls(hotel) {
+  return toCustomerVisibleHotel(hotel)
+}
+
+export const listPublicHotels = asyncHandler(async (req, res) => {
+  const limit = req.query.limit ? Math.min(Number(req.query.limit), 100) : 20
+  const { hotels, hasNext, nextCursor } = await hotelService.listPublicHotels({ cursor: req.query.cursor, limit })
+  sendSuccess(res, {
+    message: 'Hotels retrieved successfully.',
+    data: hotels.map(withMediaUrls),
+    pagination: { limit, hasNext, nextCursor },
+  })
+})
+
+export const getPublicHotel = asyncHandler(async (req, res) => {
+  const hotel = await hotelService.getPublicHotelById(req.params.id)
+  sendSuccess(res, { message: 'Hotel retrieved successfully.', data: withMediaUrls(hotel) })
 })

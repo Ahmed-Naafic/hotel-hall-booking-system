@@ -19,18 +19,30 @@ class InMemoryTokenStorage implements TokenStorage {
   Future<void> delete(String key) async => _values.remove(key);
 }
 
-http.Response successResponse(Object data, {int status = 200}) =>
-    http.Response(jsonEncode({'status': 'success', 'message': 'ok', 'data': data}), status);
+http.Response successResponse(Object data, {int status = 200}) => http.Response(
+  jsonEncode({'status': 'success', 'message': 'ok', 'data': data}),
+  status,
+);
 
-http.Response errorResponse(String error, String message, int status) => http.Response(
-      jsonEncode({'status': 'error', 'error': error, 'message': message, 'timestamp': '', 'requestId': 'r'}),
+http.Response errorResponse(String error, String message, int status) =>
+    http.Response(
+      jsonEncode({
+        'status': 'error',
+        'error': error,
+        'message': message,
+        'timestamp': '',
+        'requestId': 'r',
+      }),
       status,
     );
 
-Map<String, dynamic> testUser({bool isVerified = true, String accountType = 'CUSTOMER'}) => {
-      'id': 'u1',
-      'mobileNumber': '+15551234567',
-      'accountType': accountType,
-      'isVerified': isVerified,
-      'isActive': true,
-    };
+Map<String, dynamic> testUser({
+  bool isVerified = true,
+  String accountType = 'CUSTOMER',
+}) => {
+  'id': 'u1',
+  'mobileNumber': '+15551234567',
+  'accountType': accountType,
+  'isVerified': isVerified,
+  'isActive': true,
+};

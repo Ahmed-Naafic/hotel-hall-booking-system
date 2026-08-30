@@ -13,17 +13,21 @@ export function create({ registeredByUserId, profileData }) {
 }
 
 export function findById(id) {
-  return prisma.hotel.findUnique({ where: { id, deletedAt: null } })
+  return prisma.hotel.findUnique({ where: { id, deletedAt: null }, include: { media: { orderBy: { createdAt: 'asc' } } } })
 }
 
 export function findByIdForOwner(id, registeredByUserId) {
-  return prisma.hotel.findFirst({ where: { id, registeredByUserId, deletedAt: null } })
+  return prisma.hotel.findFirst({
+    where: { id, registeredByUserId, deletedAt: null },
+    include: { media: { orderBy: { createdAt: 'asc' } } },
+  })
 }
 
 export function findLatestByOwner(registeredByUserId) {
   return prisma.hotel.findFirst({
     where: { registeredByUserId, deletedAt: null },
     orderBy: { createdAt: 'desc' },
+    include: { media: { orderBy: { createdAt: 'asc' } } },
   })
 }
 
@@ -41,9 +45,31 @@ export function list({ status, skip, take }) {
     skip,
     take,
     orderBy: { createdAt: 'desc' },
+    include: { media: { orderBy: { createdAt: 'asc' } } },
   })
 }
 
 export function count({ status }) {
   return prisma.hotel.count({ where: { deletedAt: null, ...(status ? { status } : {}) } })
+}
+
+const publicInclude = {
+  media: { orderBy: { createdAt: 'asc' } },
+}
+
+export function listPublic({ cursor, take }) {
+  return prisma.hotel.findMany({
+    where: { deletedAt: null, status: 'APPROVED_ACTIVE' },
+    include: publicInclude,
+    take,
+    ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    orderBy: { createdAt: 'desc' },
+  })
+}
+
+export function findPublicById(id) {
+  return prisma.hotel.findFirst({
+    where: { id, deletedAt: null, status: 'APPROVED_ACTIVE' },
+    include: publicInclude,
+  })
 }

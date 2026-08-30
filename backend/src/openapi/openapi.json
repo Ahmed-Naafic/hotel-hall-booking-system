@@ -20,6 +20,10 @@
       "description": "The Hall entity — the Platform's bookable inventory (Module 4). Endpoints per docs/05-technical-design/modules/04-hall-management/technical-design.md §11. Includes the public, platform-wide browse endpoint and the own-Hotel-scoped create/retrieve/update/list-for-Hotel endpoints (WBS-05), authorized through Hotel Management's Hotel Ownership Query Interface (Technical Design v1.5)."
     },
     {
+      "name": "Customers",
+      "description": "Self-scoped Customer business profile APIs (Module 2)."
+    },
+    {
       "name": "Administration",
       "description": "Platform Administrator hotel application review endpoints required to complete the implemented Hotel onboarding workflow."
     }
@@ -106,6 +110,41 @@
           "submittedAt": { "type": "string", "format": "date-time" }
         }
       },
+      "CustomerProfile": {
+        "type": "object",
+        "description": "Customer business profile. No profile fields are approved yet, so profileData currently accepts only an empty object.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "profileData": { "type": "object", "additionalProperties": false },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "profileData", "createdAt", "updatedAt"]
+      },
+      "CustomerReadiness": {
+        "type": "object",
+        "properties": {
+          "profileExists": { "type": "boolean" },
+          "isComplete": { "type": "boolean", "nullable": true, "description": "Null while profile-completion rules remain unresolved." },
+          "missingRequiredFields": { "type": "array", "items": { "type": "string" }, "nullable": true }
+        },
+        "required": ["profileExists", "isComplete", "missingRequiredFields"]
+      },
+      "CustomerSnapshot": {
+        "type": "object",
+        "properties": {
+          "user": { "$ref": "#/components/schemas/PublicUser" },
+          "profile": { "$ref": "#/components/schemas/CustomerProfile", "nullable": true },
+          "readiness": { "$ref": "#/components/schemas/CustomerReadiness" }
+        },
+        "required": ["user", "profile", "readiness"]
+      },
+      "CustomerProfileInput": {
+        "type": "object",
+        "properties": { "profileData": { "type": "object", "additionalProperties": false } },
+        "required": ["profileData"],
+        "additionalProperties": false
+      },
       "MyHotelSnapshot": {
         "type": "object",
         "description": "Server-backed Hotel Manager context for Manager Mobile: the latest Hotel owned by the caller, plus its latest application when one exists.",
@@ -127,6 +166,18 @@
           "updatedAt": { "type": "string", "format": "date-time" }
         }
       },
+      "PublicHallMedia": {
+        "type": "object",
+        "description": "A single uploaded Hall Photo (BDR-016, ADR-0007, Shared Media Technical Design v0.2). `url` is a stable, non-expiring public URL derived from the stored path at read time — never a temporary signed URL.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "hallId": { "type": "string", "format": "uuid" },
+          "type": { "type": "string", "enum": ["PHOTO"] },
+          "url": { "type": "string", "format": "uri" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
       "PublicHall": {
         "type": "object",
         "description": "The Hall entity (Technical Design §4). profileData's required/optional/custom structure is defined by BDR-016 (name, capacity required; description, location optional; any other key is a custom field) — the object itself remains unstructured JSON, no per-field schema properties. No visibility/status field is returned — visibility (Hidden/Visible) is computed live, never persisted (Technical Design §6), and its only observable effect is whether a request for a given Hall succeeds at all.",
@@ -141,6 +192,66 @@
     }
   },
   "paths": {
+    "/customers/me": {
+      "get": {
+        "tags": ["Customers"],
+        "summary": "Get the authenticated Customer identity, profile, and readiness",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Customer snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "401": { "description": "Authentication required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "CUSTOMER account required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/customers/me/profile": {
+      "post": {
+        "tags": ["Customers"],
+        "summary": "Create the authenticated Customer's profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomerProfileInput" } } } },
+        "responses": {
+          "201": { "description": "Profile created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "400": { "description": "Invalid or unapproved fields", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "Profile already exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Customers"],
+        "summary": "Update the authenticated Customer's profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomerProfileInput" } } } },
+        "responses": {
+          "200": { "description": "Profile updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "400": { "description": "Invalid or unapproved fields", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Profile not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/public": {
+      "get": {
+        "tags": ["Hotels"],
+        "summary": "Browse Customer-visible Hotels without authentication",
+        "security": [],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": { "200": { "description": "Approved/active Hotels", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } } }
+      }
+    },
+    "/hotels/public/{id}": {
+      "get": {
+        "tags": ["Hotels"],
+        "summary": "Get one Customer-visible Hotel without authentication",
+        "security": [],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Approved/active Hotel", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "404": { "description": "Hotel unavailable or not visible", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
     "/auth/register": {
       "post": {
         "tags": ["Authentication"],
@@ -812,6 +923,72 @@
           "400": { "description": "Malformed fields, an empty update body, or an included name/capacity that fails content validation (BDR-016).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
           "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
           "404": { "description": "Hall not found, or belongs to a Hotel the caller doesn't own (never 403).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/halls/{hallId}/media/photos": {
+      "post": {
+        "tags": ["Halls"],
+        "summary": "Add a Hall Photo",
+        "description": "BDR-016, ADR-0007 — Shared Media Technical Design v0.2 §19.2. Own-Hotel plus own-Hall only; no Hall Logo route exists.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "hallId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "multipart/form-data": { "schema": { "type": "object", "properties": { "file": { "type": "string", "format": "binary" } }, "required": ["file"] } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Photo uploaded.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHallMedia" } } }] } } }
+          },
+          "400": { "description": "Missing file, unsupported file type, or file exceeds the maximum size.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "Not a Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel or Hall not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/halls/{hallId}/media/{mediaId}": {
+      "delete": {
+        "tags": ["Halls"],
+        "summary": "Delete a Hall Media record",
+        "description": "BDR-016, ADR-0007 — Shared Media Technical Design v0.2 §19.2. Deletes the underlying Supabase object as well as the metadata record.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "hallId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "mediaId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Deleted." },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "Not a Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel, Hall, or Hall media not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/hotels/{hotelId}/halls/{hallId}/media": {
+      "get": {
+        "tags": ["Halls"],
+        "summary": "Retrieve a Hall's current media",
+        "description": "BDR-016, ADR-0007 — Shared Media Technical Design v0.2 §19.2. Own-Hotel plus own-Hall only; no public or Customer media API is introduced.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "hallId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Hall's full Photos list.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "object", "properties": { "photos": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHallMedia" } } } } } }] } } }
+          },
+          "401": { "description": "Missing, invalid, or expired access token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "Not a Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel or Hall not found, or belongs to a different Hotel Manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
         }
       }
     },

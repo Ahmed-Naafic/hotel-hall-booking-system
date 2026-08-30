@@ -18,7 +18,13 @@ class HomeScreen extends StatelessWidget {
       backgroundColor: HHColors.surfacePage,
       appBar: AppBar(
         title: const Text('Hotel Hall'),
-        actions: [IconButton(onPressed: auth.logout, icon: const Icon(Icons.logout), tooltip: 'Log out')],
+        actions: [
+          IconButton(
+            onPressed: auth.logout,
+            icon: const Icon(Icons.logout),
+            tooltip: 'Log out',
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -30,7 +36,10 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: HHSpacing.space2),
               Text(
                 user?.mobileNumber ?? '',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(
+                  fontSize: HHTypeScale.textMd,
+                  color: HHColors.textMuted,
+                ),
               ),
             ],
           ),

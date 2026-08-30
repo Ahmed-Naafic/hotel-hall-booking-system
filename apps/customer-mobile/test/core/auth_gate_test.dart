@@ -1,7 +1,8 @@
 import 'package:customer_mobile/core/auth_gate.dart';
-import 'package:customer_mobile/features/authentication/presentation/screens/home_screen.dart';
-import 'package:customer_mobile/features/authentication/presentation/screens/login_screen.dart';
-import 'package:customer_mobile/features/authentication/presentation/screens/verify_screen.dart';
+import 'package:customer_mobile/core/pending_action_controller.dart';
+import 'package:customer_mobile/features/discovery/application/discovery_controller.dart';
+import 'package:customer_mobile/features/discovery/data/discovery_repository.dart';
+import 'package:customer_mobile/features/discovery/presentation/discover_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
@@ -11,62 +12,93 @@ import 'package:provider/provider.dart';
 
 import '../test_support.dart';
 
-Widget _wrap(AuthController controller) => ChangeNotifierProvider<AuthController>.value(
-      value: controller,
-      child: const MaterialApp(home: AuthGate()),
-    );
+Widget _wrap(AuthController controller) {
+  final discoveryClient = ApiClient(
+    httpClient: MockClient((_) async => successResponse([])),
+    baseUrl: 'http://test/api/v1',
+  );
+  return MultiProvider(
+    providers: [
+      Provider<ApiClient>.value(value: discoveryClient),
+      ChangeNotifierProvider<AuthController>.value(value: controller),
+      ChangeNotifierProvider(create: (_) => PendingActionController()),
+      ChangeNotifierProvider(
+        create: (_) =>
+            DiscoveryController(DiscoveryRepository(discoveryClient)),
+      ),
+    ],
+    child: const MaterialApp(home: AuthGate()),
+  );
+}
 
-AuthController _controllerWith(TokenStorage storage, {Future<http.Response> Function(http.Request)? handler}) {
+AuthController _controllerWith(
+  TokenStorage storage, {
+  Future<http.Response> Function(http.Request)? handler,
+}) {
   final sessionStore = SessionStore(storage: storage);
   final client = ApiClient(
     httpClient: MockClient(handler ?? (r) async => successResponse(testUser())),
     baseUrl: 'http://test/api/v1',
     accessTokenProvider: () => sessionStore.accessToken,
   );
-  return AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
+  return AuthController(
+    repository: AuthRepository(client),
+    sessionStore: sessionStore,
+  );
 }
 
 void main() {
-  testWidgets('shows a loading indicator, then LoginScreen, when no session is stored', (tester) async {
+  testWidgets('fresh app opens public discovery instead of Login', (
+    tester,
+  ) async {
     final controller = _controllerWith(InMemoryTokenStorage());
-
     await tester.pumpWidget(_wrap(controller));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-
     await tester.pumpAndSettle();
-    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(DiscoverScreen), findsOneWidget);
   });
 
-  testWidgets('shows HomeScreen when a valid, verified session is restored', (tester) async {
+  testWidgets('valid verified session restores into discovery', (tester) async {
     final storage = InMemoryTokenStorage();
     await storage.write('hh_access_token', 'tok');
-    final controller = _controllerWith(storage, handler: (r) async => successResponse(testUser(isVerified: true)));
-
+    final controller = _controllerWith(
+      storage,
+      handler: (_) async => successResponse(testUser(isVerified: true)),
+    );
     await tester.pumpWidget(_wrap(controller));
     await tester.pumpAndSettle();
-
-    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(DiscoverScreen), findsOneWidget);
+    expect(controller.status, AuthStatus.authenticated);
   });
 
-  testWidgets('shows VerifyScreen when a valid but unverified session is restored', (tester) async {
+  testWidgets('unverified Customer can still browse discovery', (tester) async {
     final storage = InMemoryTokenStorage();
     await storage.write('hh_access_token', 'tok');
-    final controller = _controllerWith(storage, handler: (r) async => successResponse(testUser(isVerified: false)));
-
+    final controller = _controllerWith(
+      storage,
+      handler: (_) async => successResponse(testUser(isVerified: false)),
+    );
     await tester.pumpWidget(_wrap(controller));
     await tester.pumpAndSettle();
-
-    expect(find.byType(VerifyScreen), findsOneWidget);
+    expect(find.byType(DiscoverScreen), findsOneWidget);
   });
 
-  testWidgets('falls back to LoginScreen when a stored session is invalid/expired (BR-AUTH-11)', (tester) async {
+  testWidgets('invalid stored session falls back to Visitor discovery', (
+    tester,
+  ) async {
     final storage = InMemoryTokenStorage();
     await storage.write('hh_access_token', 'stale');
-    final controller = _controllerWith(storage, handler: (r) async => errorResponse('AUTHENTICATION_ERROR', 'Invalid or expired session.', 401));
-
+    final controller = _controllerWith(
+      storage,
+      handler: (_) async => errorResponse(
+        'AUTHENTICATION_ERROR',
+        'Invalid or expired session.',
+        401,
+      ),
+    );
     await tester.pumpWidget(_wrap(controller));
     await tester.pumpAndSettle();
-
-    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(DiscoverScreen), findsOneWidget);
+    expect(controller.status, AuthStatus.unauthenticated);
   });
 }

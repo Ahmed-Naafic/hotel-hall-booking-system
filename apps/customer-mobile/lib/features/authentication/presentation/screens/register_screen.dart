@@ -24,7 +24,10 @@ class RegisterScreen extends StatelessWidget {
             children: [
               Text(
                 'Register with your mobile number to start booking Halls.',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(
+                  fontSize: HHTypeScale.textMd,
+                  color: HHColors.textMuted,
+                ),
               ),
               const SizedBox(height: HHSpacing.space7),
               RegisterForm(

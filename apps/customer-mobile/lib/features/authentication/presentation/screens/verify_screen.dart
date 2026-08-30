@@ -22,11 +22,18 @@ class VerifyScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: HHSpacing.space10),
-              Text('Verify your mobile number', style: HHTypography.displaySm, textAlign: TextAlign.center),
+              Text(
+                'Verify your mobile number',
+                style: HHTypography.displaySm,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: HHSpacing.space3),
               Text(
                 'We sent a 6-digit code to ${auth.currentUser?.mobileNumber ?? 'your mobile number'}.',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(
+                  fontSize: HHTypeScale.textMd,
+                  color: HHColors.textMuted,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: HHSpacing.space10),
@@ -34,9 +41,13 @@ class VerifyScreen extends StatelessWidget {
                 isBusy: auth.isBusy,
                 isResending: auth.isBusy,
                 errorMessage: auth.errorMessage,
-                onSubmit: (code) {
+                onSubmit: (code) async {
                   auth.clearError();
-                  return auth.confirmVerification(code);
+                  final ok = await auth.confirmVerification(code);
+                  if (ok && context.mounted) {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  }
+                  return ok;
                 },
                 onResend: () {
                   auth.clearError();
@@ -45,7 +56,10 @@ class VerifyScreen extends StatelessWidget {
               ),
               const SizedBox(height: HHSpacing.space6),
               Center(
-                child: TextButton(onPressed: auth.logout, child: const Text('Log out')),
+                child: TextButton(
+                  onPressed: auth.logout,
+                  child: const Text('Log out'),
+                ),
               ),
             ],
           ),

@@ -63,3 +63,29 @@ export function validateListHotels(req, res, next) {
   }
   next()
 }
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function validateHotelId(req, res, next) {
+  if (!UUID_PATTERN.test(req.params.id)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'id', message: 'id must be a valid identifier.' },
+    ])
+  }
+  next()
+}
+
+export function validatePublicHotels(req, res, next) {
+  const { limit, cursor } = req.query ?? {}
+  if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'limit', message: 'limit must be a positive integer.' },
+    ])
+  }
+  if (cursor !== undefined && !UUID_PATTERN.test(cursor)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'cursor', message: 'cursor must be a valid identifier.' },
+    ])
+  }
+  next()
+}

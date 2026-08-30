@@ -25,6 +25,25 @@ export function toPublicApplication(application) {
   }
 }
 
+export function toCustomerVisibleHotel(hotel) {
+  const media = hotel.media ?? []
+  return {
+    id: hotel.id,
+    profileData: hotel.profileData,
+    logo: toMedia(media.find((item) => item.type === 'LOGO') ?? null),
+    photos: media.filter((item) => item.type === 'PHOTO').map(toMedia),
+  }
+}
+
+function toMedia(media) {
+  if (!media) return null
+  return {
+    id: media.id,
+    type: media.type,
+    storagePath: media.storagePath,
+  }
+}
+
 export function toPublicCriticalChangeRequest(request) {
   return {
     id: request.id,

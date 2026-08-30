@@ -13,17 +13,21 @@ export function create({ registeredByUserId, profileData }) {
 }
 
 export function findById(id) {
-  return prisma.hotel.findUnique({ where: { id, deletedAt: null } })
+  return prisma.hotel.findUnique({ where: { id, deletedAt: null }, include: { media: { orderBy: { createdAt: 'asc' } } } })
 }
 
 export function findByIdForOwner(id, registeredByUserId) {
-  return prisma.hotel.findFirst({ where: { id, registeredByUserId, deletedAt: null } })
+  return prisma.hotel.findFirst({
+    where: { id, registeredByUserId, deletedAt: null },
+    include: { media: { orderBy: { createdAt: 'asc' } } },
+  })
 }
 
 export function findLatestByOwner(registeredByUserId) {
   return prisma.hotel.findFirst({
     where: { registeredByUserId, deletedAt: null },
     orderBy: { createdAt: 'desc' },
+    include: { media: { orderBy: { createdAt: 'asc' } } },
   })
 }
 
@@ -41,6 +45,7 @@ export function list({ status, skip, take }) {
     skip,
     take,
     orderBy: { createdAt: 'desc' },
+    include: { media: { orderBy: { createdAt: 'asc' } } },
   })
 }
 

@@ -2,7 +2,6 @@ import * as hotelService from './hotel.service.js'
 import * as profileService from './profile.service.js'
 import * as applicationService from './application.service.js'
 import { toPublicHotel, toPublicApplication, toCustomerVisibleHotel } from './hotel.mapper.js'
-import { storageProvider } from '../../shared/providers/storageProvider.js'
 import { sendSuccess } from '../../shared/utils/responseEnvelope.js'
 import { asyncHandler } from '../../shared/utils/asyncHandler.js'
 import { AuthorizationError, BusinessRuleError } from '../../shared/errors/errorTypes.js'
@@ -153,9 +152,7 @@ export const listHotels = asyncHandler(async (req, res) => {
 })
 
 function withMediaUrls(hotel) {
-  const mapped = toCustomerVisibleHotel(hotel)
-  const addUrl = (media) => media ? { id: media.id, type: media.type, url: storageProvider.getPublicUrl({ path: media.storagePath }) } : null
-  return { ...mapped, logo: addUrl(mapped.logo), photos: mapped.photos.map(addUrl) }
+  return toCustomerVisibleHotel(hotel)
 }
 
 export const listPublicHotels = asyncHandler(async (req, res) => {

@@ -93,6 +93,14 @@
             "enum": ["REGISTERED", "PROFILE_COMPLETE", "UNDER_REVIEW", "APPROVED_ACTIVE", "REJECTED", "WITHDRAWN", "SUSPENDED", "DEACTIVATED", "RESTRICTED_UNDER_REVIEW"]
           },
           "profileData": { "type": "object", "nullable": true },
+          "logo": {
+            "allOf": [{ "$ref": "#/components/schemas/HotelMediaSummary" }],
+            "nullable": true
+          },
+          "photos": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/HotelMediaSummary" }
+          },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
         }
@@ -165,6 +173,16 @@
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
         }
+      },
+      "HotelMediaSummary": {
+        "type": "object",
+        "description": "Hotel media embedded in a Hotel response.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "type": { "type": "string", "enum": ["LOGO", "PHOTO"] },
+          "url": { "type": "string", "format": "uri" }
+        },
+        "required": ["id", "type", "url"]
       },
       "PublicHallMedia": {
         "type": "object",

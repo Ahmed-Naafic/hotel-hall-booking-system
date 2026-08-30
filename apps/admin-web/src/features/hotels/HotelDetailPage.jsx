@@ -155,6 +155,17 @@ export function HotelDetailPage({ hotelId, onBack }) {
             </div>
           ) : null}
 
+          {hotel.logo?.url || hotel.photos?.length ? (
+            <Section title="Hotel Media">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 'var(--space-3)' }}>
+                {hotel.logo?.url ? <HotelImage media={hotel.logo} alt={`${displayName} logo`} /> : null}
+                {(hotel.photos ?? []).map((photo, index) => (
+                  <HotelImage key={photo.id} media={photo} alt={`${displayName} photo ${index + 1}`} />
+                ))}
+              </div>
+            </Section>
+          ) : null}
+
           <Section title="Application">
             <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-body)' }}>
               {describeApplicationStatus(hotel.status)}
@@ -245,6 +256,17 @@ function Section({ title, children }) {
       </h3>
       {children}
     </div>
+  )
+}
+
+function HotelImage({ media, alt }) {
+  return (
+    <img
+      src={media.url}
+      alt={alt}
+      loading="lazy"
+      style={{ width: '100%', height: 150, display: 'block', objectFit: 'cover', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}
+    />
   )
 }
 

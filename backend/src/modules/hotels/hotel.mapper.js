@@ -1,3 +1,5 @@
+import { storageProvider } from '../../shared/providers/storageProvider.js'
+
 /**
  * Data-shape translation (naming-conventions.md §6) — Prisma result → API
  * response.
@@ -10,6 +12,8 @@ export function toPublicHotel(hotel) {
     profileData: hotel.profileData,
     createdAt: hotel.createdAt,
     updatedAt: hotel.updatedAt,
+    logo: toMedia(hotel.media?.find((item) => item.type === 'LOGO') ?? null),
+    photos: (hotel.media ?? []).filter((item) => item.type === 'PHOTO').map(toMedia),
   }
 }
 
@@ -40,7 +44,7 @@ function toMedia(media) {
   return {
     id: media.id,
     type: media.type,
-    storagePath: media.storagePath,
+    url: storageProvider.getPublicUrl({ path: media.storagePath }),
   }
 }
 

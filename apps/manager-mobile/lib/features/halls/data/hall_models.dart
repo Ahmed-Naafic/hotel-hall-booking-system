@@ -18,12 +18,12 @@ class Hall {
   final DateTime updatedAt;
 
   factory Hall.fromJson(Map<String, dynamic> json) => Hall(
-        id: json['id'] as String,
-        hotelId: json['hotelId'] as String,
-        profileData: (json['profileData'] as Map?)?.cast<String, dynamic>(),
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        updatedAt: DateTime.parse(json['updatedAt'] as String),
-      );
+    id: json['id'] as String,
+    hotelId: json['hotelId'] as String,
+    profileData: (json['profileData'] as Map?)?.cast<String, dynamic>(),
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    updatedAt: DateTime.parse(json['updatedAt'] as String),
+  );
 
   /// `BDR-016` (Approved) defines `name` as a required standard field, so
   /// this now reads it directly rather than guessing from the first
@@ -34,7 +34,8 @@ class Hall {
     final data = profileData;
     if (data == null || data.isEmpty) return 'Untitled Hall';
     final name = data['name'];
-    if (name != null && name.toString().trim().isNotEmpty) return name.toString();
+    if (name != null && name.toString().trim().isNotEmpty)
+      return name.toString();
     return data.entries.first.value?.toString() ?? 'Untitled Hall';
   }
 
@@ -50,7 +51,14 @@ class Hall {
 }
 
 class HallPage {
-  const HallPage({required this.halls, required this.page, required this.limit, required this.total, required this.hasNext, required this.hasPrevious});
+  const HallPage({
+    required this.halls,
+    required this.page,
+    required this.limit,
+    required this.total,
+    required this.hasNext,
+    required this.hasPrevious,
+  });
 
   final List<Hall> halls;
   final int page;
@@ -58,4 +66,17 @@ class HallPage {
   final int total;
   final bool hasNext;
   final bool hasPrevious;
+}
+
+class HallMedia {
+  const HallMedia({required this.id, required this.hallId, required this.url});
+  final String id;
+  final String hallId;
+  final String url;
+
+  factory HallMedia.fromJson(Map<String, dynamic> json) => HallMedia(
+    id: json['id'] as String,
+    hallId: json['hallId'] as String,
+    url: json['url'] as String,
+  );
 }

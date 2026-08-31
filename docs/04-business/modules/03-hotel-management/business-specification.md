@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4, no self-review)
 depends_on: ["docs/Project-Overview.md", "docs/04-business/stakeholders-and-personas.md", "docs/04-business/business-decision-register.md", "docs/Project-Glossary.md", "docs/04-business/modules/01-authentication-and-account-management/business-specification.md"]
-version: 1.2
-last_updated: 2026-08-26
+version: 1.4
+last_updated: 2026-08-31
 ---
 
 # Hotel Management — Business Specification
@@ -102,6 +102,7 @@ the following approved decisions:
 | `BDR-013` | Hotel Information Validity & Restriction | Invalid required information triggers restriction and review (§6, §7, HM14). |
 | `BDR-014` | Hotel Profile Change Review Policy | Ordinary changes require no re-review; critical changes require Platform Administrator review before taking full effect (§6, §7, HM12–HM13). |
 | `BDR-015` | Required Hotel Business-Profile Content | Defines the required, optional, and custom-field structure a Hotel's profile must satisfy before it may reach Profile Complete (§7, BR-HOTEL-02). |
+| `BDR-017` | Hotel Geographic Location Capture | Defines the approved coordinate-plus-address location capture and OpenStreetMap workflow. |
 
 ---
 
@@ -206,7 +207,7 @@ Review**, are not settled by any approved decision (§11).
 | ID | Rule |
 |---|---|
 | BR-HOTEL-01 | A Hotel Manager must have an authenticated account (Module 1) before a Hotel may be registered on the Platform; this module governs the Hotel's own registration and lifecycle, not the account itself (§3). |
-| BR-HOTEL-02 | A Hotel must complete its required business-profile information before it may submit an application for Platform Administrator review. Required fields: Hotel Name, Description, Location, Contact Phone. Optional fields: Email, Hotel Logo, Hotel Photos. A Hotel Manager may also supply optional custom key/value fields, which may never substitute for or satisfy a required field (`BDR-015`). |
+| BR-HOTEL-02 | A Hotel must complete its required business-profile information before it may submit an application for Platform Administrator review. Required fields: Hotel Name, Description, Location, Contact Phone. Optional fields: Email, Hotel Logo, Hotel Photos. A Hotel Manager may also supply optional custom key/value fields, which may never substitute for or satisfy a required field (`BDR-015`). Location contains latitude, longitude, and an editable customer-facing address; reverse-geocoding failure never blocks saving when coordinates and a manual address are present (`BDR-017`). |
 | BR-HOTEL-03 | A Hotel must submit an application before it can be reviewed by a Platform Administrator; while Under Review, the Hotel is not operationally eligible (`BDR-003`). |
 | BR-HOTEL-04 | A Hotel may prepare its Halls before its application is approved, but its Halls remain hidden from Customers until the Hotel reaches Approved / Active (`BDR-003`); the mechanics of hall visibility are Hall Management's concern (§3). |
 | BR-HOTEL-05 | A Hotel only becomes operationally eligible — able to list Halls and receive Bookings — once its application reaches Approved / Active (`BDR-003`). |
@@ -221,6 +222,16 @@ Review**, are not settled by any approved decision (§11).
 | BR-HOTEL-14 | The Platform Administrator's review, approval, rejection, suspension, and deactivation actions are performed through Administration & Platform Management's (Module 13) interface and workflow; this module governs only the Hotel-side states and transitions those actions produce (§3). |
 
 ---
+
+## 7a. Location Capture (`BDR-017`)
+
+The Location value contains `latitude`, `longitude`, and `address`. The Hotel
+Manager places or moves a pin on an OpenStreetMap-based map; the captured coordinates are
+authoritative for geographic calculations. The system attempts reverse geocoding and displays
+the detected address for confirmation or editing. If reverse geocoding fails, the coordinates
+are retained, a manual customer-facing address field is shown, and that address is required
+before saving. Nearby-Hotel search is not part of this scope and the Hotel approval flow is
+unchanged.
 
 ## 8. User Journeys
 
@@ -350,6 +361,8 @@ corresponding behavior.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.4 | 2026-08-31 | Ahmed | Approved `BDR-017` and the structured Hotel Location business rules: coordinates plus editable address, non-blocking reverse-geocoding fallback, and no change to Hotel approval behavior. |
+| 1.3-proposed | 2026-08-30 | AI-drafted, pending Ahmed approval | Added a proposed structured Hotel Location workflow and cross-reference to `BDR-017`; no approved business rule is changed. |
 | 1.2 | 2026-08-26 | Ahmed | Resolves Pending Business Decision #7 (§11): `BDR-015` (Required Hotel Business-Profile Content) reached `Approved`. §2.3 references the new BDR; §7 `BR-HOTEL-02` now states the actual required fields (Hotel Name, Description, Location, Contact Phone), optional fields (Email, Hotel Logo, Hotel Photos), and the custom-field rule (never a substitute for a required field); §11 item 7 marked resolved rather than removed, preserving the traceability record. No other business rule or journey changed. Ahmed directed and reviewed this change directly in the same session `BDR-015` was approved; no separate Mohamed/Abukar review round occurred for this specific update, the same transparently-flagged deviation this module's own Technical Design v1.3 already used for an analogous Ahmed-directed correction. |
 | 1.1 | 2026-08-09 | Ahmed | Status changed `Draft` → `Approved`: independent review by Mohamed or Abukar is complete, per `documentation-architecture.md` §4's no-self-review rule and the pre-review documentation-quality check performed prior to review. This document is now the authoritative business source of truth for Hotel Management — Technical Design may begin. |
 | 1.0 | 2026-08-09 | Ahmed | Initial draft Business Specification for Hotel Management, grounded in `BDR-001`, `BDR-003`, `BDR-008`, and newly-recorded `BDR-010`–`BDR-014`. Not yet reviewed — see status. |

@@ -1,6 +1,7 @@
 import * as hotelService from './hotel.service.js'
 import * as profileService from './profile.service.js'
 import * as applicationService from './application.service.js'
+import * as locationService from './location.service.js'
 import { toPublicHotel, toPublicApplication, toCustomerVisibleHotel } from './hotel.mapper.js'
 import { sendSuccess } from '../../shared/utils/responseEnvelope.js'
 import { asyncHandler } from '../../shared/utils/asyncHandler.js'
@@ -53,6 +54,16 @@ export const getMyHotel = asyncHandler(async (req, res) => {
       hotel: hotel ? toPublicHotel(hotel) : null,
       latestApplication: latestApplication ? toPublicApplication(latestApplication) : null,
     },
+  })
+})
+
+export const reverseGeocode = asyncHandler(async (req, res) => {
+  await hotelService.getOwnHotelById(req.params.id, req.identity.userId)
+  const result = await locationService.reverseGeocode(req.body)
+  sendSuccess(res, {
+    statusCode: 200,
+    message: result.available ? 'Address detected successfully.' : 'Address detection is currently unavailable.',
+    data: result,
   })
 })
 

@@ -72,4 +72,38 @@ class HallRepository {
     );
     return Hall.fromJson(data as Map<String, dynamic>);
   }
+
+  Future<List<HallMedia>> getMedia({
+    required String hotelId,
+    required String hallId,
+  }) async {
+    final data =
+        await _client.get('/hotels/$hotelId/halls/$hallId/media')
+            as Map<String, dynamic>;
+    return (data['photos'] as List<dynamic>? ?? const [])
+        .map(
+          (item) => HallMedia.fromJson((item as Map).cast<String, dynamic>()),
+        )
+        .toList();
+  }
+
+  Future<HallMedia> uploadPhoto({
+    required String hotelId,
+    required String hallId,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final data = await _client.postMultipart(
+      '/hotels/$hotelId/halls/$hallId/media/photos',
+      bytes: bytes,
+      filename: filename,
+    );
+    return HallMedia.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteMedia({
+    required String hotelId,
+    required String hallId,
+    required String mediaId,
+  }) => _client.delete('/hotels/$hotelId/halls/$hallId/media/$mediaId');
 }

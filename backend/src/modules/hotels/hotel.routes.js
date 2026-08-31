@@ -32,6 +32,14 @@ hotelRouter.post(
 
 hotelRouter.get('/me', authenticate, requireAccountType('HOTEL_MANAGER'), hotelController.getMyHotel)
 
+hotelRouter.post(
+  '/:id/location/reverse-geocode',
+  authenticate,
+  requireAccountType('HOTEL_MANAGER'),
+  hotelValidation.validateReverseGeocode,
+  hotelController.reverseGeocode,
+)
+
 hotelRouter.get('/:id', authenticate, hotelController.getHotel)
 
 hotelRouter.patch(

@@ -113,7 +113,7 @@ function completeHotelProfile(overrides = {}) {
   return {
     name: 'Grand Test Hotel',
     description: 'A comfortable city hotel with flexible halls.',
-    location: 'Downtown',
+    location: { latitude: -1.286389, longitude: 36.817223, address: 'Downtown, Nairobi' },
     contactPhone: '+15550001111',
     ...overrides,
   }

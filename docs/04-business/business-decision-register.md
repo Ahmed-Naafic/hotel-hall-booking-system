@@ -154,6 +154,7 @@ Every decision recorded in §5 uses this template:
 | BDR-014 | Hotel Profile Change Review Policy | Platform Policies | Approved | Ahmed | 2026-08-09 | Hotel Management, Administration & Platform Management |
 | BDR-015 | Required Hotel Business-Profile Content | Hotel Policies | Approved | Ahmed | 2026-08-26 | Hotel Management |
 | BDR-016 | Required Hall Information | Hotel Policies | Approved | Ahmed | 2026-08-26 | Hall Management |
+| BDR-017 | Hotel Geographic Location Capture | Hotel Policies | **Approved** | Ahmed | 2026-08-31 | Hotel Management |
 
 This table grows for the life of the project. Full records for each entry above follow in
 §9. New entries follow the same pattern: a row here, plus a full record using the §3
@@ -515,10 +516,28 @@ ordering rule (recorded here before any dependent Business Specification).
 
 ---
 
+### BDR-017 — Hotel Geographic Location Capture
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | **Approved** — approved by Ahmed on 2026-08-31. |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-08-31 |
+| Business Problem | The approved Hotel profile requires Location, but does not define how a Hotel Manager selects, stores, or corrects it. Customers need a reliable address, while geographic calculations require coordinates. |
+| Options Considered | (1) Store an address only. (2) Store coordinates only. (3) Store latitude/longitude together with an editable address, captured from an OpenStreetMap map with reverse-geocoding assistance and manual fallback. |
+| Selected Decision | **Option 3.** A Hotel Location consists of `latitude`, `longitude`, and `address`. Coordinates are authoritative for geographic calculations and future nearby-Hotel search; the address is customer-facing and editable by the Hotel Manager. OpenStreetMap is used for map display. Reverse-geocoding is best-effort; if it fails, captured coordinates remain valid and a manually entered address is required before saving. |
+| Business Rationale | Coordinates support distance-based behavior without unreliable text matching. Separating coordinates from the editable address lets the manager correct imperfect geocoding and prevents a geocoding outage from blocking onboarding after map capture. |
+| Impacted Documents | Hotel Management Business Specification; Hotel Management Technical Design; Technology Stack; Hotel Manager implementation plan; API contract documentation |
+| Impacted Modules | Hotel Management; future Customer discovery/search consumers |
+| Risks | Provider usage limits and attribution must remain compliant as traffic grows. `ADR-0008` resolves the initial provider, persistence, and API architecture. No nearby-Hotel search is approved by this decision. |
+| Notes | Approved by Ahmed on 2026-08-31. Nearby-Hotel search remains separately scoped and is not authorized by this decision. |
+
 ## Version History
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 2.8 | 2026-08-31 | Ahmed | Approved `BDR-017`: structured Hotel coordinates and editable address, OpenStreetMap capture, best-effort reverse geocoding, and mandatory manual-address fallback. |
 | 2.6 | 2026-08-26 | Ahmed | Added BDR-016 (**Approved**): Required Hall Information — resolves Hall Management Business Specification §11 Pending Decision #2, the same hybrid model `BDR-015` established for Hotel (required: Hall Name, Capacity; optional: Description, Location/Area, Hall Photos; optional custom fields). Directed by Ahmed with the field list already specified. Does not resolve `BR-HALL-06`'s separate Amenity-list question, Pending Decision #7 (Hall Capacity Changes), or approve any Hall-media storage mechanism (no Hall equivalent of `ADR-0006` exists yet). |
 | 2.5 | 2026-08-26 | Ahmed | BDR-015's Risks/Notes fields updated: the separate Cloudinary-vs-Supabase media-storage question they flagged as open is now resolved by `ADR-0006` (Supabase selected) — an architecture decision, tracked in `docs/02-architecture/adr/`, not a change to BDR-015's own Selected Decision. No BDR content changed, only the surrounding cross-reference. |
 | 2.4 | 2026-08-26 | Ahmed | **BDR-015 resolved to `Approved`**, exactly as proposed in v2.3: required Hotel profile fields (Hotel Name, Description, Location, Contact Phone), optional fields (Email, Hotel Logo, Hotel Photos), and optional Hotel Manager-defined custom fields that may never substitute for a required field. Resolves Hotel Management Business Specification §11 Pending Decision #7. Hotel Management Business Specification (→ v1.2) and Technical Design updated in the same change to reflect this decision, per §6's ordering rule. The separate Cloudinary-vs-Supabase media-storage architecture question remains open and unresolved. |

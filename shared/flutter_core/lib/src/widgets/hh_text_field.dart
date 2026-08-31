@@ -16,6 +16,7 @@ class HHTextField extends StatelessWidget {
     this.validator,
     this.autofillHints,
     this.enabled = true,
+    this.maxLines = 1,
   });
 
   final String label;
@@ -26,6 +27,7 @@ class HHTextField extends StatelessWidget {
   final String? Function(String?)? validator;
   final Iterable<String>? autofillHints;
   final bool enabled;
+  final int? maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,7 @@ class HHTextField extends StatelessWidget {
       validator: validator,
       autofillHints: autofillHints,
       enabled: enabled,
+      maxLines: maxLines,
       style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textBody),
       decoration: InputDecoration(labelText: label),
     );

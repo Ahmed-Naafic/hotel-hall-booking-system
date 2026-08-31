@@ -56,6 +56,20 @@ class HotelRepository {
     return Hotel.fromJson(data as Map<String, dynamic>);
   }
 
+  Future<String?> reverseGeocode(
+    String hotelId,
+    double latitude,
+    double longitude,
+  ) async {
+    final data =
+        await _client.post(
+              '/hotels/$hotelId/location/reverse-geocode',
+              body: {'latitude': latitude, 'longitude': longitude},
+            )
+            as Map<String, dynamic>;
+    return data['available'] == true ? data['address'] as String? : null;
+  }
+
   /// `POST /api/v1/hotels/:id/applications` — submits the Hotel's
   /// application for Platform Administrator review (HM3, `BR-HOTEL-03`).
   /// Only valid from `PROFILE_COMPLETE` (`422` otherwise) or `REJECTED`

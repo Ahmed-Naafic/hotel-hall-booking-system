@@ -64,6 +64,25 @@ export function validateListHotels(req, res, next) {
   next()
 }
 
+function validCoordinate(value, min, max) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+}
+
+export function validateReverseGeocode(req, res, next) {
+  const { latitude, longitude } = req.body ?? {}
+  const details = []
+  if (!validCoordinate(latitude, -90, 90)) {
+    details.push({ field: 'latitude', message: 'latitude must be a number between -90 and 90.' })
+  }
+  if (!validCoordinate(longitude, -180, 180)) {
+    details.push({ field: 'longitude', message: 'longitude must be a number between -180 and 180.' })
+  }
+  if (details.length > 0) {
+    throw new ValidationError('The request could not be processed due to invalid input.', details)
+  }
+  next()
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function validateHotelId(req, res, next) {

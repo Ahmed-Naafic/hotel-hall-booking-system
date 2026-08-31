@@ -48,6 +48,8 @@ dependencies:
     path: ../../shared/flutter_core
   provider: ^6.1.5
   image_picker: ^1.2.3
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

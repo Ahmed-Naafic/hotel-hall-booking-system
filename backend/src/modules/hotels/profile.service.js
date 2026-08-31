@@ -27,6 +27,24 @@ function collectRequiredProfileErrors(profileData) {
   const details = []
   for (const field of REQUIRED_PROFILE_FIELDS) {
     const value = profileData?.[field]
+    if (field === 'location') {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        details.push({ field, message: 'location must include latitude, longitude, and address.' })
+        continue
+      }
+      if (typeof value.latitude !== 'number' || !Number.isFinite(value.latitude) || value.latitude < -90 || value.latitude > 90) {
+        details.push({ field: 'location.latitude', message: 'latitude must be between -90 and 90.' })
+      }
+      if (typeof value.longitude !== 'number' || !Number.isFinite(value.longitude) || value.longitude < -180 || value.longitude > 180) {
+        details.push({ field: 'location.longitude', message: 'longitude must be between -180 and 180.' })
+      }
+      if (typeof value.address !== 'string' || value.address.trim().length === 0) {
+        details.push({ field: 'location.address', message: 'address is required.' })
+      } else if (value.address.trim().length > TEXT_FIELD_MAX_LENGTH) {
+        details.push({ field: 'location.address', message: `address must be ${TEXT_FIELD_MAX_LENGTH} characters or fewer.` })
+      }
+      continue
+    }
     if (typeof value !== 'string' || value.trim().length === 0) {
       details.push({ field, message: `${field} is required.` })
     } else if (value.trim().length > TEXT_FIELD_MAX_LENGTH) {

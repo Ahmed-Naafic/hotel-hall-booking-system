@@ -2,9 +2,9 @@
 title: "Technology Stack"
 document_type: Architecture
 status: Approved
-version: 1.4
+version: 1.6
 owner: Ahmed
-last_updated: 2026-08-26
+last_updated: 2026-08-31
 ---
 
 # Technology Stack
@@ -62,6 +62,13 @@ logic. First consumer: Hotel Management's Hotel Logo/Photos (`BDR-015`); the spe
 mechanism (bucket layout, client-vs-backend-mediated upload) is a Hotel Management Technical
 Design concern, not decided here.
 
+## Mapping and Geocoding
+
+OpenStreetMap is the approved Hotel-location map source and Nominatim is the default
+reverse-geocoding provider (`ADR-0008`). Reverse geocoding is backend-mediated through a
+provider abstraction with attribution, rate-limit, identification, timeout, and failure
+handling. No map or geocoding API key is exposed to Flutter clients.
+
 ---
 
 ## Changing This Stack
@@ -76,6 +83,8 @@ before a Technical Design may rely on the change.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.6 | 2026-08-31 | Ahmed | Approved OpenStreetMap map display and backend-mediated Nominatim reverse geocoding per `ADR-0008`. |
+| 1.5-proposed | 2026-08-30 | AI-drafted, pending Ahmed approval | Recorded the proposed OpenStreetMap and server-side reverse-geocoding addition as pending; approved stack unchanged. |
 | 1.4 | 2026-08-26 | Ahmed | Default storage provider changed Cloudinary → Supabase, per `ADR-0006` — the abstraction itself is unchanged, Cloudinary was never actually implemented against. |
 | 1.3 | 2026-08-03 | Ahmed | Added SMS delivery (Twilio), per `ADR-0005` — scoped to Authentication & Account Management's verification/password-reset flows |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved technology stack, per ADR-0001 |

@@ -10,6 +10,7 @@ import '../../application/image_picker_service.dart';
 import '../../data/hotel_models.dart';
 import '../../data/hotel_repository.dart';
 import '../widgets/hotel_profile_data_editor.dart';
+import 'hotel_location_picker_screen.dart';
 
 /// Manager → My Hotel → Complete Hotel Profile (HM2, `BR-HOTEL-02`) —
 /// `PATCH /hotels/:id` while the Hotel is `REGISTERED`. Structured per
@@ -32,12 +33,17 @@ import '../widgets/hotel_profile_data_editor.dart';
 /// passed in from the caller, so this screen has no way to target any other
 /// Hotel.
 class HotelProfileFormScreen extends StatefulWidget {
-  const HotelProfileFormScreen({super.key, this.pickImage = pickImageFromGallery});
+  const HotelProfileFormScreen({
+    super.key,
+    this.pickImage = pickImageFromGallery,
+    this.showLocationMapTiles = true,
+  });
 
   /// Injectable so tests never drive the real platform image picker (no
   /// platform channel in `flutter test`) — defaults to the real gallery
   /// picker for actual app use.
   final ImagePickerFn pickImage;
+  final bool showLocationMapTiles;
 
   @override
   State<HotelProfileFormScreen> createState() => _HotelProfileFormScreenState();
@@ -51,32 +57,65 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
 
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
-  late final TextEditingController _locationController;
   late final TextEditingController _contactPhoneController;
   late final TextEditingController _emailController;
   late final Map<String, dynamic> _existingCustomFields;
+  HotelLocationResult? _location;
+  String? _legacyLocation;
 
   @override
   void initState() {
     super.initState();
     final hotelContext = context.read<HotelContextController>();
     final repository = HotelRepository(context.read<ApiClient>());
-    _controller = HotelProfileFormController(repository: repository, hotelContext: hotelContext);
+    _controller = HotelProfileFormController(
+      repository: repository,
+      hotelContext: hotelContext,
+    );
     _mediaController = HotelMediaController(
       repository: repository,
       hotelId: hotelContext.hotel!.id,
       pickImage: widget.pickImage,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _mediaController.load());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _mediaController.load(),
+    );
 
-    final existing = hotelContext.hotel?.profileData ?? const <String, dynamic>{};
-    _nameController = TextEditingController(text: existing['name']?.toString() ?? '');
-    _descriptionController = TextEditingController(text: existing['description']?.toString() ?? '');
-    _locationController = TextEditingController(text: existing['location']?.toString() ?? '');
-    _contactPhoneController = TextEditingController(text: existing['contactPhone']?.toString() ?? '');
-    _emailController = TextEditingController(text: existing['email']?.toString() ?? '');
+    final existing =
+        hotelContext.hotel?.profileData ?? const <String, dynamic>{};
+    _nameController = TextEditingController(
+      text: existing['name']?.toString() ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: existing['description']?.toString() ?? '',
+    );
+    final existingLocation = existing['location'];
+    if (existingLocation is Map) {
+      final latitude = (existingLocation['latitude'] as num?)?.toDouble();
+      final longitude = (existingLocation['longitude'] as num?)?.toDouble();
+      final address = existingLocation['address']?.toString() ?? '';
+      if (latitude != null && longitude != null && address.isNotEmpty) {
+        _location = HotelLocationResult(
+          latitude: latitude,
+          longitude: longitude,
+          address: address,
+        );
+      }
+    } else if (existingLocation is String &&
+        existingLocation.trim().isNotEmpty) {
+      _legacyLocation = existingLocation.trim();
+    }
+    _contactPhoneController = TextEditingController(
+      text: existing['contactPhone']?.toString() ?? '',
+    );
+    _emailController = TextEditingController(
+      text: existing['email']?.toString() ?? '',
+    );
     _existingCustomFields = Map.fromEntries(
-      existing.entries.where((entry) => !HotelProfileFormController.standardFieldKeys.contains(entry.key)),
+      existing.entries.where(
+        (entry) =>
+            !HotelProfileFormController.standardFieldKeys.contains(entry.key),
+      ),
     );
   }
 
@@ -84,7 +123,6 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
-    _locationController.dispose();
     _contactPhoneController.dispose();
     _emailController.dispose();
     super.dispose();
@@ -97,13 +135,16 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
     final standardFields = <String, dynamic>{
       'name': _nameController.text.trim(),
       'description': _descriptionController.text.trim(),
-      'location': _locationController.text.trim(),
+      'location': _location!.toJson(),
       'contactPhone': _contactPhoneController.text.trim(),
       if (email.isNotEmpty) 'email': email,
     };
     final customFields = _customFieldsKey.currentState!.collect();
 
-    final ok = await _controller.submitProfile(standardFields: standardFields, customFields: customFields);
+    final ok = await _controller.submitProfile(
+      standardFields: standardFields,
+      customFields: customFields,
+    );
     if (ok && mounted) {
       // The caller (MyHotelScreen) is still alive and already watches
       // HotelContextController, which submitProfile() just updated — pop
@@ -115,25 +156,45 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
     }
   }
 
-  Widget _sectionHeader(String label) => Padding(
-        padding: const EdgeInsets.only(bottom: HHSpacing.space4),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: HHColors.textMuted,
-            fontWeight: HHTypeScale.weightSemibold,
-            fontSize: HHTypeScale.textXs,
-            letterSpacing: 0.8,
-          ),
+  Future<void> _openLocationPicker() async {
+    final hotelId = context.read<HotelContextController>().hotel!.id;
+    final repository = HotelRepository(context.read<ApiClient>());
+    final result = await Navigator.of(context).push<HotelLocationResult>(
+      MaterialPageRoute(
+        builder: (_) => HotelLocationPickerScreen(
+          initialLocation: _location,
+          showMapTiles: widget.showLocationMapTiles,
+          reverseGeocode: (latitude, longitude) =>
+              repository.reverseGeocode(hotelId, latitude, longitude),
         ),
-      );
+      ),
+    );
+    if (result != null && mounted) setState(() => _location = result);
+  }
+
+  Widget _sectionHeader(String label) => Padding(
+    padding: const EdgeInsets.only(bottom: HHSpacing.space4),
+    child: Text(
+      label,
+      style: TextStyle(
+        color: HHColors.textMuted,
+        fontWeight: HHTypeScale.weightSemibold,
+        fontSize: HHTypeScale.textXs,
+        letterSpacing: 0.8,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider<HotelProfileFormController>.value(value: _controller),
-        ChangeNotifierProvider<HotelMediaController>.value(value: _mediaController),
+        ChangeNotifierProvider<HotelProfileFormController>.value(
+          value: _controller,
+        ),
+        ChangeNotifierProvider<HotelMediaController>.value(
+          value: _mediaController,
+        ),
       ],
       child: Consumer2<HotelProfileFormController, HotelMediaController>(
         builder: (context, controller, mediaController, _) {
@@ -158,7 +219,9 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                         controller: _nameController,
                         enabled: !controller.isBusy,
                         textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Hotel Name is required.' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Hotel Name is required.'
+                            : null,
                       ),
                       const SizedBox(height: HHSpacing.space5),
                       HHTextField(
@@ -166,15 +229,105 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                         controller: _descriptionController,
                         enabled: !controller.isBusy,
                         textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Description is required.' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Description is required.'
+                            : null,
                       ),
                       const SizedBox(height: HHSpacing.space5),
-                      HHTextField(
-                        label: 'Location',
-                        controller: _locationController,
-                        enabled: !controller.isBusy,
-                        textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Location is required.' : null,
+                      FormField<HotelLocationResult>(
+                        initialValue: _location,
+                        validator: (_) =>
+                            _location == null ? 'Location is required.' : null,
+                        builder: (field) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Location *',
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                            const SizedBox(height: HHSpacing.space3),
+                            InkWell(
+                              onTap: controller.isBusy
+                                  ? null
+                                  : () async {
+                                      await _openLocationPicker();
+                                      field.didChange(_location);
+                                    },
+                              borderRadius: BorderRadius.circular(HHRadii.card),
+                              child: Container(
+                                padding: const EdgeInsets.all(HHSpacing.space5),
+                                decoration: BoxDecoration(
+                                  color: HHColors.surfaceSunken,
+                                  borderRadius: BorderRadius.circular(
+                                    HHRadii.card,
+                                  ),
+                                  border: Border.all(
+                                    color: field.hasError
+                                        ? HHColors.danger700
+                                        : HHColors.borderDefault,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.map_outlined,
+                                      color: HHColors.actionPrimary,
+                                      size: 28,
+                                    ),
+                                    const SizedBox(width: HHSpacing.space4),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _location == null
+                                                ? 'Open map and place pin'
+                                                : _location!.address,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleSmall,
+                                          ),
+                                          if (_location != null)
+                                            Text(
+                                              '${_location!.latitude.toStringAsFixed(6)}, ${_location!.longitude.toStringAsFixed(6)}',
+                                              style: TextStyle(
+                                                color: HHColors.textMuted,
+                                                fontSize: HHTypeScale.textXs,
+                                              ),
+                                            )
+                                          else if (_legacyLocation != null)
+                                            Text(
+                                              'Previous address: $_legacyLocation. Select its exact map location.',
+                                              style: TextStyle(
+                                                color: HHColors.textMuted,
+                                                fontSize: HHTypeScale.textXs,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.chevron_right),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (field.hasError)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: HHSpacing.space2,
+                                  left: HHSpacing.space3,
+                                ),
+                                child: Text(
+                                  field.errorText!,
+                                  style: TextStyle(
+                                    color: HHColors.danger700,
+                                    fontSize: HHTypeScale.textXs,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: HHSpacing.space5),
                       HHTextField(
@@ -183,7 +336,9 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                         enabled: !controller.isBusy,
                         keyboardType: TextInputType.phone,
                         textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Contact Phone is required.' : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Contact Phone is required.'
+                            : null,
                       ),
                       const SizedBox(height: HHSpacing.space5),
                       HHTextField(
@@ -207,7 +362,10 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                       Text(
                         'Add any other details about your Hotel. These cannot replace the required '
                         'information above.',
-                        style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm),
+                        style: TextStyle(
+                          color: HHColors.textMuted,
+                          fontSize: HHTypeScale.textSm,
+                        ),
                       ),
                       const SizedBox(height: HHSpacing.space4),
                       HotelProfileDataEditor(
@@ -241,12 +399,19 @@ class _LogoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final logo = mediaController.logo;
-    final isDeleting = logo != null && mediaController.deletingMediaId == logo.id;
+    final isDeleting =
+        logo != null && mediaController.deletingMediaId == logo.id;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Hotel Logo', style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textMd)),
+        Text(
+          'Hotel Logo',
+          style: TextStyle(
+            fontWeight: HHTypeScale.weightSemibold,
+            fontSize: HHTypeScale.textMd,
+          ),
+        ),
         const SizedBox(height: HHSpacing.space3),
         if (logo != null) ...[
           Row(
@@ -265,7 +430,10 @@ class _LogoSection extends StatelessWidget {
                     width: 64,
                     height: 64,
                     color: HHColors.surfaceSunken,
-                    child: Icon(Icons.image_not_supported_outlined, color: HHColors.textSubtle),
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      color: HHColors.textSubtle,
+                    ),
                   ),
                 ),
               ),
@@ -276,7 +444,11 @@ class _LogoSection extends StatelessWidget {
                     ? null
                     : () => mediaController.deleteMedia(logo.id),
                 icon: isDeleting
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : Icon(Icons.delete_outline, color: HHColors.danger700),
               ),
             ],
@@ -284,9 +456,15 @@ class _LogoSection extends StatelessWidget {
           const SizedBox(height: HHSpacing.space3),
         ],
         OutlinedButton.icon(
-          onPressed: mediaController.isUploadingLogo ? null : mediaController.uploadLogo,
+          onPressed: mediaController.isUploadingLogo
+              ? null
+              : mediaController.uploadLogo,
           icon: mediaController.isUploadingLogo
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Icon(Icons.image_outlined, size: 18),
           label: Text(logo != null ? 'Replace Logo' : 'Upload Logo'),
         ),
@@ -305,22 +483,35 @@ class _PhotosSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Hotel Photos', style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textMd)),
+        Text(
+          'Hotel Photos',
+          style: TextStyle(
+            fontWeight: HHTypeScale.weightSemibold,
+            fontSize: HHTypeScale.textMd,
+          ),
+        ),
         const SizedBox(height: HHSpacing.space3),
         if (mediaController.photos.isNotEmpty) ...[
           Wrap(
             spacing: HHSpacing.space3,
             runSpacing: HHSpacing.space3,
             children: [
-              for (final photo in mediaController.photos) _PhotoThumbnail(photo: photo, mediaController: mediaController),
+              for (final photo in mediaController.photos)
+                _PhotoThumbnail(photo: photo, mediaController: mediaController),
             ],
           ),
           const SizedBox(height: HHSpacing.space3),
         ],
         OutlinedButton.icon(
-          onPressed: mediaController.isUploadingPhoto ? null : mediaController.uploadPhoto,
+          onPressed: mediaController.isUploadingPhoto
+              ? null
+              : mediaController.uploadPhoto,
           icon: mediaController.isUploadingPhoto
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Icon(Icons.photo_library_outlined, size: 18),
           label: const Text('Add Photos'),
         ),
@@ -352,7 +543,10 @@ class _PhotoThumbnail extends StatelessWidget {
               width: 72,
               height: 72,
               color: HHColors.surfaceSunken,
-              child: Icon(Icons.image_not_supported_outlined, color: HHColors.textSubtle),
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                color: HHColors.textSubtle,
+              ),
             ),
           ),
         ),
@@ -370,7 +564,10 @@ class _PhotoThumbnail extends StatelessWidget {
                   ? const SizedBox(
                       width: 12,
                       height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 1.6, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.close, size: 14, color: Colors.white),
             ),

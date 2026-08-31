@@ -18,7 +18,19 @@ class HotelSummary {
   final List<MediaItem> photos;
   String get name => profileData['name'] as String? ?? 'Hotel';
   String get description => profileData['description'] as String? ?? '';
-  String get location => profileData['location'] as String? ?? '';
+  String get location {
+    final value = profileData['location'];
+    if (value is String) return value;
+    if (value is Map) return value['address']?.toString() ?? '';
+    return '';
+  }
+
+  double? get latitude => (profileData['location'] is Map)
+      ? ((profileData['location'] as Map)['latitude'] as num?)?.toDouble()
+      : null;
+  double? get longitude => (profileData['location'] is Map)
+      ? ((profileData['location'] as Map)['longitude'] as num?)?.toDouble()
+      : null;
 
   factory HotelSummary.fromJson(Map<String, dynamic> json) => HotelSummary(
     id: json['id'] as String,

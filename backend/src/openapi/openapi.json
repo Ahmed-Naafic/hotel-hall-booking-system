@@ -613,6 +613,31 @@
         }
       }
     },
+    "/hotels/{id}/location/reverse-geocode": {
+      "post": {
+        "tags": ["Hotels"],
+        "summary": "Detect a customer-facing address for Hotel coordinates",
+        "description": "Owner-scoped, best-effort reverse geocoding (BDR-017, ADR-0008). An unavailable result is successful and does not block manual address entry.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "required": ["latitude", "longitude"],
+            "properties": {
+              "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+              "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
+            }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Detected address or a non-blocking unavailable result.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "400": { "description": "Invalid coordinates.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel not found or belongs to another manager.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
     "/hotels/{id}/applications": {
       "post": {
         "tags": ["Hotels"],

@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4, no self-review)
 depends_on: ["docs/04-business/modules/03-hotel-management/business-specification.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md"]
-version: 1.8
-last_updated: 2026-08-26
+version: 2.0
+last_updated: 2026-08-31
 ---
 
 # Hotel Management — Technical Design
@@ -455,6 +455,23 @@ Supabase or the Hotel Media table.
   and out of scope for this change.
 
 ---
+
+## 8b. Geographic Location Capture (`BDR-017`, `ADR-0008`)
+
+Hotel Location is stored as a structured `profileData.location` value containing `latitude`,
+`longitude`, and `address`. Manager Mobile will display an OpenStreetMap-based map, capture a
+movable pin, and send the coordinates through the Hotel Management backend. The backend will
+perform best-effort reverse geocoding through an approved provider, return the detected address
+for manager confirmation/editing, and preserve the coordinates when geocoding fails. In that
+failure case, a manually entered customer-facing address is required before persistence.
+
+Coordinates are authoritative for distance calculations; address is presentation data and is
+never used for nearby-Hotel filtering. Nominatim is accessed only by the backend through a
+provider abstraction; the client never receives credentials. OpenStreetMap attribution is
+displayed on the map. Coordinates must be finite values within latitude `-90..90` and longitude
+`-180..180`; address must be a non-empty string. `POST
+/hotels/:id/location/reverse-geocode` accepts coordinates and returns an address when available;
+provider failure returns a non-blocking unavailable result. No nearby-Hotel search is included.
 
 ## 9. Suspension / Restriction Architecture
 
@@ -1088,6 +1105,8 @@ Every row traces to an approved source; no technical element in this document la
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 2.0 | 2026-08-31 | Ahmed | Approved Hotel Location architecture (`BDR-017`, `ADR-0008`): structured `profileData.location`, owner-scoped backend reverse geocoding, OpenStreetMap Manager UI, Nominatim provider abstraction, and manual-address fallback. |
+| 1.9-proposed | 2026-08-30 | AI-drafted, pending Ahmed approval | Added a proposed geographic-location capture architecture; implementation remains blocked pending `BDR-017` and technical review. |
 | 1.8 | 2026-08-26 | Ahmed | Designs the Hotel Media upload/replace/delete/retrieve architecture `ADR-0006` left open: new §8a (Media Management); Media Component added to §3; Hotel Media entity added to §4/§4.1; ownership/constraint/cascade notes added to §5; four new endpoints added to §11; credential-handling and authorization notes added to §12; three new Audit actions added to §13; four new error rows added to §16 (no new status code — `500` covers upstream/persistence failures, matching the existing Twilio-failure precedent); dependencies (`multer`, `@supabase/supabase-js`) and §19 traceability updated. Directed explicitly by the requester (mandated architecture: Manager Mobile → Hotel Management Backend → Supabase Storage / Neon metadata, no direct Flutter-to-Supabase access, no service-role credential in Flutter). Ahmed directed and reviewed this change directly; no separate Mohamed/Abukar review round occurred for this specific update (the same transparently-flagged deviation v1.3 already used). |
 | 1.7 | 2026-08-26 | Ahmed | §17: the Cloudinary-vs-Supabase conflict v1.6 flagged as open is resolved — `ADR-0006` (Approved) selects Supabase as the Hotel media storage provider. The specific upload mechanism remains a follow-up Technical Design addendum, not designed here. |
 | 1.6 | 2026-08-26 | Ahmed | Reflects `BDR-015` (Required Hotel Business-Profile Content), `Approved` 2026-08-26, resolving former Pending Business Decision #7 (§18). §4 (Domain Model) and §8 (Profile Management) updated to state the actual required (Hotel Name, Description, Location, Contact Phone), optional (Email, Hotel Logo, Hotel Photos), and custom-field structure — no architecture change: profile remains the existing `profileData` attribute set on Hotel, enforced by the Profile Component, not a new entity or schema/migration. §18's Pending Decision table and conclusion, and §19's Traceability Matrix, updated accordingly. No other design element changed. Ahmed directed and reviewed this change directly in the same session `BDR-015` was approved; no separate Mohamed/Abukar review round occurred for this specific update (the same transparently-flagged deviation v1.3 already used). |

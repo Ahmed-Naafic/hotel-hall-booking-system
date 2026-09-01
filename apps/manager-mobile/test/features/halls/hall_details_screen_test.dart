@@ -76,11 +76,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('ADDITIONAL INFORMATION'), findsOneWidget);
-      expect(find.text('amenities'), findsOneWidget);
+      // Custom-field keys are shown humanized (ManagerFormatters.label),
+      // e.g. 'amenities' -> 'Amenities' — the underlying key is unchanged.
+      expect(find.text('Amenities'), findsOneWidget);
       expect(find.text('Stage'), findsOneWidget);
-      // Standard fields are never re-listed as if they were custom ones.
-      expect(find.text('name'), findsNothing);
-      expect(find.text('capacity'), findsNothing);
+      // Standard fields are never re-listed as if they were custom ones —
+      // 'Name' has no standard row at all (the Hall Name is the AppBar
+      // title), and 'Capacity' appears exactly once (its own standard
+      // row), never a second time from the custom-fields dump.
+      expect(find.text('Name'), findsNothing);
+      expect(find.text('Capacity'), findsOneWidget);
     },
   );
 

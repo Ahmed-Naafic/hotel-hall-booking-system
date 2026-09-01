@@ -3,24 +3,19 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
-import '../../../hotel/application/hotel_context_controller.dart';
 import '../../../hotel/presentation/screens/my_hotel_screen.dart';
+import 'profile_screen.dart';
 
 /// Manager — the authenticated landing screen. Navigation per the approved
 /// nav tree: Manager → My Hotel → Halls → Hall Details → Create/Edit Hall.
 /// A visual entry point only — this screen has exactly one real
 /// destination (My Hotel) because that is the only module actually
 /// implemented; no Dashboard metrics, Bookings, or Calendar exist to link
-/// to yet.
+/// to yet. Account-related actions (including Log out) live on
+/// [ProfileScreen] — this AppBar's only account action is the entry point
+/// to it.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
-
-  Future<void> _logout(BuildContext context) async {
-    final auth = context.read<AuthController>();
-    final hotelContext = context.read<HotelContextController>();
-    await auth.logout();
-    await hotelContext.clearOnLogout();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +28,11 @@ class HomeScreen extends StatelessWidget {
         title: const Text('Hotel Hall — Manager'),
         actions: [
           IconButton(
-            onPressed: () => _logout(context),
-            icon: const Icon(Icons.logout),
-            tooltip: 'Log out',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profile',
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/presentation/manager_formatters.dart';
 import '../../../halls/presentation/screens/hall_list_screen.dart';
 import '../../application/hotel_context_controller.dart';
 import '../../data/hotel_models.dart';
@@ -249,7 +250,7 @@ class _HotelIdentityCard extends StatelessWidget {
                     ),
                     const SizedBox(height: HHSpacing.space2),
                     HHStatusBadge(
-                      label: hotel.status,
+                      label: ManagerFormatters.status(hotel.status),
                       tone: _toneForStatus(hotel.status),
                     ),
                   ],

@@ -3,6 +3,7 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/presentation/manager_formatters.dart';
 import '../../data/hall_models.dart';
 import '../../data/hall_repository.dart';
 import 'hall_form_screen.dart';
@@ -179,7 +180,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(entry.key, style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
+                              Text(ManagerFormatters.label(entry.key), style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
                               Text(entry.value?.toString() ?? '', style: TextStyle(fontSize: HHTypeScale.textMd)),
                             ],
                           ),

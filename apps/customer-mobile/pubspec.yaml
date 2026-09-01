@@ -48,6 +48,12 @@ dependencies:
     path: ../../shared/flutter_core
   provider: ^6.1.5
 
+  # Read-only Hotel-location map on Hotel Detail (ADR-0008 already approves
+  # OpenStreetMap via flutter_map for this exact `profileData.location`
+  # data; same package/version already shipping in apps/manager-mobile).
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

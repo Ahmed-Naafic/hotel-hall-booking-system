@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/pending_action_controller.dart';
@@ -930,6 +932,21 @@ class _HotelDetailContent extends StatelessWidget {
                   const SizedBox(height: 28),
                 ],
 
+                if (hotel.latitude != null && hotel.longitude != null) ...[
+                  Text(
+                    'Location',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _HotelLocationMap(
+                    latitude: hotel.latitude!,
+                    longitude: hotel.longitude!,
+                  ),
+                  const SizedBox(height: 28),
+                ],
+
                 Row(
                   children: [
                     Expanded(
@@ -981,6 +998,66 @@ class _HotelDetailContent extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A read-only preview of the Hotel's coordinate (`ADR-0008`) — a single
+/// fixed pin, no pan/zoom/rotate, so it never fights the surrounding
+/// `CustomScrollView` for drag gestures. Only rendered when structured
+/// coordinates exist; a Hotel whose `profileData.location` is still the
+/// legacy plain-string shape (pre-`BDR-017`) has no `latitude`/`longitude`
+/// and simply keeps the existing text-only address display instead.
+class _HotelLocationMap extends StatelessWidget {
+  const _HotelLocationMap({required this.latitude, required this.longitude});
+
+  final double latitude;
+  final double longitude;
+
+  @override
+  Widget build(BuildContext context) {
+    final point = LatLng(latitude, longitude);
+    final scheme = Theme.of(context).colorScheme;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: SizedBox(
+        height: 160,
+        child: FlutterMap(
+          options: MapOptions(
+            initialCenter: point,
+            initialZoom: 15,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.none,
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.hotelhallbooking.customer',
+            ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: point,
+                  width: 40,
+                  height: 40,
+                  child: Icon(
+                    Icons.location_pin,
+                    size: 40,
+                    color: scheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            RichAttributionWidget(
+              attributions: const [
+                TextSourceAttribution('OpenStreetMap contributors'),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

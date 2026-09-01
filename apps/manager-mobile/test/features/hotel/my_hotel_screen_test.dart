@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_list_screen.dart';
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
 import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
@@ -20,6 +22,17 @@ Map<String, dynamic> _hotelJson({String status = 'REGISTERED', Map<String, dynam
       'createdAt': '2026-08-25T00:00:00.000Z',
       'updatedAt': '2026-08-25T00:00:00.000Z',
     };
+
+/// `GET /hotels/me`'s actual response shape (`HotelContextController.load`
+/// always resolves through this endpoint, never `GET /hotels/:id`) — the
+/// Hotel keyed under `hotel` (`null` when the Manager has none yet), never a
+/// bare Hotel object.
+Map<String, dynamic> _myHotelJson({String status = 'REGISTERED', Map<String, dynamic>? profileData}) =>
+    {'hotel': _hotelJson(status: status, profileData: profileData), 'latestApplication': null};
+
+/// The Manager has no Hotel yet — `GET /hotels/me` still returns `200`, with
+/// `hotel: null` (`hotelController.getMyHotel`), never a `404`.
+const _noHotelJson = {'hotel': null, 'latestApplication': null};
 
 Widget _wrap(Future<http.Response> Function(http.Request) handler) {
   final apiClient = ApiClient(httpClient: MockClient(handler), baseUrl: 'http://test/api/v1');
@@ -47,7 +60,7 @@ void main() {
   });
 
   testWidgets('shows "Set up your Hotel" when no Hotel is connected yet', (tester) async {
-    await tester.pumpWidget(_wrap((r) async => errorResponse('NOT_FOUND', 'unused', 404)));
+    await tester.pumpWidget(_wrap((r) async => successResponse(_noHotelJson)));
     await tester.pumpAndSettle();
 
     expect(find.text('Set up your Hotel'), findsOneWidget);
@@ -56,6 +69,7 @@ void main() {
   testWidgets('shows the real Hotel status once one is set up', (tester) async {
     await tester.pumpWidget(_wrap((r) async {
       if (r.method == 'POST') return successResponse(_hotelJson(status: 'REGISTERED'), status: 201);
+      if (r.method == 'GET' && r.url.path == '/api/v1/hotels/me') return successResponse(_noHotelJson);
       throw StateError('unexpected: ${r.method} ${r.url.path}');
     }));
     await tester.pumpAndSettle();
@@ -72,18 +86,16 @@ void main() {
   });
 
   testWidgets('"Manage Halls" navigates to HallListScreen with the resolved hotelId', (tester) async {
-    // Simulate an already-cached hotel by wiring the controller directly.
     final apiClient = ApiClient(
       httpClient: MockClient((r) async {
         if (r.url.path.endsWith('/halls')) {
           return http.Response('{"status":"success","message":"ok","data":[],"pagination":{"page":1,"limit":20,"total":0,"hasNext":false,"hasPrevious":false}}', 200);
         }
-        return successResponse(_hotelJson(status: 'APPROVED_ACTIVE'));
+        return successResponse(_myHotelJson(status: 'APPROVED_ACTIVE'));
       }),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
-    await storage.write('hh_hotel_id', 'h1');
     final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: storage);
 
     await tester.pumpWidget(MultiProvider(
@@ -115,11 +127,19 @@ void main() {
 
   testWidgets('a REGISTERED Hotel: tapping "Complete Hotel Profile" opens the profile-completion screen', (tester) async {
     final apiClient = ApiClient(
-      httpClient: MockClient((r) async => successResponse(_hotelJson(status: 'REGISTERED'))),
+      httpClient: MockClient((r) async {
+        // HotelProfileFormScreen fetches its own Hotel Media independently
+        // as soon as it mounts (HotelMediaController) — unrelated to this
+        // test's own assertion, stubbed the same way
+        // hotel_profile_form_screen_test.dart's _withMediaStub does.
+        if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+          return successResponse({'logo': null, 'photos': []});
+        }
+        return successResponse(_myHotelJson(status: 'REGISTERED'));
+      }),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
-    await storage.write('hh_hotel_id', 'h1');
     final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: storage);
 
     await tester.pumpWidget(wrapWithContext(hotelContext, apiClient));
@@ -146,12 +166,11 @@ void main() {
             'submittedAt': '2026-08-26T00:00:00.000Z',
           }, status: 201);
         }
-        return successResponse(_hotelJson(status: applicationPosted ? 'UNDER_REVIEW' : 'PROFILE_COMPLETE'));
+        return successResponse(_myHotelJson(status: applicationPosted ? 'UNDER_REVIEW' : 'PROFILE_COMPLETE'));
       }),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
-    await storage.write('hh_hotel_id', 'h1');
     final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: storage);
 
     await tester.pumpWidget(wrapWithContext(hotelContext, apiClient));
@@ -169,11 +188,10 @@ void main() {
 
   testWidgets('an UNDER_REVIEW Hotel shows the waiting/review state, with no action button', (tester) async {
     final apiClient = ApiClient(
-      httpClient: MockClient((r) async => successResponse(_hotelJson(status: 'UNDER_REVIEW'))),
+      httpClient: MockClient((r) async => successResponse(_myHotelJson(status: 'UNDER_REVIEW'))),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
-    await storage.write('hh_hotel_id', 'h1');
     final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: storage);
 
     await tester.pumpWidget(wrapWithContext(hotelContext, apiClient));
@@ -188,16 +206,30 @@ void main() {
     var profileCompleted = false;
     final apiClient = ApiClient(
       httpClient: MockClient((r) async {
+        // HotelProfileFormScreen loads its own Hotel Media independently
+        // (HotelMediaController) as soon as it mounts, and the Location
+        // picker's "Confirm location" step reverse-geocodes the placed pin
+        // through the backend — both are unrelated to the onboarding-status
+        // assertions below, so they're stubbed the same way
+        // hotel_profile_form_screen_test.dart's _withMediaStub does.
+        if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+          return successResponse({'logo': null, 'photos': []});
+        }
+        if (r.method == 'POST' && r.url.path.endsWith('/location/reverse-geocode')) {
+          return successResponse({'available': true, 'address': 'Nairobi, Kenya'});
+        }
         if (r.method == 'PATCH') {
           profileCompleted = true;
-          return successResponse(_hotelJson(status: 'PROFILE_COMPLETE', profileData: {'name': 'The Grand Hall Hotel'}));
+          return successResponse(_hotelJson(
+            status: 'PROFILE_COMPLETE',
+            profileData: {'name': 'The Grand Hall Hotel'},
+          ));
         }
-        return successResponse(_hotelJson(status: profileCompleted ? 'PROFILE_COMPLETE' : 'REGISTERED'));
+        return successResponse(_myHotelJson(status: profileCompleted ? 'PROFILE_COMPLETE' : 'REGISTERED'));
       }),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
-    await storage.write('hh_hotel_id', 'h1');
     final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: storage);
 
     await tester.pumpWidget(wrapWithContext(hotelContext, apiClient));
@@ -209,7 +241,19 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextFormField, 'Hotel Name'), 'The Grand Hall Hotel');
     await tester.enterText(find.widgetWithText(TextFormField, 'Description'), 'A premium event venue.');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Location'), 'Nairobi, Kenya');
+    // Location (BDR-017, ADR-0008) is a map pin + confirmed address, not a
+    // free-text field — same interaction hotel_profile_form_screen_test.dart
+    // already exercises for this screen.
+    await tester.tap(find.text('Open map and place pin'));
+    await tester.pumpAndSettle();
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    map.options.onTap!(
+      const TapPosition(Offset.zero, Offset.zero),
+      const LatLng(-1.286389, 36.817223),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm location'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Contact Phone'), '+254700000000');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Save & Continue'));
     await tester.pumpAndSettle();

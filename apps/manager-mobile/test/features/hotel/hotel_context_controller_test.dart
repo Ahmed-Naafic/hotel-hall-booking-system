@@ -16,6 +16,13 @@ Map<String, dynamic> _hotel({String status = 'REGISTERED', String id = 'h1'}) =>
       'updatedAt': '2026-08-25T00:00:00.000Z',
     };
 
+/// `GET /hotels/me`'s actual response shape (`hotelController.getMyHotel` —
+/// `MyHotelSnapshot.fromJson` on the client side): the Hotel keyed under
+/// `hotel` (or `null` if the Manager has none yet) alongside its
+/// `latestApplication`, never a bare Hotel object.
+Map<String, dynamic> _myHotelResponse({Map<String, dynamic>? hotel}) =>
+    {'hotel': hotel, 'latestApplication': null};
+
 HotelContextController _controller({
   required InMemoryTokenStorage storage,
   required Future<http.Response> Function(http.Request) handler,
@@ -26,51 +33,65 @@ HotelContextController _controller({
 
 void main() {
   group('HotelContextController.load', () {
-    test('no cached hotel id -> status none, no API call made', () async {
-      var called = false;
+    test('always resolves via GET /hotels/me, regardless of any local cache', () async {
+      var callCount = 0;
       final controller = _controller(
         storage: InMemoryTokenStorage(),
         handler: (r) async {
-          called = true;
-          return successResponse({});
+          callCount++;
+          expect(r.method, 'GET');
+          expect(r.url.path, '/api/v1/hotels/me');
+          return successResponse(_myHotelResponse());
         },
       );
 
       await controller.load();
 
-      expect(controller.status, HotelContextStatus.none);
-      expect(called, false);
+      expect(callCount, 1);
     });
 
-    test('a cached hotel id resolves to status ready with the real Hotel status', () async {
+    test('no Hotel yet (hotel: null) -> status none', () async {
+      final controller = _controller(
+        storage: InMemoryTokenStorage(),
+        handler: (r) async => successResponse(_myHotelResponse()),
+      );
+
+      await controller.load();
+
+      expect(controller.status, HotelContextStatus.none);
+      expect(controller.hotel, isNull);
+    });
+
+    test('a Hotel is returned -> status ready with the real Hotel status, cached locally', () async {
       final storage = InMemoryTokenStorage();
-      await storage.write('hh_hotel_id', 'h1');
       final controller = _controller(
         storage: storage,
-        handler: (r) async {
-          expect(r.url.path, '/api/v1/hotels/h1');
-          return successResponse(_hotel(status: 'APPROVED_ACTIVE'));
-        },
+        handler: (r) async => successResponse(
+          _myHotelResponse(hotel: _hotel(status: 'APPROVED_ACTIVE')),
+        ),
       );
 
       await controller.load();
 
       expect(controller.status, HotelContextStatus.ready);
       expect(controller.hotel?.status, 'APPROVED_ACTIVE');
+      // The local id cache remains a convenience (doc comment on
+      // HotelContextController) — written on every successful resolution,
+      // even though load() itself never reads it back to decide what to
+      // fetch.
+      expect(await storage.read('hh_hotel_id'), 'h1');
     });
 
-    test('a stale cached id (404) clears itself back to status none', () async {
-      final storage = InMemoryTokenStorage();
-      await storage.write('hh_hotel_id', 'gone');
+    test('an API error (e.g. account/session trouble) surfaces as status error, not none', () async {
       final controller = _controller(
-        storage: storage,
-        handler: (r) async => errorResponse('NOT_FOUND', 'Hotel not found.', 404),
+        storage: InMemoryTokenStorage(),
+        handler: (r) async => errorResponse('AUTHENTICATION_ERROR', 'Missing, invalid, or expired access token.', 401),
       );
 
       await controller.load();
 
-      expect(controller.status, HotelContextStatus.none);
-      expect(await storage.read('hh_hotel_id'), isNull);
+      expect(controller.status, HotelContextStatus.error);
+      expect(controller.errorMessage, 'Missing, invalid, or expired access token.');
     });
   });
 
@@ -111,7 +132,6 @@ void main() {
   group('HotelContextController.submitApplication', () {
     test('success re-fetches the Hotel — status reflects the backend, not a local guess', () async {
       final storage = InMemoryTokenStorage();
-      await storage.write('hh_hotel_id', 'h1');
       var postCalled = false;
       final controller = _controller(
         storage: storage,
@@ -128,7 +148,9 @@ void main() {
               'submittedAt': '2026-08-26T00:00:00.000Z',
             }, status: 201);
           }
-          return successResponse(_hotel(status: postCalled ? 'UNDER_REVIEW' : 'PROFILE_COMPLETE'));
+          return successResponse(_myHotelResponse(
+            hotel: _hotel(status: postCalled ? 'UNDER_REVIEW' : 'PROFILE_COMPLETE'),
+          ));
         },
       );
       await controller.load();
@@ -144,11 +166,12 @@ void main() {
 
     test('a 409 conflict (already under review) surfaces the server message', () async {
       final storage = InMemoryTokenStorage();
-      await storage.write('hh_hotel_id', 'h1');
       final controller = _controller(
         storage: storage,
         handler: (r) async {
-          if (r.method == 'GET') return successResponse(_hotel(status: 'UNDER_REVIEW'));
+          if (r.method == 'GET') {
+            return successResponse(_myHotelResponse(hotel: _hotel(status: 'UNDER_REVIEW')));
+          }
           return errorResponse('CONFLICT', 'This Hotel already has an application under review.', 409);
         },
       );

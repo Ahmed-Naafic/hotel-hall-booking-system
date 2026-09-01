@@ -107,6 +107,38 @@ void main() {
   );
 
   testWidgets(
+    'reverse-geocoding that throws (network/API error) falls back to manual '
+    'address, never leaves the Manager stuck detecting',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HotelLocationPickerScreen(
+            showMapTiles: false,
+            reverseGeocode: (_, __) async => throw Exception('boom'),
+          ),
+        ),
+      );
+      await placePin(tester);
+
+      expect(
+        find.text("We couldn't automatically detect the address."),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(TextFormField, 'Address *'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Address *'),
+        'Manually entered after failure',
+      );
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm location'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Address is required.'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'manual address fallback can be confirmed after geocoding failure',
     (tester) async {
       HotelLocationResult? result;

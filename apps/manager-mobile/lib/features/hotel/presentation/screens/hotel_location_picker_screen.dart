@@ -44,7 +44,9 @@ class HotelLocationPickerScreen extends StatefulWidget {
 
 class _HotelLocationPickerScreenState extends State<HotelLocationPickerScreen> {
   static const _defaultCenter = LatLng(-1.286389, 36.817223);
+  static const _pinZoom = 16.0;
   final _addressController = TextEditingController();
+  final _mapController = MapController();
   LatLng? _pin;
   bool _isDetecting = false;
   bool _detectionFailed = false;
@@ -72,10 +74,16 @@ class _HotelLocationPickerScreenState extends State<HotelLocationPickerScreen> {
       _detectionFailed = false;
       _addressController.clear();
     });
-    final address = await widget.reverseGeocode(
-      point.latitude,
-      point.longitude,
-    );
+    _mapController.move(point, _pinZoom);
+    // Reverse geocoding must never leave the Manager stuck: any failure —
+    // not just a provider-returned unavailable result — falls through to
+    // the same manual-address path (ADR-0008's non-blocking guarantee).
+    String? address;
+    try {
+      address = await widget.reverseGeocode(point.latitude, point.longitude);
+    } catch (_) {
+      address = null;
+    }
     if (!mounted || _pin != point) return;
     setState(() {
       _isDetecting = false;
@@ -119,9 +127,10 @@ class _HotelLocationPickerScreenState extends State<HotelLocationPickerScreen> {
           children: [
             Expanded(
               child: FlutterMap(
+                mapController: _mapController,
                 options: MapOptions(
                   initialCenter: center,
-                  initialZoom: _pin == null ? 6 : 16,
+                  initialZoom: _pin == null ? 6 : _pinZoom,
                   onTap: (_, point) => _placePin(point),
                 ),
                 children: [

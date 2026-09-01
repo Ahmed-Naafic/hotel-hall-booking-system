@@ -47,81 +47,32 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
         return const Center(child: CircularProgressIndicator());
 
       case HotelContextStatus.error:
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(HHSpacing.space7),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: HHColors.danger700, size: 32),
-                const SizedBox(height: HHSpacing.space3),
-                Text(
-                  hotelContext.errorMessage ?? 'Something went wrong.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: HHColors.textMuted),
-                ),
-                const SizedBox(height: HHSpacing.space5),
-                ElevatedButton(onPressed: hotelContext.load, child: const Text('Retry')),
-              ],
-            ),
-          ),
+        return HHEmptyState(
+          icon: Icons.error_outline,
+          message: hotelContext.errorMessage ?? 'Something went wrong.',
+          iconColor: HHColors.danger700,
+          actionLabel: 'Retry',
+          onAction: hotelContext.load,
         );
 
       case HotelContextStatus.none:
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(HHSpacing.space7),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.apartment_outlined, color: HHColors.navy300, size: 40),
-                const SizedBox(height: HHSpacing.space5),
-                Text('Set up your Hotel', style: HHTypography.displaySm, textAlign: TextAlign.center),
-                const SizedBox(height: HHSpacing.space3),
-                Text(
-                  "You haven't connected a Hotel to your account yet.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textMd),
-                ),
-                if (hotelContext.errorMessage != null) ...[
-                  const SizedBox(height: HHSpacing.space4),
-                  HHErrorBanner(message: hotelContext.errorMessage!),
-                ],
-                const SizedBox(height: HHSpacing.space6),
-                HHPrimaryButton(label: 'Set up my Hotel', onPressed: hotelContext.createHotel, isLoading: false),
-              ],
-            ),
-          ),
+        return HHEmptyState(
+          icon: Icons.apartment_outlined,
+          title: 'Set up your Hotel',
+          message: "You haven't connected a Hotel to your account yet.",
+          actionLabel: 'Set up my Hotel',
+          onAction: hotelContext.createHotel,
+          isLoading: false,
         );
 
       case HotelContextStatus.ready:
         final hotel = hotelContext.hotel!;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(HHSpacing.space7),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        return RefreshIndicator(
+          onRefresh: hotelContext.load,
+          child: ListView(
+            padding: const EdgeInsets.all(HHSpacing.space7),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(HHSpacing.cardPad),
-                  child: Row(
-                    children: [
-                      Icon(Icons.apartment, color: HHColors.actionPrimary),
-                      const SizedBox(width: HHSpacing.space4),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Hotel status', style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
-                            const SizedBox(height: 2),
-                            Text(hotel.status, style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textLg)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _HotelIdentityCard(hotel: hotel),
               if (hotelContext.errorMessage != null) ...[
                 const SizedBox(height: HHSpacing.space5),
                 HHErrorBanner(message: hotelContext.errorMessage!),
@@ -132,7 +83,9 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
                 label: 'Manage Halls',
                 isLoading: false,
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => HallListScreen(hotelId: hotel.id)),
+                  MaterialPageRoute(
+                    builder: (_) => HallListScreen(hotelId: hotel.id),
+                  ),
                 ),
               ),
             ],
@@ -149,7 +102,11 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
   /// (`REJECTED`, `SUSPENDED`, `DEACTIVATED`, `RESTRICTED_UNDER_REVIEW`,
   /// `WITHDRAWN`) is already visible verbatim in the status card above and
   /// gets no extra block here rather than an invented one.
-  List<Widget> _onboardingStep(BuildContext context, HotelContextController hotelContext, Hotel hotel) {
+  List<Widget> _onboardingStep(
+    BuildContext context,
+    HotelContextController hotelContext,
+    Hotel hotel,
+  ) {
     switch (hotel.status) {
       case 'REGISTERED':
         return [
@@ -158,7 +115,8 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
             icon: Icons.assignment_outlined,
             iconColor: HHColors.actionAccent,
             title: 'Complete your Hotel profile',
-            message: "Add your Hotel's business-profile information before you can submit it for review.",
+            message:
+                "Add your Hotel's business-profile information before you can submit it for review.",
             actionLabel: 'Complete Hotel Profile',
             onAction: () async {
               final done = await Navigator.of(context).push<bool>(
@@ -180,7 +138,8 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
             icon: Icons.send_outlined,
             iconColor: HHColors.actionGold,
             title: 'Ready to submit',
-            message: 'Your Hotel profile is complete. Submit your application for Platform Administrator review.',
+            message:
+                'Your Hotel profile is complete. Submit your application for Platform Administrator review.',
             actionLabel: 'Submit Application',
             isLoading: hotelContext.isSubmittingApplication,
             onAction: () async {
@@ -201,13 +160,113 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
             icon: Icons.hourglass_top_outlined,
             iconColor: HHColors.warning700,
             title: 'Under review',
-            message: 'Your application has been submitted and is awaiting Platform Administrator review.',
+            message:
+                'Your application has been submitted and is awaiting Platform Administrator review.',
           ),
         ];
 
       default:
         return const [];
     }
+  }
+}
+
+/// Purely presentational — maps the backend's own status string to a
+/// visual tone, never a business judgment. Every branch renders the exact
+/// same status text; only the color changes.
+HHBadgeTone _toneForStatus(String status) {
+  switch (status) {
+    case 'APPROVED_ACTIVE':
+      return HHBadgeTone.success;
+    case 'UNDER_REVIEW':
+    case 'RESTRICTED_UNDER_REVIEW':
+      return HHBadgeTone.warning;
+    case 'REJECTED':
+    case 'SUSPENDED':
+    case 'DEACTIVATED':
+    case 'WITHDRAWN':
+      return HHBadgeTone.danger;
+    case 'REGISTERED':
+    case 'PROFILE_COMPLETE':
+      return HHBadgeTone.info;
+    default:
+      return HHBadgeTone.neutral;
+  }
+}
+
+class _HotelIdentityCard extends StatelessWidget {
+  const _HotelIdentityCard({required this.hotel});
+
+  final Hotel hotel;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = hotel.profileData?['name']?.toString().trim();
+
+    return HHCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: HHColors.surfaceNavyTint,
+                  borderRadius: BorderRadius.circular(HHRadii.control),
+                ),
+                child: Icon(Icons.apartment, color: HHColors.actionPrimary),
+              ),
+              const SizedBox(width: HHSpacing.space4),
+              Expanded(
+                child: Text(
+                  (name == null || name.isEmpty) ? 'My Hotel' : name,
+                  style: TextStyle(
+                    fontWeight: HHTypeScale.weightSemibold,
+                    fontSize: HHTypeScale.textXl,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: HHSpacing.space5),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hotel status',
+                      style: TextStyle(
+                        color: HHColors.textMuted,
+                        fontSize: HHTypeScale.textXs,
+                      ),
+                    ),
+                    const SizedBox(height: HHSpacing.space2),
+                    HHStatusBadge(
+                      label: hotel.status,
+                      tone: _toneForStatus(hotel.status),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                'Since ${hotel.createdAt.toLocal().year}-${hotel.createdAt.toLocal().month.toString().padLeft(2, '0')}-${hotel.createdAt.toLocal().day.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  color: HHColors.textSubtle,
+                  fontSize: HHTypeScale.textXs,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -235,29 +294,51 @@ class _OnboardingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(HHSpacing.cardPad),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: iconColor),
-                const SizedBox(width: HHSpacing.space3),
-                Expanded(
-                  child: Text(title, style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textLg)),
+    return HHCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(HHRadii.control),
                 ),
-              ],
-            ),
-            const SizedBox(height: HHSpacing.space3),
-            Text(message, style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm)),
-            if (actionLabel != null) ...[
-              const SizedBox(height: HHSpacing.space5),
-              HHPrimaryButton(label: actionLabel!, isLoading: isLoading, onPressed: onAction),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(width: HHSpacing.space4),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: HHTypeScale.weightSemibold,
+                    fontSize: HHTypeScale.textLg,
+                  ),
+                ),
+              ),
             ],
+          ),
+          const SizedBox(height: HHSpacing.space3),
+          Text(
+            message,
+            style: TextStyle(
+              color: HHColors.textMuted,
+              fontSize: HHTypeScale.textSm,
+              height: 1.4,
+            ),
+          ),
+          if (actionLabel != null) ...[
+            const SizedBox(height: HHSpacing.space5),
+            HHPrimaryButton(
+              label: actionLabel!,
+              isLoading: isLoading,
+              onPressed: onAction,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

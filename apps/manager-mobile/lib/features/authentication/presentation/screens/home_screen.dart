@@ -8,6 +8,10 @@ import '../../../hotel/presentation/screens/my_hotel_screen.dart';
 
 /// Manager — the authenticated landing screen. Navigation per the approved
 /// nav tree: Manager → My Hotel → Halls → Hall Details → Create/Edit Hall.
+/// A visual entry point only — this screen has exactly one real
+/// destination (My Hotel) because that is the only module actually
+/// implemented; no Dashboard metrics, Bookings, or Calendar exist to link
+/// to yet.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -15,8 +19,6 @@ class HomeScreen extends StatelessWidget {
     final auth = context.read<AuthController>();
     final hotelContext = context.read<HotelContextController>();
     await auth.logout();
-    // Explicit logout only — never on session-expiry (a different device's
-    // token going stale isn't "a different person using this device").
     await hotelContext.clearOnLogout();
   }
 
@@ -29,10 +31,16 @@ class HomeScreen extends StatelessWidget {
       backgroundColor: HHColors.surfacePage,
       appBar: AppBar(
         title: const Text('Hotel Hall — Manager'),
-        actions: [IconButton(onPressed: () => _logout(context), icon: const Icon(Icons.logout), tooltip: 'Log out')],
+        actions: [
+          IconButton(
+            onPressed: () => _logout(context),
+            icon: const Icon(Icons.logout),
+            tooltip: 'Log out',
+          ),
+        ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(HHSpacing.space7),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,19 +49,56 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: HHSpacing.space2),
               Text(
                 user?.mobileNumber ?? '',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(
+                  fontSize: HHTypeScale.textMd,
+                  color: HHColors.textMuted,
+                ),
               ),
               const SizedBox(height: HHSpacing.space8),
-              Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(HHSpacing.space5),
-                  leading: Icon(Icons.apartment, color: HHColors.actionPrimary),
-                  title: const Text('My Hotel'),
-                  subtitle: const Text('Manage your Hotel and its Halls'),
-                  trailing: Icon(Icons.chevron_right, color: HHColors.textSubtle),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const MyHotelScreen()),
-                  ),
+              HHCard(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MyHotelScreen()),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: HHColors.surfaceNavyTint,
+                        borderRadius: BorderRadius.circular(HHRadii.control),
+                      ),
+                      child: Icon(
+                        Icons.apartment_rounded,
+                        color: HHColors.actionPrimary,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: HHSpacing.space5),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'My Hotel',
+                            style: TextStyle(
+                              fontWeight: HHTypeScale.weightSemibold,
+                              fontSize: HHTypeScale.textLg,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Manage your Hotel and its Halls',
+                            style: TextStyle(
+                              color: HHColors.textMuted,
+                              fontSize: HHTypeScale.textSm,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: HHColors.textSubtle),
+                  ],
                 ),
               ),
             ],

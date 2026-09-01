@@ -130,19 +130,6 @@ class _HallFormScreenState extends State<HallFormScreen> {
     }
   }
 
-  Widget _sectionHeader(String label) => Padding(
-    padding: const EdgeInsets.only(bottom: HHSpacing.space4),
-    child: Text(
-      label,
-      style: TextStyle(
-        color: HHColors.textMuted,
-        fontWeight: HHTypeScale.weightSemibold,
-        fontSize: HHTypeScale.textXs,
-        letterSpacing: 0.8,
-      ),
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<HallFormController>.value(
@@ -166,75 +153,79 @@ class _HallFormScreenState extends State<HallFormScreen> {
                         HHErrorBanner(message: controller.errorMessage!),
                         const SizedBox(height: HHSpacing.space5),
                       ],
-                      _sectionHeader('HALL INFORMATION'),
-                      HHTextField(
-                        label: 'Hall Name',
-                        controller: _nameController,
-                        enabled: !controller.isBusy,
-                        textInputAction: TextInputAction.next,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Hall Name is required.'
-                            : null,
-                      ),
-                      const SizedBox(height: HHSpacing.space5),
-                      HHTextField(
-                        label: 'Capacity',
-                        controller: _capacityController,
-                        enabled: !controller.isBusy,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                        validator: (v) {
-                          final trimmed = v?.trim() ?? '';
-                          if (trimmed.isEmpty) return 'Capacity is required.';
-                          final parsed = int.tryParse(trimmed);
-                          if (parsed == null || parsed <= 0)
-                            return 'Capacity must be a valid positive number.';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: HHSpacing.space5),
-                      HHTextField(
-                        label: 'Description (optional)',
-                        controller: _descriptionController,
-                        enabled: !controller.isBusy,
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: HHSpacing.space5),
-                      HHTextField(
-                        label: 'Location / Area (optional)',
-                        controller: _locationController,
-                        enabled: !controller.isBusy,
-                        textInputAction: TextInputAction.done,
-                      ),
-                      const SizedBox(height: HHSpacing.space8),
-                      _sectionHeader('HALL PHOTOS'),
-                      if (_mediaController == null)
-                        Container(
-                          padding: const EdgeInsets.all(HHSpacing.space5),
-                          decoration: BoxDecoration(
-                            color: HHColors.surfaceSunken,
-                            borderRadius: BorderRadius.circular(HHRadii.card),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.photo_library_outlined),
-                              SizedBox(width: HHSpacing.space3),
-                              Expanded(
-                                child: Text(
-                                  'Create the Hall first, then add photos from Edit Hall.',
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        ListenableBuilder(
-                          listenable: _mediaController!,
-                          builder: (context, _) =>
-                              _HallPhotosSection(controller: _mediaController!),
+                      const HHSectionLabel('HALL INFORMATION'),
+                      HHCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            HHTextField(
+                              label: 'Hall Name',
+                              controller: _nameController,
+                              enabled: !controller.isBusy,
+                              textInputAction: TextInputAction.next,
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Hall Name is required.'
+                                  : null,
+                            ),
+                            const SizedBox(height: HHSpacing.space5),
+                            HHTextField(
+                              label: 'Capacity',
+                              controller: _capacityController,
+                              enabled: !controller.isBusy,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              validator: (v) {
+                                final trimmed = v?.trim() ?? '';
+                                if (trimmed.isEmpty) {
+                                  return 'Capacity is required.';
+                                }
+                                final parsed = int.tryParse(trimmed);
+                                if (parsed == null || parsed <= 0) {
+                                  return 'Capacity must be a valid positive number.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: HHSpacing.space5),
+                            HHTextField(
+                              label: 'Description (optional)',
+                              controller: _descriptionController,
+                              enabled: !controller.isBusy,
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: HHSpacing.space5),
+                            HHTextField(
+                              label: 'Location / Area (optional)',
+                              controller: _locationController,
+                              enabled: !controller.isBusy,
+                              textInputAction: TextInputAction.done,
+                            ),
+                          ],
                         ),
+                      ),
                       const SizedBox(height: HHSpacing.space8),
-                      _sectionHeader('ADDITIONAL INFORMATION'),
+                      const HHSectionLabel('HALL PHOTOS'),
+                      HHCard(
+                        child: _mediaController == null
+                            ? Row(
+                                children: [
+                                  Icon(Icons.photo_library_outlined, color: HHColors.textMuted),
+                                  const SizedBox(width: HHSpacing.space3),
+                                  const Expanded(
+                                    child: Text(
+                                      'Create the Hall first, then add photos from Edit Hall.',
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : ListenableBuilder(
+                                listenable: _mediaController!,
+                                builder: (context, _) =>
+                                    _HallPhotosSection(controller: _mediaController!),
+                              ),
+                      ),
+                      const SizedBox(height: HHSpacing.space8),
+                      const HHSectionLabel('ADDITIONAL INFORMATION'),
                       Text(
                         'Add any other details about this Hall. These cannot replace the required '
                         'information above.',
@@ -244,10 +235,12 @@ class _HallFormScreenState extends State<HallFormScreen> {
                         ),
                       ),
                       const SizedBox(height: HHSpacing.space4),
-                      HallProfileDataEditor(
-                        key: _customFieldsKey,
-                        initialData: _existingCustomFields,
-                        enabled: !controller.isBusy,
+                      HHCard(
+                        child: HallProfileDataEditor(
+                          key: _customFieldsKey,
+                          initialData: _existingCustomFields,
+                          enabled: !controller.isBusy,
+                        ),
                       ),
                       const SizedBox(height: HHSpacing.space7),
                       HHPrimaryButton(
@@ -289,20 +282,11 @@ class _HallPhotosSection extends StatelessWidget {
               .map(
                 (photo) => Stack(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(HHRadii.image),
-                      child: Image.network(
-                        photo.url,
-                        width: 96,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 96,
-                          height: 80,
-                          color: HHColors.surfaceSunken,
-                          child: const Icon(Icons.broken_image_outlined),
-                        ),
-                      ),
+                    HHNetworkImage(
+                      url: photo.url,
+                      width: 96,
+                      height: 80,
+                      fallbackIcon: Icons.broken_image_outlined,
                     ),
                     Positioned(
                       right: 4,

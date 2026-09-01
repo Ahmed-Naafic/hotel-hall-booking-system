@@ -86,49 +86,40 @@ class _HallListViewState extends State<_HallListView> {
     );
   }
 
+  Future<void> _openEdit(Hall hall) async {
+    final controller = context.read<HallListController>();
+    final updated = await Navigator.of(context).push<Hall>(
+      MaterialPageRoute(
+        builder: (_) => HallFormScreen(hotelId: widget.hotelId, existingHall: hall),
+      ),
+    );
+    if (updated != null && mounted) {
+      controller.upsert(updated);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hall updated.')));
+    }
+  }
+
   Widget _body(BuildContext context, HallListController list) {
     switch (list.status) {
       case HallListStatus.loading:
         return const Center(child: CircularProgressIndicator());
 
       case HallListStatus.error:
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(HHSpacing.space7),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: HHColors.danger700, size: 32),
-                const SizedBox(height: HHSpacing.space3),
-                Text(list.errorMessage ?? 'Something went wrong.', textAlign: TextAlign.center, style: TextStyle(color: HHColors.textMuted)),
-                const SizedBox(height: HHSpacing.space5),
-                ElevatedButton(onPressed: list.load, child: const Text('Retry')),
-              ],
-            ),
-          ),
+        return HHEmptyState(
+          icon: Icons.error_outline,
+          message: list.errorMessage ?? 'Something went wrong.',
+          iconColor: HHColors.danger700,
+          actionLabel: 'Retry',
+          onAction: list.load,
         );
 
       case HallListStatus.empty:
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(HHSpacing.space7),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.meeting_room_outlined, color: HHColors.navy300, size: 40),
-                const SizedBox(height: HHSpacing.space5),
-                Text('No halls yet', style: HHTypography.displaySm, textAlign: TextAlign.center),
-                const SizedBox(height: HHSpacing.space3),
-                Text(
-                  'Create your first Hall to start building your inventory.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textMd),
-                ),
-                const SizedBox(height: HHSpacing.space6),
-                HHPrimaryButton(label: 'Create Hall', isLoading: false, onPressed: _openCreate),
-              ],
-            ),
-          ),
+        return HHEmptyState(
+          icon: Icons.meeting_room_outlined,
+          title: 'No halls yet',
+          message: 'Create your first Hall to start building your inventory.',
+          actionLabel: 'Create Hall',
+          onAction: _openCreate,
         );
 
       case HallListStatus.ready:
@@ -151,6 +142,7 @@ class _HallListViewState extends State<_HallListView> {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => HallDetailsScreen(hotelId: widget.hotelId, hallId: hall.id)),
                 ),
+                onEdit: () => _openEdit(hall),
               );
             },
           ),

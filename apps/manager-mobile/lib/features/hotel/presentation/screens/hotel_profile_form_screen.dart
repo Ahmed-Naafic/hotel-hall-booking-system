@@ -172,19 +172,6 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
     if (result != null && mounted) setState(() => _location = result);
   }
 
-  Widget _sectionHeader(String label) => Padding(
-    padding: const EdgeInsets.only(bottom: HHSpacing.space4),
-    child: Text(
-      label,
-      style: TextStyle(
-        color: HHColors.textMuted,
-        fontWeight: HHTypeScale.weightSemibold,
-        fontSize: HHTypeScale.textXs,
-        letterSpacing: 0.8,
-      ),
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -213,7 +200,11 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                         HHErrorBanner(message: controller.errorMessage!),
                         const SizedBox(height: HHSpacing.space5),
                       ],
-                      _sectionHeader('HOTEL INFORMATION'),
+                      const HHSectionLabel('HOTEL INFORMATION'),
+                      HHCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                       HHTextField(
                         label: 'Hotel Name',
                         controller: _nameController,
@@ -348,17 +339,27 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.done,
                       ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: HHSpacing.space8),
-                      _sectionHeader('HOTEL MEDIA'),
+                      const HHSectionLabel('HOTEL MEDIA'),
                       if (mediaController.errorMessage != null) ...[
                         HHErrorBanner(message: mediaController.errorMessage!),
                         const SizedBox(height: HHSpacing.space4),
                       ],
-                      _LogoSection(mediaController: mediaController),
-                      const SizedBox(height: HHSpacing.space6),
-                      _PhotosSection(mediaController: mediaController),
+                      HHCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _LogoSection(mediaController: mediaController),
+                            const SizedBox(height: HHSpacing.space6),
+                            _PhotosSection(mediaController: mediaController),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: HHSpacing.space8),
-                      _sectionHeader('ADDITIONAL INFORMATION'),
+                      const HHSectionLabel('ADDITIONAL INFORMATION'),
                       Text(
                         'Add any other details about your Hotel. These cannot replace the required '
                         'information above.',
@@ -368,10 +369,12 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                         ),
                       ),
                       const SizedBox(height: HHSpacing.space4),
-                      HotelProfileDataEditor(
-                        key: _customFieldsKey,
-                        initialData: _existingCustomFields,
-                        enabled: !controller.isBusy,
+                      HHCard(
+                        child: HotelProfileDataEditor(
+                          key: _customFieldsKey,
+                          initialData: _existingCustomFields,
+                          enabled: !controller.isBusy,
+                        ),
                       ),
                       const SizedBox(height: HHSpacing.space7),
                       HHPrimaryButton(
@@ -416,27 +419,10 @@ class _LogoSection extends StatelessWidget {
         if (logo != null) ...[
           Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(HHRadii.image),
-                child: Image.network(
-                  logo.url,
-                  width: 64,
-                  height: 64,
-                  fit: BoxFit.cover,
-                  // A broken/unreachable URL shows a fallback icon rather
-                  // than crashing the screen — the same defensive posture
-                  // this app already takes for every other API failure.
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 64,
-                    height: 64,
-                    color: HHColors.surfaceSunken,
-                    child: Icon(
-                      Icons.image_not_supported_outlined,
-                      color: HHColors.textSubtle,
-                    ),
-                  ),
-                ),
-              ),
+              // A broken/unreachable URL shows a fallback icon rather than
+              // crashing the screen — the same defensive posture this app
+              // already takes for every other API failure.
+              HHNetworkImage(url: logo.url, width: 64, height: 64),
               const SizedBox(width: HHSpacing.space4),
               IconButton(
                 tooltip: 'Delete logo',
@@ -455,18 +441,11 @@ class _LogoSection extends StatelessWidget {
           ),
           const SizedBox(height: HHSpacing.space3),
         ],
-        OutlinedButton.icon(
-          onPressed: mediaController.isUploadingLogo
-              ? null
-              : mediaController.uploadLogo,
-          icon: mediaController.isUploadingLogo
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.image_outlined, size: 18),
-          label: Text(logo != null ? 'Replace Logo' : 'Upload Logo'),
+        HHSecondaryButton(
+          label: logo != null ? 'Replace Logo' : 'Upload Logo',
+          isLoading: mediaController.isUploadingLogo,
+          icon: Icons.image_outlined,
+          onPressed: mediaController.uploadLogo,
         ),
       ],
     );
@@ -502,18 +481,11 @@ class _PhotosSection extends StatelessWidget {
           ),
           const SizedBox(height: HHSpacing.space3),
         ],
-        OutlinedButton.icon(
-          onPressed: mediaController.isUploadingPhoto
-              ? null
-              : mediaController.uploadPhoto,
-          icon: mediaController.isUploadingPhoto
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.photo_library_outlined, size: 18),
-          label: const Text('Add Photos'),
+        HHSecondaryButton(
+          label: 'Add Photos',
+          isLoading: mediaController.isUploadingPhoto,
+          icon: Icons.photo_library_outlined,
+          onPressed: mediaController.uploadPhoto,
         ),
       ],
     );
@@ -532,24 +504,7 @@ class _PhotoThumbnail extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(HHRadii.image),
-          child: Image.network(
-            photo.url,
-            width: 72,
-            height: 72,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              width: 72,
-              height: 72,
-              color: HHColors.surfaceSunken,
-              child: Icon(
-                Icons.image_not_supported_outlined,
-                color: HHColors.textSubtle,
-              ),
-            ),
-          ),
-        ),
+        HHNetworkImage(url: photo.url, width: 72, height: 72),
         Positioned(
           top: -8,
           right: -8,

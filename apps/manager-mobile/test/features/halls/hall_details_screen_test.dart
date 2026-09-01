@@ -37,17 +37,52 @@ void main() {
     addTearDown(binding.platformDispatcher.views.first.resetDevicePixelRatio);
   });
 
-  testWidgets('shows a loading indicator, then the Hall\'s profile fields', (tester) async {
-    await tester.pumpWidget(_wrap((r) async => successResponse(_hallJson(profileData: {'name': 'The Ivory Room', 'capacity': '200'}))));
+  testWidgets(
+    'shows a loading indicator, then the Hall\'s profile fields with friendly labels',
+    (tester) async {
+      await tester.pumpWidget(_wrap(
+        (r) async => successResponse(_hallJson(
+          profileData: {
+            'name': 'The Ivory Room',
+            'capacity': '200',
+            'location': 'Second floor',
+            'description': 'A bright, airy room.',
+          },
+        )),
+      ));
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await tester.pumpAndSettle();
 
-    expect(find.text('name'), findsOneWidget);
-    expect(find.text('The Ivory Room'), findsWidgets);
-    expect(find.text('capacity'), findsOneWidget);
-    expect(find.text('200'), findsOneWidget);
-  });
+      // The Hall Name is the AppBar title, not a repeated body field.
+      expect(find.text('The Ivory Room'), findsOneWidget);
+      expect(find.text('Capacity'), findsOneWidget);
+      expect(find.text('200'), findsOneWidget);
+      expect(find.text('Location / Area'), findsOneWidget);
+      expect(find.text('Second floor'), findsOneWidget);
+      expect(find.text('Description'), findsOneWidget);
+      expect(find.text('A bright, airy room.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a custom (non-standard) field is shown under Additional Information, by its own key',
+    (tester) async {
+      await tester.pumpWidget(_wrap(
+        (r) async => successResponse(_hallJson(
+          profileData: {'name': 'The Ivory Room', 'capacity': 200, 'amenities': 'Stage'},
+        )),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ADDITIONAL INFORMATION'), findsOneWidget);
+      expect(find.text('amenities'), findsOneWidget);
+      expect(find.text('Stage'), findsOneWidget);
+      // Standard fields are never re-listed as if they were custom ones.
+      expect(find.text('name'), findsNothing);
+      expect(find.text('capacity'), findsNothing);
+    },
+  );
 
   testWidgets('shows "no profile information" for an empty Hall, never invented content', (tester) async {
     await tester.pumpWidget(_wrap((r) async => successResponse(_hallJson())));

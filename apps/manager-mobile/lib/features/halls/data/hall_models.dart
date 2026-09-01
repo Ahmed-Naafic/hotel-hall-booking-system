@@ -9,6 +9,7 @@ class Hall {
     required this.profileData,
     required this.createdAt,
     required this.updatedAt,
+    this.photos = const [],
   });
 
   final String id;
@@ -17,12 +18,21 @@ class Hall {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// `toPublicHall` (`hall.mapper.js`) already includes `photos` on every
+  /// Hall response this app fetches (`GET /hotels/:hotelId/halls[/:id]`) —
+  /// this was previously parsed nowhere in this model, so it silently went
+  /// unused. No new endpoint or request; the data was already arriving.
+  final List<HallMedia> photos;
+
   factory Hall.fromJson(Map<String, dynamic> json) => Hall(
     id: json['id'] as String,
     hotelId: json['hotelId'] as String,
     profileData: (json['profileData'] as Map?)?.cast<String, dynamic>(),
     createdAt: DateTime.parse(json['createdAt'] as String),
     updatedAt: DateTime.parse(json['updatedAt'] as String),
+    photos: ((json['photos'] as List?) ?? const [])
+        .map((item) => HallMedia.fromJson((item as Map).cast<String, dynamic>()))
+        .toList(),
   );
 
   /// `BDR-016` (Approved) defines `name` as a required standard field, so
@@ -47,6 +57,17 @@ class Hall {
     if (value is num) return value.toInt();
     if (value is String) return int.tryParse(value.trim());
     return null;
+  }
+
+  /// `location` — the optional standard "Location / Area" field (`BDR-016`).
+  String? get location {
+    final value = profileData?['location']?.toString().trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  String? get description {
+    final value = profileData?['description']?.toString().trim();
+    return (value == null || value.isEmpty) ? null : value;
   }
 }
 
@@ -74,9 +95,16 @@ class HallMedia {
   final String hallId;
   final String url;
 
+  /// `hallId` is present on the dedicated media endpoint's response
+  /// (`toPublicHallMedia`, `media.mapper.js`) but absent from the lighter
+  /// `photos` array embedded directly on a Hall (`toPublicHall`,
+  /// `hall.mapper.js`) — both are parsed through this same factory, so
+  /// `hallId` tolerates being missing rather than throwing. Never read by
+  /// this app (`Hall.id`/`HallDetailsScreen.hallId` are what callers
+  /// actually use), so an empty fallback here changes no behavior.
   factory HallMedia.fromJson(Map<String, dynamic> json) => HallMedia(
     id: json['id'] as String,
-    hallId: json['hallId'] as String,
+    hallId: json['hallId'] as String? ?? '',
     url: json['url'] as String,
   );
 }

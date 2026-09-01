@@ -9,6 +9,10 @@ import 'hall_form_screen.dart';
 
 enum _LoadStatus { loading, ready, error }
 
+/// The Hall's own named standard fields (`BDR-016`) — never shown again in
+/// the generic "Additional Information" custom-field list below.
+const _standardFieldKeys = {'name', 'capacity', 'description', 'location'};
+
 /// Manager → My Hotel → Halls → Hall Details (HL2/HL3, `GET
 /// /hotels/:hotelId/halls/:id`). Shows exactly what the backend returns —
 /// no invented status/visibility field (Hall Management Technical Design
@@ -79,7 +83,8 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
       appBar: AppBar(
         title: Text(_hall?.displayTitle ?? 'Hall'),
         actions: [
-          if (_status == _LoadStatus.ready) IconButton(onPressed: _openEdit, icon: const Icon(Icons.edit_outlined), tooltip: 'Edit'),
+          if (_status == _LoadStatus.ready)
+            IconButton(onPressed: _openEdit, icon: const Icon(Icons.edit_outlined), tooltip: 'Edit'),
         ],
       ),
       body: SafeArea(child: _body()),
@@ -92,40 +97,83 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
         return const Center(child: CircularProgressIndicator());
 
       case _LoadStatus.error:
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(HHSpacing.space7),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: HHColors.danger700, size: 32),
-                const SizedBox(height: HHSpacing.space3),
-                Text(_errorMessage ?? 'Something went wrong.', textAlign: TextAlign.center, style: TextStyle(color: HHColors.textMuted)),
-                const SizedBox(height: HHSpacing.space5),
-                ElevatedButton(onPressed: _load, child: const Text('Retry')),
-              ],
-            ),
-          ),
+        return HHEmptyState(
+          icon: Icons.error_outline,
+          message: _errorMessage ?? 'Something went wrong.',
+          iconColor: HHColors.danger700,
+          actionLabel: 'Retry',
+          onAction: _load,
         );
 
       case _LoadStatus.ready:
         final hall = _hall!;
-        final entries = hall.profileData?.entries.toList() ?? const [];
-        return ListView(
-          padding: const EdgeInsets.all(HHSpacing.space7),
-          children: [
-            Text('Profile', style: TextStyle(fontSize: HHTypeScale.eyebrowSize, letterSpacing: 1, fontWeight: HHTypeScale.eyebrowWeight, color: HHColors.textMuted)),
-            const SizedBox(height: HHSpacing.space3),
-            if (entries.isEmpty)
-              Text('No profile information yet.', style: TextStyle(color: HHColors.textMuted))
-            else
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(HHSpacing.cardPad),
+        final profileData = hall.profileData;
+        if (profileData == null || profileData.isEmpty) {
+          return const Center(child: Text('No profile information yet.'));
+        }
+
+        final customFields = profileData.entries
+            .where((entry) => !_standardFieldKeys.contains(entry.key))
+            .toList();
+
+        return RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.all(HHSpacing.space7),
+            children: [
+              if (hall.photos.isNotEmpty) ...[
+                SizedBox(
+                  height: 160,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: hall.photos.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: HHSpacing.space3),
+                    itemBuilder: (context, index) => HHNetworkImage(
+                      url: hall.photos[index].url,
+                      width: 220,
+                      height: 160,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: HHSpacing.space7),
+              ],
+              HHCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DetailRow(
+                      icon: Icons.groups_2_outlined,
+                      label: 'Capacity',
+                      value: hall.capacity?.toString() ?? 'Not set',
+                    ),
+                    if (hall.location != null) ...[
+                      const SizedBox(height: HHSpacing.space4),
+                      _DetailRow(
+                        icon: Icons.place_outlined,
+                        label: 'Location / Area',
+                        value: hall.location!,
+                      ),
+                    ],
+                    if (hall.description != null) ...[
+                      const SizedBox(height: HHSpacing.space5),
+                      Text(
+                        'Description',
+                        style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs),
+                      ),
+                      const SizedBox(height: HHSpacing.space2),
+                      Text(hall.description!, style: TextStyle(fontSize: HHTypeScale.textMd, height: 1.4)),
+                    ],
+                  ],
+                ),
+              ),
+              if (customFields.isNotEmpty) ...[
+                const SizedBox(height: HHSpacing.space7),
+                const HHSectionLabel('ADDITIONAL INFORMATION'),
+                HHCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final entry in entries)
+                      for (final entry in customFields)
                         Padding(
                           padding: const EdgeInsets.only(bottom: HHSpacing.space3),
                           child: Column(
@@ -139,13 +187,10 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                     ],
                   ),
                 ),
-              ),
-            const SizedBox(height: HHSpacing.space7),
-            Text('Details', style: TextStyle(fontSize: HHTypeScale.eyebrowSize, letterSpacing: 1, fontWeight: HHTypeScale.eyebrowWeight, color: HHColors.textMuted)),
-            const SizedBox(height: HHSpacing.space3),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(HHSpacing.cardPad),
+              ],
+              const SizedBox(height: HHSpacing.space7),
+              const HHSectionLabel('DETAILS'),
+              HHCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -155,9 +200,38 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
     }
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.icon, required this.label, required this.value});
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: HHColors.actionPrimary),
+        const SizedBox(width: HHSpacing.space3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
+              const SizedBox(height: 2),
+              Text(value, style: TextStyle(fontSize: HHTypeScale.textMd)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

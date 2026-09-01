@@ -74,6 +74,14 @@ ThemeData buildHotelHallTheme() {
       centerTitle: false,
       titleTextStyle: HHTypography.displaySm.copyWith(color: HHColors.textInverse, fontSize: HHTypeScale.textXl),
     ),
+    // Material 3's default FAB otherwise falls back to an auto-derived
+    // tonal `secondaryContainer` color — a muted lavender no `HHColors`
+    // token defines — rather than any of the three approved brand colors.
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: HHColors.actionPrimary,
+      foregroundColor: HHColors.textInverse,
+      extendedTextStyle: GoogleFonts.jost(fontSize: HHTypeScale.textSm, fontWeight: HHTypeScale.weightMedium),
+    ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: HHColors.actionPrimary,

@@ -4,6 +4,7 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import '../../../halls/presentation/screens/hall_list_screen.dart';
+import '../../../../core/presentation/manager_formatters.dart';
 import '../../application/hotel_context_controller.dart';
 import '../../data/hotel_models.dart';
 import 'hotel_profile_form_screen.dart';
@@ -14,7 +15,9 @@ import 'hotel_profile_form_screen.dart';
 /// Hidden judgment — that stays server-computed, Hall Management Technical
 /// Design §6).
 class MyHotelScreen extends StatefulWidget {
-  const MyHotelScreen({super.key});
+  const MyHotelScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<MyHotelScreen> createState() => _MyHotelScreenState();
@@ -35,7 +38,10 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
 
     return Scaffold(
       backgroundColor: HHColors.surfacePage,
-      appBar: AppBar(title: const Text('My Hotel')),
+      appBar: AppBar(
+        automaticallyImplyLeading: !widget.embedded,
+        title: const Text('My Hotel'),
+      ),
       body: SafeArea(child: _body(hotelContext)),
     );
   }
@@ -61,7 +67,10 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
                   style: TextStyle(color: HHColors.textMuted),
                 ),
                 const SizedBox(height: HHSpacing.space5),
-                ElevatedButton(onPressed: hotelContext.load, child: const Text('Retry')),
+                ElevatedButton(
+                  onPressed: hotelContext.load,
+                  child: const Text('Retry'),
+                ),
               ],
             ),
           ),
@@ -74,21 +83,36 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.apartment_outlined, color: HHColors.navy300, size: 40),
+                Icon(
+                  Icons.apartment_outlined,
+                  color: HHColors.navy300,
+                  size: 40,
+                ),
                 const SizedBox(height: HHSpacing.space5),
-                Text('Set up your Hotel', style: HHTypography.displaySm, textAlign: TextAlign.center),
+                Text(
+                  'Set up your Hotel',
+                  style: HHTypography.displaySm,
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: HHSpacing.space3),
                 Text(
                   "You haven't connected a Hotel to your account yet.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textMd),
+                  style: TextStyle(
+                    color: HHColors.textMuted,
+                    fontSize: HHTypeScale.textMd,
+                  ),
                 ),
                 if (hotelContext.errorMessage != null) ...[
                   const SizedBox(height: HHSpacing.space4),
                   HHErrorBanner(message: hotelContext.errorMessage!),
                 ],
                 const SizedBox(height: HHSpacing.space6),
-                HHPrimaryButton(label: 'Set up my Hotel', onPressed: hotelContext.createHotel, isLoading: false),
+                HHPrimaryButton(
+                  label: 'Set up my Hotel',
+                  onPressed: hotelContext.createHotel,
+                  isLoading: false,
+                ),
               ],
             ),
           ),
@@ -112,9 +136,21 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Hotel status', style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
+                            Text(
+                              'Hotel status',
+                              style: TextStyle(
+                                color: HHColors.textMuted,
+                                fontSize: HHTypeScale.textXs,
+                              ),
+                            ),
                             const SizedBox(height: 2),
-                            Text(hotel.status, style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textLg)),
+                            Text(
+                              ManagerFormatters.status(hotel.status),
+                              style: TextStyle(
+                                fontWeight: HHTypeScale.weightSemibold,
+                                fontSize: HHTypeScale.textLg,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -132,7 +168,9 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
                 label: 'Manage Halls',
                 isLoading: false,
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => HallListScreen(hotelId: hotel.id)),
+                  MaterialPageRoute(
+                    builder: (_) => HallListScreen(hotelId: hotel.id),
+                  ),
                 ),
               ),
             ],
@@ -149,7 +187,11 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
   /// (`REJECTED`, `SUSPENDED`, `DEACTIVATED`, `RESTRICTED_UNDER_REVIEW`,
   /// `WITHDRAWN`) is already visible verbatim in the status card above and
   /// gets no extra block here rather than an invented one.
-  List<Widget> _onboardingStep(BuildContext context, HotelContextController hotelContext, Hotel hotel) {
+  List<Widget> _onboardingStep(
+    BuildContext context,
+    HotelContextController hotelContext,
+    Hotel hotel,
+  ) {
     switch (hotel.status) {
       case 'REGISTERED':
         return [
@@ -158,11 +200,14 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
             icon: Icons.assignment_outlined,
             iconColor: HHColors.actionAccent,
             title: 'Complete your Hotel profile',
-            message: "Add your Hotel's business-profile information before you can submit it for review.",
+            message:
+                "Add your Hotel's business-profile information before you can submit it for review.",
             actionLabel: 'Complete Hotel Profile',
             onAction: () async {
               final done = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(builder: (_) => const HotelProfileFormScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const HotelProfileFormScreen(),
+                ),
               );
               if (done == true && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -180,14 +225,17 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
             icon: Icons.send_outlined,
             iconColor: HHColors.actionGold,
             title: 'Ready to submit',
-            message: 'Your Hotel profile is complete. Submit your application for Platform Administrator review.',
+            message:
+                'Your Hotel profile is complete. Submit your application for Platform Administrator review.',
             actionLabel: 'Submit Application',
             isLoading: hotelContext.isSubmittingApplication,
             onAction: () async {
               final ok = await hotelContext.submitApplication();
               if (ok && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Application submitted for review.')),
+                  const SnackBar(
+                    content: Text('Application submitted for review.'),
+                  ),
                 );
               }
             },
@@ -201,7 +249,8 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
             icon: Icons.hourglass_top_outlined,
             iconColor: HHColors.warning700,
             title: 'Under review',
-            message: 'Your application has been submitted and is awaiting Platform Administrator review.',
+            message:
+                'Your application has been submitted and is awaiting Platform Administrator review.',
           ),
         ];
 
@@ -246,15 +295,31 @@ class _OnboardingCard extends StatelessWidget {
                 Icon(icon, color: iconColor),
                 const SizedBox(width: HHSpacing.space3),
                 Expanded(
-                  child: Text(title, style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textLg)),
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: HHTypeScale.weightSemibold,
+                      fontSize: HHTypeScale.textLg,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: HHSpacing.space3),
-            Text(message, style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm)),
+            Text(
+              message,
+              style: TextStyle(
+                color: HHColors.textMuted,
+                fontSize: HHTypeScale.textSm,
+              ),
+            ),
             if (actionLabel != null) ...[
               const SizedBox(height: HHSpacing.space5),
-              HHPrimaryButton(label: actionLabel!, isLoading: isLoading, onPressed: onAction),
+              HHPrimaryButton(
+                label: actionLabel!,
+                isLoading: isLoading,
+                onPressed: onAction,
+              ),
             ],
           ],
         ),

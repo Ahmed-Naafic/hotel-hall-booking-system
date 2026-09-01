@@ -5,6 +5,8 @@ import 'package:http/testing.dart';
 import 'package:manager_mobile/core/auth_gate.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/home_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/verify_screen.dart';
+import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
+import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
@@ -24,9 +26,22 @@ void main() {
       accessTokenProvider: () => sessionStore.accessToken,
     );
     final controller = AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
+    final hotelApi = ApiClient(
+      httpClient: MockClient((_) async => successResponse({'hotel': null, 'latestApplication': null})),
+      baseUrl: 'http://test/api/v1',
+    );
 
-    await tester.pumpWidget(ChangeNotifierProvider<AuthController>.value(
-      value: controller,
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        Provider<ApiClient>.value(value: hotelApi),
+        ChangeNotifierProvider<AuthController>.value(value: controller),
+        ChangeNotifierProvider(
+          create: (_) => HotelContextController(
+            repository: HotelRepository(hotelApi),
+            storage: InMemoryTokenStorage(),
+          ),
+        ),
+      ],
       child: const MaterialApp(home: AuthGate()),
     ));
     await tester.pumpAndSettle();

@@ -14,9 +14,14 @@ import 'hall_form_screen.dart';
 /// (`GET /hotels/:hotelId/halls`, WBS-05): every Hall regardless of
 /// visibility (`BR-HALL-02`).
 class HallListScreen extends StatelessWidget {
-  const HallListScreen({super.key, required this.hotelId});
+  const HallListScreen({
+    super.key,
+    required this.hotelId,
+    this.embedded = false,
+  });
 
   final String hotelId;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +30,15 @@ class HallListScreen extends StatelessWidget {
         repository: HallRepository(context.read<ApiClient>()),
         hotelId: hotelId,
       )..load(),
-      child: _HallListView(hotelId: hotelId),
+      child: _HallListView(hotelId: hotelId, embedded: embedded),
     );
   }
 }
 
 class _HallListView extends StatefulWidget {
-  const _HallListView({required this.hotelId});
+  const _HallListView({required this.hotelId, required this.embedded});
   final String hotelId;
+  final bool embedded;
 
   @override
   State<_HallListView> createState() => _HallListViewState();
@@ -45,7 +51,8 @@ class _HallListViewState extends State<_HallListView> {
   void initState() {
     super.initState();
     _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
         context.read<HallListController>().loadMore();
       }
     });
@@ -60,11 +67,15 @@ class _HallListViewState extends State<_HallListView> {
   Future<void> _openCreate() async {
     final controller = context.read<HallListController>();
     final created = await Navigator.of(context).push<Hall>(
-      MaterialPageRoute(builder: (_) => HallFormScreen(hotelId: widget.hotelId)),
+      MaterialPageRoute(
+        builder: (_) => HallFormScreen(hotelId: widget.hotelId),
+      ),
     );
     if (created != null && mounted) {
       controller.load();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hall created.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Hall created.')));
     }
   }
 
@@ -74,8 +85,13 @@ class _HallListViewState extends State<_HallListView> {
 
     return Scaffold(
       backgroundColor: HHColors.surfacePage,
-      appBar: AppBar(title: const Text('Halls')),
-      floatingActionButton: list.status == HallListStatus.ready || list.status == HallListStatus.empty
+      appBar: AppBar(
+        automaticallyImplyLeading: !widget.embedded,
+        title: const Text('Halls'),
+      ),
+      floatingActionButton:
+          list.status == HallListStatus.ready ||
+              list.status == HallListStatus.empty
           ? FloatingActionButton.extended(
               onPressed: _openCreate,
               icon: const Icon(Icons.add),
@@ -100,9 +116,16 @@ class _HallListViewState extends State<_HallListView> {
               children: [
                 Icon(Icons.error_outline, color: HHColors.danger700, size: 32),
                 const SizedBox(height: HHSpacing.space3),
-                Text(list.errorMessage ?? 'Something went wrong.', textAlign: TextAlign.center, style: TextStyle(color: HHColors.textMuted)),
+                Text(
+                  list.errorMessage ?? 'Something went wrong.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: HHColors.textMuted),
+                ),
                 const SizedBox(height: HHSpacing.space5),
-                ElevatedButton(onPressed: list.load, child: const Text('Retry')),
+                ElevatedButton(
+                  onPressed: list.load,
+                  child: const Text('Retry'),
+                ),
               ],
             ),
           ),
@@ -115,17 +138,32 @@ class _HallListViewState extends State<_HallListView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.meeting_room_outlined, color: HHColors.navy300, size: 40),
+                Icon(
+                  Icons.meeting_room_outlined,
+                  color: HHColors.navy300,
+                  size: 40,
+                ),
                 const SizedBox(height: HHSpacing.space5),
-                Text('No halls yet', style: HHTypography.displaySm, textAlign: TextAlign.center),
+                Text(
+                  'No halls yet',
+                  style: HHTypography.displaySm,
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: HHSpacing.space3),
                 Text(
                   'Create your first Hall to start building your inventory.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textMd),
+                  style: TextStyle(
+                    color: HHColors.textMuted,
+                    fontSize: HHTypeScale.textMd,
+                  ),
                 ),
                 const SizedBox(height: HHSpacing.space6),
-                HHPrimaryButton(label: 'Create Hall', isLoading: false, onPressed: _openCreate),
+                HHPrimaryButton(
+                  label: 'Create Hall',
+                  isLoading: false,
+                  onPressed: _openCreate,
+                ),
               ],
             ),
           ),
@@ -148,8 +186,14 @@ class _HallListViewState extends State<_HallListView> {
               final hall = list.halls[index];
               return HallListTile(
                 hall: hall,
+                hotelId: widget.hotelId,
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => HallDetailsScreen(hotelId: widget.hotelId, hallId: hall.id)),
+                  MaterialPageRoute(
+                    builder: (_) => HallDetailsScreen(
+                      hotelId: widget.hotelId,
+                      hallId: hall.id,
+                    ),
+                  ),
                 ),
               );
             },

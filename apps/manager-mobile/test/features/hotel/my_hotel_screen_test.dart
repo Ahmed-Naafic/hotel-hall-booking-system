@@ -77,7 +77,7 @@ void main() {
     await tester.tap(find.text('Set up my Hotel'));
     await tester.pumpAndSettle();
 
-    expect(find.text('REGISTERED'), findsOneWidget);
+    expect(find.text('Registered'), findsOneWidget);
     expect(find.text('Manage Halls'), findsOneWidget);
     // Onboarding (HM2, BR-HOTEL-02): a REGISTERED Hotel's profile is
     // incomplete — the profile-completion step must be offered, and Halls
@@ -182,7 +182,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(applicationPosted, true);
-    expect(find.text('UNDER_REVIEW'), findsOneWidget);
+    expect(find.text('Under Review'), findsOneWidget);
     expect(find.text('Application submitted for review.'), findsOneWidget);
   });
 
@@ -234,7 +234,7 @@ void main() {
 
     await tester.pumpWidget(wrapWithContext(hotelContext, apiClient));
     await tester.pumpAndSettle();
-    expect(find.text('REGISTERED'), findsOneWidget);
+    expect(find.text('Registered'), findsOneWidget);
 
     await tester.tap(find.text('Complete Hotel Profile'));
     await tester.pumpAndSettle();
@@ -261,7 +261,7 @@ void main() {
     // Back on MyHotelScreen — the onboarding state now reflects the real,
     // backend-confirmed PROFILE_COMPLETE status, not a client-side guess.
     expect(find.byType(HotelProfileFormScreen), findsNothing);
-    expect(find.text('PROFILE_COMPLETE'), findsOneWidget);
+      expect(find.text('Profile Complete'), findsOneWidget);
     expect(find.text('Ready to submit'), findsOneWidget);
     expect(find.text('Hotel profile saved.'), findsOneWidget);
   });

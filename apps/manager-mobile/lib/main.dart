@@ -47,6 +47,7 @@ class ManagerMobileApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Hotel Manager Mobile',
+        debugShowCheckedModeBanner: false,
         theme: buildHotelHallTheme(),
         home: const AuthGate(),
       ),

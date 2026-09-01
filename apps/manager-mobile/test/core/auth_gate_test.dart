@@ -7,14 +7,31 @@ import 'package:manager_mobile/core/auth_gate.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/home_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/login_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/verify_screen.dart';
+import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
+import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../test_support.dart';
 
-Widget _wrap(AuthController controller) => ChangeNotifierProvider<AuthController>.value(
-      value: controller,
-      child: const MaterialApp(home: AuthGate()),
-    );
+Widget _wrap(AuthController controller) {
+  final api = ApiClient(
+    httpClient: MockClient((_) async => successResponse({'hotel': null, 'latestApplication': null})),
+    baseUrl: 'http://test/api/v1',
+  );
+  return MultiProvider(
+    providers: [
+      Provider<ApiClient>.value(value: api),
+      ChangeNotifierProvider<AuthController>.value(value: controller),
+      ChangeNotifierProvider(
+        create: (_) => HotelContextController(
+          repository: HotelRepository(api),
+          storage: InMemoryTokenStorage(),
+        ),
+      ),
+    ],
+    child: const MaterialApp(home: AuthGate()),
+  );
+}
 
 AuthController _controllerWith(TokenStorage storage, {Future<http.Response> Function(http.Request)? handler}) {
   final sessionStore = SessionStore(storage: storage);

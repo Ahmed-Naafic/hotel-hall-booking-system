@@ -43,9 +43,9 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pumpAndSettle();
 
-    expect(find.text('name'), findsOneWidget);
+    expect(find.text('Name'), findsOneWidget);
     expect(find.text('The Ivory Room'), findsWidgets);
-    expect(find.text('capacity'), findsOneWidget);
+    expect(find.text('Capacity'), findsOneWidget);
     expect(find.text('200'), findsOneWidget);
   });
 

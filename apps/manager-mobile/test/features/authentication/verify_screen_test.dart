@@ -5,9 +5,36 @@ import 'package:http/testing.dart';
 import 'package:manager_mobile/core/auth_gate.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/home_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/verify_screen.dart';
+import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
+import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
+
+/// HomeScreen is now a bottom-navigation shell whose tabs (Home, Hotel,
+/// Halls) read the same `HotelContextController` main.dart wires up in the
+/// real app — this fixture mirrors that wiring so the widget tree AuthGate
+/// eventually reaches builds successfully. The Hotel client always answers
+/// "no Hotel yet"; these tests only care about the Auth/Verify transition.
+Widget _wrap(AuthController controller) {
+  final hotelClient = ApiClient(
+    httpClient: MockClient((r) async => successResponse({'hotel': null, 'latestApplication': null})),
+    baseUrl: 'http://test/api/v1',
+  );
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<AuthController>.value(value: controller),
+      Provider<ApiClient>.value(value: hotelClient),
+      ChangeNotifierProvider<HotelContextController>(
+        create: (_) => HotelContextController(
+          repository: HotelRepository(hotelClient),
+          storage: InMemoryTokenStorage(),
+        ),
+      ),
+    ],
+    child: const MaterialApp(home: AuthGate()),
+  );
+}
 
 void main() {
   testWidgets('confirming a valid code transitions AuthGate from VerifyScreen to HomeScreen', (tester) async {
@@ -25,10 +52,7 @@ void main() {
     );
     final controller = AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
 
-    await tester.pumpWidget(ChangeNotifierProvider<AuthController>.value(
-      value: controller,
-      child: const MaterialApp(home: AuthGate()),
-    ));
+    await tester.pumpWidget(_wrap(controller));
     await tester.pumpAndSettle();
     expect(find.byType(VerifyScreen), findsOneWidget);
 
@@ -58,10 +82,7 @@ void main() {
     );
     final controller = AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
 
-    await tester.pumpWidget(ChangeNotifierProvider<AuthController>.value(
-      value: controller,
-      child: const MaterialApp(home: AuthGate()),
-    ));
+    await tester.pumpWidget(_wrap(controller));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text("Didn't get a code? Resend"));

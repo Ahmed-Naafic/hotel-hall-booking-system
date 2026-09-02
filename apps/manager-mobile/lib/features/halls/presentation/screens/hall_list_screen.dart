@@ -14,9 +14,15 @@ import 'hall_form_screen.dart';
 /// (`GET /hotels/:hotelId/halls`, WBS-05): every Hall regardless of
 /// visibility (`BR-HALL-02`).
 class HallListScreen extends StatelessWidget {
-  const HallListScreen({super.key, required this.hotelId});
+  const HallListScreen({super.key, required this.hotelId, this.embedded = false});
 
   final String hotelId;
+
+  /// True when hosted as the Halls tab of the bottom-navigation shell
+  /// ([HomeScreen]) rather than pushed on top of another screen — hides
+  /// the back affordance only; loading behavior is unchanged since this
+  /// screen owns its own [HallListController] regardless of embedding.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +31,15 @@ class HallListScreen extends StatelessWidget {
         repository: HallRepository(context.read<ApiClient>()),
         hotelId: hotelId,
       )..load(),
-      child: _HallListView(hotelId: hotelId),
+      child: _HallListView(hotelId: hotelId, embedded: embedded),
     );
   }
 }
 
 class _HallListView extends StatefulWidget {
-  const _HallListView({required this.hotelId});
+  const _HallListView({required this.hotelId, required this.embedded});
   final String hotelId;
+  final bool embedded;
 
   @override
   State<_HallListView> createState() => _HallListViewState();
@@ -74,7 +81,10 @@ class _HallListViewState extends State<_HallListView> {
 
     return Scaffold(
       backgroundColor: HHColors.surfacePage,
-      appBar: AppBar(title: const Text('Halls')),
+      appBar: AppBar(
+        title: const Text('Halls'),
+        automaticallyImplyLeading: !widget.embedded,
+      ),
       floatingActionButton: list.status == HallListStatus.ready || list.status == HallListStatus.empty
           ? FloatingActionButton.extended(
               onPressed: _openCreate,

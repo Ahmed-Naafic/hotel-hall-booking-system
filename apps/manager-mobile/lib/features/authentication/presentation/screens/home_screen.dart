@@ -3,105 +3,130 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
+import '../../../dashboard/presentation/screens/bookings_coming_soon_screen.dart';
+import '../../../dashboard/presentation/screens/dashboard_screen.dart';
+import '../../../halls/presentation/screens/hall_list_screen.dart';
+import '../../../hotel/application/hotel_context_controller.dart';
 import '../../../hotel/presentation/screens/my_hotel_screen.dart';
 import 'profile_screen.dart';
 
-/// Manager — the authenticated landing screen. Navigation per the approved
-/// nav tree: Manager → My Hotel → Halls → Hall Details → Create/Edit Hall.
-/// A visual entry point only — this screen has exactly one real
-/// destination (My Hotel) because that is the only module actually
-/// implemented; no Dashboard metrics, Bookings, or Calendar exist to link
-/// to yet. Account-related actions (including Log out) live on
-/// [ProfileScreen] — this AppBar's only account action is the entry point
-/// to it.
-class HomeScreen extends StatelessWidget {
+/// Manager — the authenticated landing screen. Bottom-navigation shell
+/// over the approved nav tree's five top-level areas: Home (Dashboard),
+/// Hotel, Halls, Bookings, Profile. Each tab either hosts an existing
+/// screen unchanged (`MyHotelScreen`, `HallListScreen`, `ProfileScreen`) or
+/// a new screen that only ever surfaces data those existing
+/// repositories/controllers already expose (`DashboardScreen`), plus a
+/// static acknowledgement for the one area with no backend support yet
+/// (`BookingsComingSoonScreen`). An `IndexedStack` keeps every tab's own
+/// state (scroll position, in-flight loads) alive across switches, the
+/// same way the previous single-screen `Navigator` stack preserved state
+/// across pushes.
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthController>();
-    final user = auth.currentUser;
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
+class _HomeScreenState extends State<HomeScreen> {
+  int _tabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // The one shared load this shell owns — every tab that needs the
+    // Hotel Manager's Hotel (Home, Hotel, Halls) reads the same
+    // `HotelContextController` instance instead of each tab triggering
+    // its own `GET /hotels/me`.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<HotelContextController>().load();
+    });
+  }
+
+  void _openTab(int index) => setState(() => _tabIndex = index);
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: HHColors.surfacePage,
-      appBar: AppBar(
-        title: const Text('Hotel Hall — Manager'),
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            ),
-            icon: const Icon(Icons.person_outline),
-            tooltip: 'Profile',
+      body: IndexedStack(
+        index: _tabIndex,
+        children: [
+          DashboardScreen(
+            onOpenHotelTab: () => _openTab(1),
+            onOpenHallsTab: () => _openTab(2),
           ),
+          const MyHotelScreen(embedded: true),
+          const _HallsTab(),
+          const BookingsComingSoonScreen(),
+          const ProfileScreen(),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(HHSpacing.space7),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Welcome back', style: HHTypography.displaySm),
-              const SizedBox(height: HHSpacing.space2),
-              Text(
-                user?.mobileNumber ?? '',
-                style: TextStyle(
-                  fontSize: HHTypeScale.textMd,
-                  color: HHColors.textMuted,
-                ),
-              ),
-              const SizedBox(height: HHSpacing.space8),
-              HHCard(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const MyHotelScreen()),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: HHColors.surfaceNavyTint,
-                        borderRadius: BorderRadius.circular(HHRadii.control),
-                      ),
-                      child: Icon(
-                        Icons.apartment_rounded,
-                        color: HHColors.actionPrimary,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: HHSpacing.space5),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'My Hotel',
-                            style: TextStyle(
-                              fontWeight: HHTypeScale.weightSemibold,
-                              fontSize: HHTypeScale.textLg,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Manage your Hotel and its Halls',
-                            style: TextStyle(
-                              color: HHColors.textMuted,
-                              fontSize: HHTypeScale.textSm,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: HHColors.textSubtle),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tabIndex,
+        onDestinationSelected: _openTab,
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.apartment_outlined), selectedIcon: Icon(Icons.apartment), label: 'Hotel'),
+          NavigationDestination(icon: Icon(Icons.meeting_room_outlined), selectedIcon: Icon(Icons.meeting_room), label: 'Halls'),
+          NavigationDestination(icon: Icon(Icons.event_note_outlined), selectedIcon: Icon(Icons.event_note), label: 'Bookings'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+        ],
       ),
     );
+  }
+}
+
+/// The Halls tab's body — `HallListScreen` needs a resolved `hotelId`, so
+/// this mirrors the same status-driven empty/loading/error language the
+/// Hotel tab and Dashboard already use rather than crashing on a null id
+/// or inventing a different set of messages for the same underlying state.
+class _HallsTab extends StatelessWidget {
+  const _HallsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final hotelContext = context.watch<HotelContextController>();
+
+    switch (hotelContext.status) {
+      case HotelContextStatus.unknown:
+      case HotelContextStatus.loading:
+        return Scaffold(
+          backgroundColor: HHColors.surfacePage,
+          appBar: AppBar(title: const Text('Halls'), automaticallyImplyLeading: false),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+
+      case HotelContextStatus.error:
+        return Scaffold(
+          backgroundColor: HHColors.surfacePage,
+          appBar: AppBar(title: const Text('Halls'), automaticallyImplyLeading: false),
+          body: HHEmptyState(
+            icon: Icons.error_outline,
+            message: hotelContext.errorMessage ?? 'Something went wrong.',
+            iconColor: HHColors.danger700,
+            actionLabel: 'Retry',
+            onAction: hotelContext.load,
+          ),
+        );
+
+      case HotelContextStatus.none:
+        return Scaffold(
+          backgroundColor: HHColors.surfacePage,
+          appBar: AppBar(title: const Text('Halls'), automaticallyImplyLeading: false),
+          body: HHEmptyState(
+            icon: Icons.apartment_outlined,
+            title: 'Set up your Hotel',
+            message: 'Halls belong to a Hotel — set up your Hotel first.',
+            actionLabel: 'Set up my Hotel',
+            onAction: hotelContext.createHotel,
+            isLoading: false,
+          ),
+        );
+
+      case HotelContextStatus.ready:
+        return HallListScreen(hotelId: hotelContext.hotel!.id, embedded: true);
+    }
   }
 }

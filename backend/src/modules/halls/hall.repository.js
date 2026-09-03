@@ -6,9 +6,9 @@ import { prisma } from '../../shared/prismaClient.js'
  * query, returns data.
  */
 
-export function create({ hotelId, profileData }) {
+export function create({ hotelId, profileData, commercialData }) {
   return prisma.hall.create({
-    data: { hotelId, profileData: profileData ?? null },
+    data: { hotelId, profileData: profileData ?? null, ...commercialData },
   })
 }
 
@@ -23,6 +23,10 @@ export function findByIdForHotel(id, hotelId) {
 
 export function updateProfileData(id, profileData) {
   return prisma.hall.update({ where: { id }, data: { profileData } })
+}
+
+export function update(id, data) {
+  return prisma.hall.update({ where: { id }, data })
 }
 
 /** Every Hall for one Hotel, regardless of visibility — the Hotel Manager's own management view. */

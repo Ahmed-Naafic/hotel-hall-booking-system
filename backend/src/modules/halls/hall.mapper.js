@@ -12,6 +12,14 @@ export function toPublicHall(hall) {
     id: hall.id,
     hotelId: hall.hotelId,
     profileData: hall.profileData,
+    bookingTerms: {
+      currency: 'USD',
+      rentAmountCents: hall.rentAmountCents,
+      rentDurationHours: hall.rentDurationHours,
+      advancePaymentPercent: hall.advancePaymentPercent === null || hall.advancePaymentPercent === undefined ? null : Number(hall.advancePaymentPercent),
+      customerServiceNumber: hall.customerServiceNumber,
+      paymentReceivingNumber: hall.paymentReceivingNumber,
+    },
     createdAt: hall.createdAt,
     updatedAt: hall.updatedAt,
     photos: (hall.media ?? []).filter((item) => item.type === 'PHOTO').map((item) => ({

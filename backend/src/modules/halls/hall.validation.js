@@ -61,6 +61,18 @@ function collectStandardFieldErrors(fields, { requireName, requireCapacity }) {
   return details
 }
 
+function collectCommercialErrors(body, required) {
+  const details = []
+  const positiveInteger = (value) => Number.isInteger(value) && value > 0
+  if ((required || body.rentAmountCents !== undefined) && !positiveInteger(body.rentAmountCents)) details.push({ field: 'rentAmountCents', message: 'rentAmountCents must be a positive integer.' })
+  if ((required || body.rentDurationHours !== undefined) && body.rentDurationHours !== 24) details.push({ field: 'rentDurationHours', message: 'rentDurationHours must be 24.' })
+  if ((required || body.advancePaymentPercent !== undefined) && (typeof body.advancePaymentPercent !== 'number' || body.advancePaymentPercent < 0 || body.advancePaymentPercent > 100)) details.push({ field: 'advancePaymentPercent', message: 'advancePaymentPercent must be between 0 and 100.' })
+  for (const field of ['customerServiceNumber', 'paymentReceivingNumber']) {
+    if ((required || body[field] !== undefined) && !isNonEmptyString(body[field])) details.push({ field, message: `${field} is required and must be a non-empty string.` })
+  }
+  return details
+}
+
 export function validateCreateHall(req, res, next) {
   const { profileData } = req.body ?? {}
   if (profileData !== undefined) {
@@ -68,6 +80,7 @@ export function validateCreateHall(req, res, next) {
   }
 
   const details = collectStandardFieldErrors(profileData ?? {}, { requireName: true, requireCapacity: true })
+  details.push(...collectCommercialErrors(req.body ?? {}, false))
   if (details.length > 0) {
     throw new ValidationError('The request could not be processed due to invalid input.', details)
   }
@@ -88,6 +101,7 @@ export function validateUpdateHall(req, res, next) {
   // touches name/capacity must not be forced to re-supply them (merge
   // semantics, Technical Design §7/§8).
   const details = collectStandardFieldErrors(body, { requireName: false, requireCapacity: false })
+  details.push(...collectCommercialErrors(body, false))
   if (details.length > 0) {
     throw new ValidationError('The request could not be processed due to invalid input.', details)
   }

@@ -3,6 +3,7 @@ import * as availabilityRepository from './availability.repository.js'
 import * as hallService from '../halls/hall.service.js'
 import * as visibilityService from '../halls/visibility.service.js'
 import { recordAuditEvent } from './audit.js'
+import { lockHallSchedule } from './hallScheduleLock.js'
 import { BusinessRuleError, ConflictError, NotFoundError } from '../../shared/errors/errorTypes.js'
 
 /**
@@ -112,7 +113,8 @@ function isExclusionViolation(error) {
 }
 
 /** The Availability Query Interface's write-side guard — throws on conflict. */
-export async function assertPeriodIsFree({ hallId, startsAt, endsAt, excludeBlockId, client }) {
+export async function assertPeriodIsFree({ hallId, startsAt, endsAt, excludeBlockId, excludeBookingId, client }) {
+  await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() }, client)
   const overlapping = await availabilityRepository.hasOverlap(
     { hallId, startsAt, endsAt, excludeId: excludeBlockId },
     client,
@@ -120,12 +122,23 @@ export async function assertPeriodIsFree({ hallId, startsAt, endsAt, excludeBloc
   if (overlapping) {
     throw new ConflictError('This period conflicts with an existing availability block.')
   }
+  const bookingOverlap = await availabilityRepository.hasBlockingBookingOverlap(
+    { hallId, startsAt, endsAt, excludeBookingId },
+    client,
+  )
+  if (bookingOverlap) {
+    throw new ConflictError('This period conflicts with an existing booking.')
+  }
 }
 
 /** The Availability Query Interface's read-side check — never throws. */
 export async function isPeriodFree({ hallId, startsAt, endsAt, excludeBlockId }) {
-  const overlapping = await availabilityRepository.hasOverlap({ hallId, startsAt, endsAt, excludeId: excludeBlockId })
-  return !overlapping
+  await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() })
+  const [blockOverlap, bookingOverlap] = await Promise.all([
+    availabilityRepository.hasOverlap({ hallId, startsAt, endsAt, excludeId: excludeBlockId }),
+    availabilityRepository.hasBlockingBookingOverlap({ hallId, startsAt, endsAt }),
+  ])
+  return !blockOverlap && !bookingOverlap
 }
 
 /** Manager day-view — caller (controller) has already asserted own-Hotel ownership. */
@@ -141,6 +154,7 @@ export async function createBlock({ hallId, date, startTime, endTime, reason, cr
   let block
   try {
     block = await prisma.$transaction(async (client) => {
+      await lockHallSchedule(hallId, client)
       await assertPeriodIsFree({ hallId, startsAt, endsAt, client })
       return availabilityRepository.create({ hallId, startsAt, endsAt, reason, createdByUserId }, client)
     })
@@ -183,6 +197,7 @@ export async function updateBlock({ hallId, blockId, date, startTime, endTime, r
   let updated
   try {
     updated = await prisma.$transaction(async (client) => {
+      await lockHallSchedule(hallId, client)
       await assertPeriodIsFree({ hallId, startsAt, endsAt, excludeBlockId: blockId, client })
       return availabilityRepository.update(blockId, { startsAt, endsAt, reason: reason ?? existing.reason }, client)
     })
@@ -218,7 +233,13 @@ export async function getPublicAvailability({ hallId, date }) {
   if (!visible) {
     throw new NotFoundError('Hall not found.')
   }
-  return getBlocksForHall({ hallId, date })
+  const { rangeStart, rangeEnd } = mogadishuDayToUtcRange(date)
+  await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() })
+  const [blocks, bookings] = await Promise.all([
+    availabilityRepository.listForHallInRange({ hallId, rangeStart, rangeEnd }),
+    availabilityRepository.listBlockingBookingsForHallInRange({ hallId, rangeStart, rangeEnd }),
+  ])
+  return [...blocks, ...bookings].sort((a, b) => a.startsAt - b.startsAt)
 }
 
 export async function checkAvailability({ hallId, date, startTime, endTime }) {

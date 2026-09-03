@@ -31,6 +31,9 @@ model User {
   verificationRequests                     VerificationRequest[]
   customerProfile                          CustomerProfile?
   createdAvailabilityBlocks                HallAvailabilityBlock[]
+  customerBookings                         Booking[]                          @relation("CustomerBookings")
+  verifiedBookingPayments                  Booking[]                          @relation("VerifiedBookingPayments")
+  cancelledBookings                        Booking[]                          @relation("CancelledBookings")
 
   @@map("users")
 }
@@ -134,6 +137,7 @@ model Hotel {
   halls                  Hall[]
   applications           HotelApplication[]
   media                  HotelMedia[]
+  bookings               Booking[]
   registeredBy           User                               @relation(fields: [registeredByUserId], references: [id])
 
   @@index([status], map: "idx_hotels_status")
@@ -229,9 +233,56 @@ model Hall {
   hotel       Hotel       @relation(fields: [hotelId], references: [id])
   media       HallMedia[]
   availabilityBlocks HallAvailabilityBlock[]
+  bookings           Booking[]
+  rentAmountCents         Int?     @map("rent_amount_cents")
+  rentDurationHours       Int?     @default(24) @map("rent_duration_hours")
+  advancePaymentPercent  Decimal? @map("advance_payment_percent") @db.Decimal(5, 2)
+  customerServiceNumber  String?  @map("customer_service_number")
+  paymentReceivingNumber String?  @map("payment_receiving_number")
 
   @@index([hotelId], map: "idx_halls_hotel_id")
   @@map("halls")
+}
+
+model Booking {
+  id                     String        @id @default(uuid()) @db.Uuid
+  customerUserId         String        @map("customer_user_id") @db.Uuid
+  hotelId                String        @map("hotel_id") @db.Uuid
+  hallId                 String        @map("hall_id") @db.Uuid
+  startsAt               DateTime      @map("starts_at")
+  endsAt                 DateTime      @map("ends_at")
+  numberOfGuests         Int           @map("number_of_guests")
+  eventType              EventType     @map("event_type")
+  specialRequest         String?       @map("special_request")
+  status                 BookingStatus @default(PENDING)
+  paymentStatus          PaymentStatus @default(UNPAID) @map("payment_status")
+  paymentDeadlineAt      DateTime      @map("payment_deadline_at")
+  totalRentCents         Int           @map("total_rent_cents")
+  advancePercentSnapshot Decimal       @map("advance_percent_snapshot") @db.Decimal(5, 2)
+  requiredAdvanceCents   Int           @map("required_advance_cents")
+  reportedAmountCents    Int?          @map("reported_amount_cents")
+  paymentReportedAt      DateTime?     @map("payment_reported_at")
+  paymentVerifiedAt      DateTime?     @map("payment_verified_at")
+  paymentVerifiedById    String?       @map("payment_verified_by_id") @db.Uuid
+  paymentRejectionReason String?       @map("payment_rejection_reason")
+  cancelledAt            DateTime?     @map("cancelled_at")
+  cancelledByUserId      String?       @map("cancelled_by_user_id") @db.Uuid
+  completedAt            DateTime?     @map("completed_at")
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+
+  customer         User  @relation("CustomerBookings", fields: [customerUserId], references: [id])
+  hotel            Hotel @relation(fields: [hotelId], references: [id])
+  hall             Hall  @relation(fields: [hallId], references: [id])
+  paymentVerifiedBy User? @relation("VerifiedBookingPayments", fields: [paymentVerifiedById], references: [id])
+  cancelledBy       User? @relation("CancelledBookings", fields: [cancelledByUserId], references: [id])
+
+  @@index([customerUserId, createdAt], map: "idx_bookings_customer_created_at")
+  @@index([hotelId, status, createdAt], map: "idx_bookings_hotel_status_created_at")
+  @@index([hallId, startsAt, endsAt], map: "idx_bookings_hall_period")
+  @@index([status, paymentDeadlineAt], map: "idx_bookings_status_payment_deadline")
+  @@index([paymentStatus], map: "idx_bookings_payment_status")
+  @@map("bookings")
 }
 
 /// A single uploaded Hall Photo (BDR-016, ADR-0007). Stores only a
@@ -315,6 +366,38 @@ enum HotelApplicationStatus {
   WITHDRAWN
 
   @@map("hotel_application_status")
+}
+
+enum EventType {
+  WEDDING
+  CONFERENCE
+  BIRTHDAY
+  MEETING
+  GRADUATION
+  OTHER
+
+  @@map("event_type")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  EXPIRED
+
+  @@map("booking_status")
+}
+
+enum PaymentStatus {
+  UNPAID
+  CUSTOMER_REPORTED
+  PAID
+  REJECTED
+
+  @@map("payment_status")
 }
 
 enum CriticalChangeStatus {

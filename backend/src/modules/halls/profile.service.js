@@ -17,9 +17,12 @@ export async function updateHallProfile(hall, changedFields) {
     throw new BusinessRuleError('At least one profile field must be provided to update.')
   }
 
-  const updated = await hallRepository.updateProfileData(hall.id, {
-    ...(hall.profileData ?? {}),
-    ...changedFields,
+  const commercialKeys = ['rentAmountCents', 'rentDurationHours', 'advancePaymentPercent', 'customerServiceNumber', 'paymentReceivingNumber']
+  const commercialData = Object.fromEntries(commercialKeys.filter((key) => changedFields[key] !== undefined).map((key) => [key, changedFields[key]]))
+  const profileChanges = Object.fromEntries(Object.entries(changedFields).filter(([key]) => !commercialKeys.includes(key)))
+  const updated = await hallRepository.update(hall.id, {
+    profileData: { ...(hall.profileData ?? {}), ...profileChanges },
+    ...commercialData,
   })
   recordAuditEvent('HALL_PROFILE_UPDATED', { hallId: hall.id, hotelId: hall.hotelId })
   return updated

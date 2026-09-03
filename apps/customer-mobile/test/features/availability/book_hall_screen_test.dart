@@ -45,17 +45,23 @@ void main() {
     expect(find.text('No busy periods on this date.'), findsOneWidget);
   });
 
-  testWidgets('submitting a free period shows the existing placeholder acknowledgement', (tester) async {
+  testWidgets('submitting a free period creates a booking and shows its price', (tester) async {
     await tester.pumpWidget(_wrap((r) async {
       if (r.method == 'GET') return successResponse({'busyPeriods': []});
-      return successResponse({'available': true});
+      if (r.url.path.endsWith('/availability/check')) return successResponse({'available': true});
+      return successResponse({
+        'id': 'booking-1', 'status': 'PENDING', 'paymentStatus': 'UNPAID',
+        'pricing': {'totalRentCents': 50000, 'requiredAdvanceCents': 10000},
+      });
     }));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Submit'));
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Request Booking'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Request Booking'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Booking will be available in the Booking module.'), findsOneWidget);
+    expect(find.text('Booking requested'), findsOneWidget);
+    expect(find.textContaining('Advance required: \$100.00'), findsOneWidget);
   });
 
   testWidgets(
@@ -67,7 +73,8 @@ void main() {
       }));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Submit'));
+      await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Request Booking'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Request Booking'));
       await tester.pumpAndSettle();
 
       expect(find.text('This time is no longer available — please choose another.'), findsOneWidget);
@@ -82,7 +89,8 @@ void main() {
     }));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Submit'));
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Request Booking'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Request Booking'));
     await tester.pumpAndSettle();
 
     expect(find.text('Please log in again.'), findsOneWidget);

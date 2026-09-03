@@ -42,6 +42,7 @@ Widget _wrap({bool withHotel = true}) {
         return successResponse(withHotel ? {'hotel': _hotelJson(), 'latestApplication': null} : {'hotel': null, 'latestApplication': null});
       }
       if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
+      if (r.url.path.endsWith('/bookings')) return successResponse([]);
       if (r.url.path.contains('/halls')) return _hallPageResponse();
       throw StateError('unexpected: ${r.method} ${r.url.path}');
     }),
@@ -116,14 +117,14 @@ void main() {
     expect(find.text('Set up your Hotel'), findsOneWidget);
   });
 
-  testWidgets('switching to the Bookings tab shows the Coming Soon acknowledgement, never fake data', (tester) async {
+  testWidgets('switching to the Bookings tab shows the live empty state', (tester) async {
     await tester.pumpWidget(_wrap());
     await tester.pumpAndSettle();
 
     await tester.tap(_navLabel('Bookings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Booking management is coming soon.'), findsOneWidget);
+    expect(find.text('No bookings yet'), findsOneWidget);
   });
 
   testWidgets('switching to the Profile tab shows the existing ProfileScreen unchanged', (tester) async {

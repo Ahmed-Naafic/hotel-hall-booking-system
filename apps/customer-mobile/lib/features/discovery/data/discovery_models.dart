@@ -52,21 +52,30 @@ class HallSummary {
     required this.hotelId,
     required this.profileData,
     this.photos = const [],
+    this.bookingTerms = const {},
   });
   final String id;
   final String hotelId;
   final Map<String, dynamic> profileData;
   final List<MediaItem> photos;
+  final Map<String, dynamic> bookingTerms;
   String get name => profileData['name'] as String? ?? 'Hall';
   String get description => profileData['description'] as String? ?? '';
   String get location =>
       (profileData['location'] ?? profileData['area']) as String? ?? '';
   String get capacity => profileData['capacity']?.toString() ?? '';
+  int? get rentAmountCents => bookingTerms['rentAmountCents'] as int?;
+  int get rentDurationHours => bookingTerms['rentDurationHours'] as int? ?? 24;
+  double? get advancePaymentPercent =>
+      (bookingTerms['advancePaymentPercent'] as num?)?.toDouble();
+  String get paymentReceivingNumber =>
+      bookingTerms['paymentReceivingNumber'] as String? ?? '';
 
   factory HallSummary.fromJson(Map<String, dynamic> json) => HallSummary(
     id: json['id'] as String,
     hotelId: json['hotelId'] as String,
     profileData: (json['profileData'] as Map?)?.cast<String, dynamic>() ?? {},
+    bookingTerms: (json['bookingTerms'] as Map?)?.cast<String, dynamic>() ?? {},
     photos: ((json['photos'] as List?) ?? [])
         .map(
           (item) => MediaItem.fromJson((item as Map).cast<String, dynamic>()),

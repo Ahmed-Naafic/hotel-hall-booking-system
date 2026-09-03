@@ -23,7 +23,8 @@ import { asyncHandler } from '../../shared/utils/asyncHandler.js'
 export const createHall = asyncHandler(async (req, res) => {
   const { hotelId } = req.params
   await hallService.assertOwnHotel(hotelId, req.identity.userId)
-  const hall = await hallService.createHall({ hotelId, profileData: req.body?.profileData })
+  const { profileData, ...commercialData } = req.body ?? {}
+  const hall = await hallService.createHall({ hotelId, profileData, commercialData })
   sendSuccess(res, {
     statusCode: 201,
     message: 'Hall created successfully.',

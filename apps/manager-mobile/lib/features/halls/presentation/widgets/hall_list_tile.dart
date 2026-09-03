@@ -120,7 +120,11 @@ class HallListTile extends StatelessWidget {
 }
 
 class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label, this.muted = false});
+  const _MetaChip({
+    required this.icon,
+    required this.label,
+    this.muted = false,
+  });
 
   final IconData icon;
   final String label;
@@ -134,7 +138,10 @@ class _MetaChip extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontSize: HHTypeScale.textXs)),
+        Text(
+          label,
+          style: TextStyle(color: color, fontSize: HHTypeScale.textXs),
+        ),
       ],
     );
   }

@@ -20,7 +20,11 @@ import '../data/hall_repository.dart';
 /// cannot be expressed by this form — `HallProfileDataEditor` only supports
 /// add/edit values, not deletion, for exactly this reason.
 class HallFormController extends ChangeNotifier {
-  HallFormController({required this.repository, required this.hotelId, this.existingHall});
+  HallFormController({
+    required this.repository,
+    required this.hotelId,
+    this.existingHall,
+  });
 
   final HallRepository repository;
   final String hotelId;
@@ -32,7 +36,12 @@ class HallFormController extends ChangeNotifier {
   /// "Additional Information" field using one of these names is rejected
   /// before any request is sent, so a custom field can never satisfy or
   /// replace a required standard field, per `BDR-016`'s explicit rule.
-  static const standardFieldKeys = {'name', 'capacity', 'description', 'location'};
+  static const standardFieldKeys = {
+    'name',
+    'capacity',
+    'description',
+    'location',
+  };
 
   bool isBusy = false;
   String? errorMessage;
@@ -40,8 +49,11 @@ class HallFormController extends ChangeNotifier {
   Future<Hall?> submit({
     required Map<String, dynamic> standardFields,
     required Map<String, dynamic> customFields,
+    required Map<String, dynamic> commercialData,
   }) async {
-    final reservedCollisions = customFields.keys.where(standardFieldKeys.contains).toList();
+    final reservedCollisions = customFields.keys
+        .where(standardFieldKeys.contains)
+        .toList();
     if (reservedCollisions.isNotEmpty) {
       errorMessage =
           'Additional Information cannot reuse a standard field name (${reservedCollisions.join(', ')}) — '
@@ -57,8 +69,17 @@ class HallFormController extends ChangeNotifier {
     final profileData = {...standardFields, ...customFields};
     try {
       final hall = isEditing
-          ? await repository.updateHall(hotelId: hotelId, id: existingHall!.id, profileData: profileData)
-          : await repository.createHall(hotelId: hotelId, profileData: profileData);
+          ? await repository.updateHall(
+              hotelId: hotelId,
+              id: existingHall!.id,
+              profileData: profileData,
+              commercialData: commercialData,
+            )
+          : await repository.createHall(
+              hotelId: hotelId,
+              profileData: profileData,
+              commercialData: commercialData,
+            );
       isBusy = false;
       notifyListeners();
       return hall;

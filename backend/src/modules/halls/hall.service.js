@@ -11,8 +11,8 @@ import { NotFoundError } from '../../shared/errors/errorTypes.js'
  * job, Technical Design §6).
  */
 
-export async function createHall({ hotelId, profileData }) {
-  const hall = await hallRepository.create({ hotelId, profileData })
+export async function createHall({ hotelId, profileData, commercialData }) {
+  const hall = await hallRepository.create({ hotelId, profileData, commercialData })
   recordAuditEvent('HALL_CREATED', { hallId: hall.id, hotelId })
   return hall
 }

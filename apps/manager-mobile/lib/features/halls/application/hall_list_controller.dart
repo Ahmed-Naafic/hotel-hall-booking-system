@@ -32,7 +32,11 @@ class HallListController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await repository.listHalls(hotelId: hotelId, page: _page, limit: _limit);
+      final result = await repository.listHalls(
+        hotelId: hotelId,
+        page: _page,
+        limit: _limit,
+      );
       halls = result.halls;
       hasNext = result.hasNext;
       status = halls.isEmpty ? HallListStatus.empty : HallListStatus.ready;
@@ -52,7 +56,11 @@ class HallListController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await repository.listHalls(hotelId: hotelId, page: _page + 1, limit: _limit);
+      final result = await repository.listHalls(
+        hotelId: hotelId,
+        page: _page + 1,
+        limit: _limit,
+      );
       halls = [...halls, ...result.halls];
       hasNext = result.hasNext;
       _page += 1;

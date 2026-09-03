@@ -43,6 +43,10 @@ class _HallFormScreenState extends State<HallFormScreen> {
   late final TextEditingController _capacityController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _locationController;
+  late final TextEditingController _rentController;
+  late final TextEditingController _advanceController;
+  late final TextEditingController _serviceNumberController;
+  late final TextEditingController _paymentNumberController;
   late final Map<String, dynamic> _existingCustomFields;
 
   @override
@@ -79,6 +83,22 @@ class _HallFormScreenState extends State<HallFormScreen> {
     _locationController = TextEditingController(
       text: existing['location']?.toString() ?? '',
     );
+    final terms =
+        widget.existingHall?.bookingTerms ?? const <String, dynamic>{};
+    _rentController = TextEditingController(
+      text: terms['rentAmountCents'] == null
+          ? ''
+          : (terms['rentAmountCents'] / 100).toStringAsFixed(2),
+    );
+    _advanceController = TextEditingController(
+      text: terms['advancePaymentPercent']?.toString() ?? '',
+    );
+    _serviceNumberController = TextEditingController(
+      text: terms['customerServiceNumber']?.toString() ?? '',
+    );
+    _paymentNumberController = TextEditingController(
+      text: terms['paymentReceivingNumber']?.toString() ?? '',
+    );
     _existingCustomFields = Map.fromEntries(
       existing.entries.where(
         (entry) => !HallFormController.standardFieldKeys.contains(entry.key),
@@ -92,6 +112,10 @@ class _HallFormScreenState extends State<HallFormScreen> {
     _capacityController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _rentController.dispose();
+    _advanceController.dispose();
+    _serviceNumberController.dispose();
+    _paymentNumberController.dispose();
     super.dispose();
   }
 
@@ -111,6 +135,18 @@ class _HallFormScreenState extends State<HallFormScreen> {
     final hall = await _controller.submit(
       standardFields: standardFields,
       customFields: customFields,
+      commercialData: {
+        if (_rentController.text.trim().isNotEmpty)
+          'rentAmountCents': (double.parse(_rentController.text.trim()) * 100)
+              .round(),
+        if (_rentController.text.trim().isNotEmpty) 'rentDurationHours': 24,
+        if (_advanceController.text.trim().isNotEmpty)
+          'advancePaymentPercent': double.parse(_advanceController.text.trim()),
+        if (_serviceNumberController.text.trim().isNotEmpty)
+          'customerServiceNumber': _serviceNumberController.text.trim(),
+        if (_paymentNumberController.text.trim().isNotEmpty)
+          'paymentReceivingNumber': _paymentNumberController.text.trim(),
+      },
     );
     if (hall != null && mounted) {
       // The caller (list or details screen) shows the success feedback on
@@ -192,6 +228,58 @@ class _HallFormScreenState extends State<HallFormScreen> {
                               controller: _locationController,
                               enabled: !controller.isBusy,
                               textInputAction: TextInputAction.done,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: HHSpacing.space8),
+                      const HHSectionLabel('BOOKING TERMS'),
+                      HHCard(
+                        child: Column(
+                          children: [
+                            HHTextField(
+                              label: 'Rent per 24 hours (USD)',
+                              controller: _rentController,
+                              enabled: !controller.isBusy,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              validator: (v) => v?.trim().isNotEmpty == true &&
+                                      (double.tryParse(v!.trim()) ?? 0) <= 0
+                                  ? 'Enter a valid rent amount.'
+                                  : null,
+                            ),
+                            const SizedBox(height: HHSpacing.space5),
+                            HHTextField(
+                              label: 'Advance payment (%)',
+                              controller: _advanceController,
+                              enabled: !controller.isBusy,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              validator: (v) {
+                                if (v?.trim().isEmpty ?? true) return null;
+                                final n = double.tryParse(v?.trim() ?? '');
+                                return n == null || n < 0 || n > 100
+                                    ? 'Enter a percentage from 0 to 100.'
+                                    : null;
+                              },
+                            ),
+                            const SizedBox(height: HHSpacing.space5),
+                            HHTextField(
+                              label: 'Customer-service number',
+                              controller: _serviceNumberController,
+                              enabled: !controller.isBusy,
+                              keyboardType: TextInputType.phone,
+                            ),
+                            const SizedBox(height: HHSpacing.space5),
+                            HHTextField(
+                              label: 'Payment receiving number',
+                              controller: _paymentNumberController,
+                              enabled: !controller.isBusy,
+                              keyboardType: TextInputType.phone,
                             ),
                           ],
                         ),

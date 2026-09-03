@@ -68,7 +68,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const MyHotelScreen(embedded: true),
           const _HallsTab(),
-          const BookingsComingSoonScreen(),
+          BookingsComingSoonScreen(
+            hotelId: context.watch<HotelContextController>().hotel?.id,
+            active: _tabIndex == 3,
+          ),
           const ProfileScreen(),
         ],
       ),

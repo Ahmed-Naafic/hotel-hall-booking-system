@@ -10,6 +10,7 @@ class Hall {
     required this.createdAt,
     required this.updatedAt,
     this.photos = const [],
+    this.bookingTerms = const {},
   });
 
   final String id;
@@ -23,6 +24,7 @@ class Hall {
   /// this was previously parsed nowhere in this model, so it silently went
   /// unused. No new endpoint or request; the data was already arriving.
   final List<HallMedia> photos;
+  final Map<String, dynamic> bookingTerms;
 
   factory Hall.fromJson(Map<String, dynamic> json) => Hall(
     id: json['id'] as String,
@@ -31,8 +33,12 @@ class Hall {
     createdAt: DateTime.parse(json['createdAt'] as String),
     updatedAt: DateTime.parse(json['updatedAt'] as String),
     photos: ((json['photos'] as List?) ?? const [])
-        .map((item) => HallMedia.fromJson((item as Map).cast<String, dynamic>()))
+        .map(
+          (item) => HallMedia.fromJson((item as Map).cast<String, dynamic>()),
+        )
         .toList(),
+    bookingTerms:
+        (json['bookingTerms'] as Map?)?.cast<String, dynamic>() ?? const {},
   );
 
   /// `BDR-016` (Approved) defines `name` as a required standard field, so

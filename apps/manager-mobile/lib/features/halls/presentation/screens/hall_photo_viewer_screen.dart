@@ -7,7 +7,11 @@ import '../../data/hall_models.dart';
 /// thumbnail in `HallDetailsScreen`'s photo strip; opens on the tapped
 /// photo, swipe left/right to move between the rest.
 class HallPhotoViewerScreen extends StatefulWidget {
-  const HallPhotoViewerScreen({super.key, required this.photos, required this.initialIndex});
+  const HallPhotoViewerScreen({
+    super.key,
+    required this.photos,
+    required this.initialIndex,
+  });
 
   final List<HallMedia> photos;
   final int initialIndex;
@@ -17,7 +21,9 @@ class HallPhotoViewerScreen extends StatefulWidget {
 }
 
 class _HallPhotoViewerScreenState extends State<HallPhotoViewerScreen> {
-  late final PageController _pageController = PageController(initialPage: widget.initialIndex);
+  late final PageController _pageController = PageController(
+    initialPage: widget.initialIndex,
+  );
   late int _currentIndex = widget.initialIndex;
 
   @override
@@ -35,7 +41,9 @@ class _HallPhotoViewerScreenState extends State<HallPhotoViewerScreen> {
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          widget.photos.length > 1 ? '${_currentIndex + 1} / ${widget.photos.length}' : 'Photo',
+          widget.photos.length > 1
+              ? '${_currentIndex + 1} / ${widget.photos.length}'
+              : 'Photo',
         ),
       ),
       body: PageView.builder(

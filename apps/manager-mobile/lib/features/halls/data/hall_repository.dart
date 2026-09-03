@@ -16,10 +16,11 @@ class HallRepository {
   Future<Hall> createHall({
     required String hotelId,
     Map<String, dynamic>? profileData,
+    required Map<String, dynamic> commercialData,
   }) async {
     final data = await _client.post(
       '/hotels/$hotelId/halls',
-      body: {'profileData': profileData},
+      body: {'profileData': profileData, ...commercialData},
     );
     return Hall.fromJson(data as Map<String, dynamic>);
   }
@@ -65,10 +66,11 @@ class HallRepository {
     required String hotelId,
     required String id,
     required Map<String, dynamic> profileData,
+    Map<String, dynamic> commercialData = const {},
   }) async {
     final data = await _client.patch(
       '/hotels/$hotelId/halls/$id',
-      body: profileData,
+      body: {...profileData, ...commercialData},
     );
     return Hall.fromJson(data as Map<String, dynamic>);
   }

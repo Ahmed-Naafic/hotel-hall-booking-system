@@ -14,7 +14,11 @@ import 'hall_form_screen.dart';
 /// (`GET /hotels/:hotelId/halls`, WBS-05): every Hall regardless of
 /// visibility (`BR-HALL-02`).
 class HallListScreen extends StatelessWidget {
-  const HallListScreen({super.key, required this.hotelId, this.embedded = false});
+  const HallListScreen({
+    super.key,
+    required this.hotelId,
+    this.embedded = false,
+  });
 
   final String hotelId;
 
@@ -52,7 +56,8 @@ class _HallListViewState extends State<_HallListView> {
   void initState() {
     super.initState();
     _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
         context.read<HallListController>().loadMore();
       }
     });
@@ -67,11 +72,15 @@ class _HallListViewState extends State<_HallListView> {
   Future<void> _openCreate() async {
     final controller = context.read<HallListController>();
     final created = await Navigator.of(context).push<Hall>(
-      MaterialPageRoute(builder: (_) => HallFormScreen(hotelId: widget.hotelId)),
+      MaterialPageRoute(
+        builder: (_) => HallFormScreen(hotelId: widget.hotelId),
+      ),
     );
     if (created != null && mounted) {
       controller.load();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hall created.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Hall created.')));
     }
   }
 
@@ -85,7 +94,9 @@ class _HallListViewState extends State<_HallListView> {
         title: const Text('Halls'),
         automaticallyImplyLeading: !widget.embedded,
       ),
-      floatingActionButton: list.status == HallListStatus.ready || list.status == HallListStatus.empty
+      floatingActionButton:
+          list.status == HallListStatus.ready ||
+              list.status == HallListStatus.empty
           ? FloatingActionButton.extended(
               onPressed: _openCreate,
               icon: const Icon(Icons.add),
@@ -100,12 +111,15 @@ class _HallListViewState extends State<_HallListView> {
     final controller = context.read<HallListController>();
     final updated = await Navigator.of(context).push<Hall>(
       MaterialPageRoute(
-        builder: (_) => HallFormScreen(hotelId: widget.hotelId, existingHall: hall),
+        builder: (_) =>
+            HallFormScreen(hotelId: widget.hotelId, existingHall: hall),
       ),
     );
     if (updated != null && mounted) {
       controller.upsert(updated);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hall updated.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Hall updated.')));
     }
   }
 
@@ -150,7 +164,12 @@ class _HallListViewState extends State<_HallListView> {
               return HallListTile(
                 hall: hall,
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => HallDetailsScreen(hotelId: widget.hotelId, hallId: hall.id)),
+                  MaterialPageRoute(
+                    builder: (_) => HallDetailsScreen(
+                      hotelId: widget.hotelId,
+                      hallId: hall.id,
+                    ),
+                  ),
                 ),
                 onEdit: () => _openEdit(hall),
               );

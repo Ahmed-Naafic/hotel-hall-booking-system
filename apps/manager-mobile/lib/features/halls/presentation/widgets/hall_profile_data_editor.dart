@@ -3,8 +3,8 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 
 class _FieldRow {
   _FieldRow({String key = '', String value = ''})
-      : keyController = TextEditingController(text: key),
-        valueController = TextEditingController(text: value);
+    : keyController = TextEditingController(text: key),
+      valueController = TextEditingController(text: value);
 
   final TextEditingController keyController;
   final TextEditingController valueController;
@@ -29,7 +29,11 @@ class _FieldRow {
 /// would silently persist server-side; the UI does not offer an action it
 /// cannot honor.
 class HallProfileDataEditor extends StatefulWidget {
-  const HallProfileDataEditor({super.key, this.initialData, this.enabled = true});
+  const HallProfileDataEditor({
+    super.key,
+    this.initialData,
+    this.enabled = true,
+  });
 
   final Map<String, dynamic>? initialData;
   final bool enabled;
@@ -47,7 +51,9 @@ class HallProfileDataEditorState extends State<HallProfileDataEditor> {
     final data = widget.initialData;
     if (data != null && data.isNotEmpty) {
       for (final entry in data.entries) {
-        _rows.add(_FieldRow(key: entry.key, value: entry.value?.toString() ?? ''));
+        _rows.add(
+          _FieldRow(key: entry.key, value: entry.value?.toString() ?? ''),
+        );
       }
     } else {
       _rows.add(_FieldRow());

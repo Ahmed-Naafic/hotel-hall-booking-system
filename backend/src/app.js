@@ -11,6 +11,7 @@ import { hotelRouter } from './modules/hotels/hotel.routes.js'
 import { hotelMediaRouter } from './modules/hotels/media.routes.js'
 import { hallMediaRouter } from './modules/halls/media.routes.js'
 import { hallRouter, hotelHallsRouter } from './modules/halls/hall.routes.js'
+import { hallAvailabilityRouter, publicHallAvailabilityRouter } from './modules/availability/availability.routes.js'
 import { administrationRouter } from './modules/administration/administration.routes.js'
 import { customerRouter } from './modules/customers/customer.routes.js'
 
@@ -36,7 +37,9 @@ export function createApp() {
   app.use('/api/v1/hotels', hotelRouter)
   app.use('/api/v1/hotels/:hotelId/media', hotelMediaRouter)
   app.use('/api/v1/hotels/:hotelId/halls/:hallId/media', hallMediaRouter)
+  app.use('/api/v1/hotels/:hotelId/halls/:hallId/availability', hallAvailabilityRouter)
   app.use('/api/v1/hotels/:hotelId/halls', hotelHallsRouter)
+  app.use('/api/v1/halls/:hallId/availability', publicHallAvailabilityRouter)
   app.use('/api/v1/halls', hallRouter)
   app.use('/api/v1/admin', administrationRouter)
 

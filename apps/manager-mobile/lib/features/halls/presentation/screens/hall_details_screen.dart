@@ -4,6 +4,7 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/presentation/manager_formatters.dart';
+import '../../../availability/presentation/screens/hall_availability_screen.dart';
 import '../../data/hall_models.dart';
 import '../../data/hall_repository.dart';
 import 'hall_form_screen.dart';
@@ -77,6 +78,14 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
     }
   }
 
+  void _openAvailability() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HallAvailabilityScreen(hotelId: widget.hotelId, hallId: widget.hallId),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,8 +93,14 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
       appBar: AppBar(
         title: Text(_hall?.displayTitle ?? 'Hall'),
         actions: [
-          if (_status == _LoadStatus.ready)
+          if (_status == _LoadStatus.ready) ...[
+            IconButton(
+              onPressed: _openAvailability,
+              icon: const Icon(Icons.event_available_outlined),
+              tooltip: 'View Availability',
+            ),
             IconButton(onPressed: _openEdit, icon: const Icon(Icons.edit_outlined), tooltip: 'Edit'),
+          ],
         ],
       ),
       body: SafeArea(child: _body()),

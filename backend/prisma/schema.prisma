@@ -30,6 +30,7 @@ model User {
   sessions                                 Session[]
   verificationRequests                     VerificationRequest[]
   customerProfile                          CustomerProfile?
+  createdAvailabilityBlocks                HallAvailabilityBlock[]
 
   @@map("users")
 }
@@ -227,6 +228,7 @@ model Hall {
   deletedAt   DateTime?   @map("deleted_at")
   hotel       Hotel       @relation(fields: [hotelId], references: [id])
   media       HallMedia[]
+  availabilityBlocks HallAvailabilityBlock[]
 
   @@index([hotelId], map: "idx_halls_hotel_id")
   @@map("halls")
@@ -247,6 +249,33 @@ model HallMedia {
 
   @@index([hallId], map: "idx_hall_media_hall_id")
   @@map("hall_media")
+}
+
+/// A Hotel Manager-created period during which a Hall is deliberately not
+/// bookable (maintenance, private event, cleaning, temporary closure, or
+/// another legitimate reason) — Availability's own concept, independent of
+/// and never overriding a Booking. Overlap protection for this table is
+/// enforced by a hand-added PostgreSQL EXCLUDE constraint (see the
+/// `availability_foundation` migration), not by Prisma/application code
+/// alone.
+model HallAvailabilityBlock {
+  id     String @id @default(uuid()) @db.Uuid
+  hallId String @map("hall_id") @db.Uuid
+  /// Absolute instant — the block covers [startsAt, endsAt).
+  startsAt DateTime @map("starts_at")
+  /// Absolute instant, exclusive end.
+  endsAt DateTime @map("ends_at")
+  /// Free-text Manager note (e.g. "Maintenance"). Never shown to Customers.
+  reason          String?
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  hall      Hall @relation(fields: [hallId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdByUserId], references: [id])
+
+  @@index([hallId, startsAt], map: "idx_hall_availability_blocks_hall_starts_at")
+  @@map("hall_availability_blocks")
 }
 
 enum UserAccountType {

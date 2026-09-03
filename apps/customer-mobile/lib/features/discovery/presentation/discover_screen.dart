@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/pending_action_controller.dart';
 import '../../authentication/presentation/screens/login_screen.dart';
 import '../../authentication/presentation/screens/verify_screen.dart';
+import '../../availability/presentation/screens/book_hall_screen.dart';
 import '../application/discovery_controller.dart';
 import '../data/discovery_models.dart';
 import '../data/discovery_repository.dart';
@@ -1202,12 +1203,8 @@ class HallDetailScreen extends StatelessWidget {
 
     if (context.mounted &&
         auth.currentUser?.isVerified == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Booking will be available in the Booking module.',
-          ),
-        ),
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => BookHallScreen(hall: hall)),
       );
     }
   }

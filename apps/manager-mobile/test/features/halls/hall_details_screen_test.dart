@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:manager_mobile/features/availability/presentation/screens/hall_availability_screen.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_details_screen.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_form_screen.dart';
 import 'package:provider/provider.dart';
@@ -111,6 +112,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Recovered'), findsWidgets);
+  });
+
+  testWidgets('the View Availability action navigates to HallAvailabilityScreen with the resolved hotel/hall id', (tester) async {
+    await tester.pumpWidget(_wrap((r) async {
+      if (r.url.path.contains('/availability/')) {
+        return successResponse(<Map<String, dynamic>>[]);
+      }
+      return successResponse(_hallJson(profileData: {'name': 'The Ivory Room'}));
+    }));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.event_available_outlined));
+    await tester.pumpAndSettle();
+
+    final screen = tester.widget<HallAvailabilityScreen>(find.byType(HallAvailabilityScreen));
+    expect(screen.hotelId, 'h1');
+    expect(screen.hallId, 'hall-1');
   });
 
   testWidgets('the edit action navigates to HallFormScreen pre-filled with the Hall', (tester) async {

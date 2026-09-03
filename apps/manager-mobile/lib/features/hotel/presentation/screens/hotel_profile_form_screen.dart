@@ -50,6 +50,15 @@ class HotelProfileFormScreen extends StatefulWidget {
 }
 
 class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
+  /// Onboarding wording (`REGISTERED`, completing the initial profile) vs.
+  /// edit wording (`REJECTED`/`APPROVED_ACTIVE`, changing an already-set
+  /// profile) — same form, same fields, the backend already tells us which
+  /// case this is via the Hotel's own status
+  /// (`hotel.controller.js#updateHotel`); this screen just reflects it
+  /// rather than always claiming to be "completing" something already done.
+  bool get _isOnboarding => _hotelStatus == 'REGISTERED';
+  late final String? _hotelStatus;
+
   final _formKey = GlobalKey<FormState>();
   final _customFieldsKey = GlobalKey<HotelProfileDataEditorState>();
   late final HotelProfileFormController _controller;
@@ -67,6 +76,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
   void initState() {
     super.initState();
     final hotelContext = context.read<HotelContextController>();
+    _hotelStatus = hotelContext.hotel?.status;
     final repository = HotelRepository(context.read<ApiClient>());
     _controller = HotelProfileFormController(
       repository: repository,
@@ -187,7 +197,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
         builder: (context, controller, mediaController, _) {
           return Scaffold(
             backgroundColor: HHColors.surfacePage,
-            appBar: AppBar(title: const Text('Complete Hotel Profile')),
+            appBar: AppBar(title: Text(_isOnboarding ? 'Complete Hotel Profile' : 'Edit Hotel Profile')),
             body: SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(HHSpacing.space7),
@@ -378,7 +388,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                       ),
                       const SizedBox(height: HHSpacing.space7),
                       HHPrimaryButton(
-                        label: 'Save & Continue',
+                        label: _isOnboarding ? 'Save & Continue' : 'Save Changes',
                         isLoading: controller.isBusy,
                         onPressed: _submit,
                       ),

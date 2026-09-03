@@ -32,10 +32,20 @@ HHBadgeTone toneForHotelStatus(String status) {
   }
 }
 
+/// The Hotel's own identity at a glance — logo, name, status, and creation
+/// date. Deliberately never grows to show Description/Location/Contact
+/// info: that fuller, Photos-inclusive view lives one tap away, at
+/// `HotelDetailsScreen`, not inline here. Shared by the Dashboard's Home tab
+/// and [MyHotelScreen], which each fetch the Logo separately (it's Hotel
+/// Media, not part of the `Hotel` model itself) and pass it down.
 class HotelIdentityCard extends StatelessWidget {
-  const HotelIdentityCard({super.key, required this.hotel, this.onTap});
+  const HotelIdentityCard({super.key, required this.hotel, this.logoUrl, this.onTap});
 
   final Hotel hotel;
+
+  /// The Hotel Logo's URL, when known — `null` until the caller's own
+  /// separate media fetch resolves, or when there is no Logo yet.
+  final String? logoUrl;
   final VoidCallback? onTap;
 
   @override
@@ -49,15 +59,23 @@ class HotelIdentityCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: HHColors.surfaceNavyTint,
-                  borderRadius: BorderRadius.circular(HHRadii.control),
-                ),
-                child: Icon(Icons.apartment, color: HHColors.actionPrimary),
-              ),
+              (logoUrl == null || logoUrl!.isEmpty)
+                  ? Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: HHColors.surfaceNavyTint,
+                        borderRadius: BorderRadius.circular(HHRadii.control),
+                      ),
+                      child: Icon(Icons.apartment, color: HHColors.actionPrimary),
+                    )
+                  : HHNetworkImage(
+                      url: logoUrl,
+                      width: 48,
+                      height: 48,
+                      borderRadius: HHRadii.control,
+                      fallbackIcon: Icons.apartment,
+                    ),
               const SizedBox(width: HHSpacing.space4),
               Expanded(
                 child: Text(
@@ -70,6 +88,8 @@ class HotelIdentityCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (onTap != null)
+                Icon(Icons.chevron_right, color: HHColors.textSubtle),
             ],
           ),
           const SizedBox(height: HHSpacing.space5),

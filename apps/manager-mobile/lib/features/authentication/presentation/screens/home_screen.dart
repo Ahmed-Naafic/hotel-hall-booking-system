@@ -30,6 +30,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _tabIndex = 0;
+  final _dashboardKey = GlobalKey<DashboardScreenState>();
 
   @override
   void initState() {
@@ -44,7 +45,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _openTab(int index) => setState(() => _tabIndex = index);
+  void _openTab(int index) {
+    setState(() => _tabIndex = index);
+    // `IndexedStack` has no "became visible again" callback of its own —
+    // without this, the Dashboard's Hall count (fetched once per Hotel id)
+    // would stay stale forever after a Hall is created/deleted on the
+    // Halls tab while Home stays alive in the background.
+    if (index == 0) _dashboardKey.currentState?.refresh();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _tabIndex,
         children: [
           DashboardScreen(
+            key: _dashboardKey,
             onOpenHotelTab: () => _openTab(1),
             onOpenHallsTab: () => _openTab(2),
           ),

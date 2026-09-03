@@ -8,6 +8,7 @@ import '../../../availability/presentation/screens/hall_availability_screen.dart
 import '../../data/hall_models.dart';
 import '../../data/hall_repository.dart';
 import 'hall_form_screen.dart';
+import 'hall_photo_viewer_screen.dart';
 
 enum _LoadStatus { loading, ready, error }
 
@@ -144,10 +145,17 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                     scrollDirection: Axis.horizontal,
                     itemCount: hall.photos.length,
                     separatorBuilder: (_, __) => const SizedBox(width: HHSpacing.space3),
-                    itemBuilder: (context, index) => HHNetworkImage(
-                      url: hall.photos[index].url,
-                      width: 220,
-                      height: 160,
+                    itemBuilder: (context, index) => GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => HallPhotoViewerScreen(photos: hall.photos, initialIndex: index),
+                        ),
+                      ),
+                      child: HHNetworkImage(
+                        url: hall.photos[index].url,
+                        width: 220,
+                        height: 160,
+                      ),
                     ),
                   ),
                 ),

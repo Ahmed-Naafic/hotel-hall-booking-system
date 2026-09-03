@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../../../halls/presentation/screens/hall_list_screen.dart';
 import '../../application/hotel_context_controller.dart';
+import '../../data/hotel_models.dart';
+import '../../data/hotel_repository.dart';
 import '../widgets/hotel_onboarding.dart';
+import 'hotel_details_screen.dart';
 
 /// Manager → My Hotel — the minimal navigation level between Home and
 /// Halls the requested nav tree calls for. Shows the Hotel's own real
@@ -26,16 +29,48 @@ class MyHotelScreen extends StatefulWidget {
 }
 
 class _MyHotelScreenState extends State<MyHotelScreen> {
+  HotelMedia? _logo;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final hotelContext = context.read<HotelContextController>();
       if (!widget.embedded || hotelContext.status == HotelContextStatus.unknown) {
-        hotelContext.load();
+        await hotelContext.load();
       }
+      await _loadLogo();
     });
+  }
+
+  /// The Hotel Logo is Hotel Media, not part of the `Hotel` model itself
+  /// (`GET /hotels/:hotelId/media`) — fetched separately just for this
+  /// screen's own summary-card thumbnail. `HotelDetailsScreen` fetches the
+  /// full Logo + Photos collection independently when opened.
+  Future<void> _loadLogo() async {
+    final hotel = context.read<HotelContextController>().hotel;
+    if (hotel == null) return;
+    try {
+      final media = await HotelRepository(context.read<ApiClient>()).getMedia(hotel.id);
+      if (!mounted) return;
+      setState(() => _logo = media.logo);
+    } on ApiException {
+      // The summary card's logo thumbnail is a non-essential nicety —
+      // falls back to the generic icon rather than surfacing an error for
+      // something the Manager didn't explicitly ask to load.
+    } on NetworkException {
+      // Same as above.
+    }
+  }
+
+  Future<void> _openHotelDetails() async {
+    final hotel = context.read<HotelContextController>().hotel;
+    if (hotel == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => HotelDetailsScreen(hotelId: hotel.id)),
+    );
+    if (mounted) await _loadLogo();
   }
 
   @override
@@ -84,7 +119,7 @@ class _MyHotelScreenState extends State<MyHotelScreen> {
           child: ListView(
             padding: const EdgeInsets.all(HHSpacing.space7),
             children: [
-              HotelIdentityCard(hotel: hotel),
+              HotelIdentityCard(hotel: hotel, logoUrl: _logo?.url, onTap: _openHotelDetails),
               if (hotelContext.errorMessage != null) ...[
                 const SizedBox(height: HHSpacing.space5),
                 HHErrorBanner(message: hotelContext.errorMessage!),

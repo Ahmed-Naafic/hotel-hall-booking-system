@@ -41,6 +41,7 @@ Widget _wrap({bool withHotel = true}) {
       if (r.url.path.endsWith('/hotels/me')) {
         return successResponse(withHotel ? {'hotel': _hotelJson(), 'latestApplication': null} : {'hotel': null, 'latestApplication': null});
       }
+      if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
       if (r.url.path.contains('/halls')) return _hallPageResponse();
       throw StateError('unexpected: ${r.method} ${r.url.path}');
     }),
@@ -137,12 +138,24 @@ void main() {
   });
 
   testWidgets('switching tabs and back preserves each tab\'s own state (IndexedStack, not a reload)', (tester) async {
-    var hallsCallCount = 0;
+    // Two distinct call kinds hit the same `/halls` path: the Halls tab's
+    // own full list (`limit=20`, via `HallListController`) and the
+    // Dashboard's own cheap count-only refresh (`limit=1`, fired whenever
+    // Home is re-selected — see `HomeScreen._openTab`). Only the former
+    // must never repeat merely from switching tabs; the latter legitimately
+    // fires again every time the Manager returns to Home.
+    var hallsListCallCount = 0;
+    var hallCountCallCount = 0;
     final apiClient = ApiClient(
       httpClient: MockClient((r) async {
         if (r.url.path.endsWith('/hotels/me')) return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
+        if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
         if (r.url.path.contains('/halls')) {
-          hallsCallCount += 1;
+          if (r.url.queryParameters['limit'] == '1') {
+            hallCountCallCount += 1;
+          } else {
+            hallsListCallCount += 1;
+          }
           return _hallPageResponse();
         }
         throw StateError('unexpected: ${r.method} ${r.url.path}');
@@ -167,14 +180,18 @@ void main() {
 
     await tester.tap(_navLabel('Halls'));
     await tester.pumpAndSettle();
-    final callsAfterFirstVisit = hallsCallCount;
-    expect(callsAfterFirstVisit, greaterThan(0));
+    final listCallsAfterFirstVisit = hallsListCallCount;
+    expect(listCallsAfterFirstVisit, greaterThan(0));
 
     await tester.tap(_navLabel('Home'));
     await tester.pumpAndSettle();
+    // The Dashboard's own count refresh fires here (expected — this is the
+    // fix for the stale-count bug) but must never touch the Halls tab's
+    // own full list.
     await tester.tap(_navLabel('Halls'));
     await tester.pumpAndSettle();
 
-    expect(hallsCallCount, callsAfterFirstVisit);
+    expect(hallsListCallCount, listCallsAfterFirstVisit);
+    expect(hallCountCallCount, greaterThan(0));
   });
 }

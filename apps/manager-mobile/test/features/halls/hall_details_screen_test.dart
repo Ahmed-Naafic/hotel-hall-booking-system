@@ -6,14 +6,16 @@ import 'package:http/testing.dart';
 import 'package:manager_mobile/features/availability/presentation/screens/hall_availability_screen.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_details_screen.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_form_screen.dart';
+import 'package:manager_mobile/features/halls/presentation/screens/hall_photo_viewer_screen.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
 
-Map<String, dynamic> _hallJson({Map<String, dynamic>? profileData}) => {
+Map<String, dynamic> _hallJson({Map<String, dynamic>? profileData, List<Map<String, dynamic>>? photos}) => {
       'id': 'hall-1',
       'hotelId': 'h1',
       'profileData': profileData,
+      'photos': photos ?? [],
       'createdAt': '2026-08-25T00:00:00.000Z',
       'updatedAt': '2026-08-25T00:00:00.000Z',
     };
@@ -163,5 +165,24 @@ void main() {
 
     expect(find.text('Hall updated.'), findsOneWidget);
     expect(find.text('Renamed'), findsWidgets);
+  });
+
+  testWidgets('tapping a photo thumbnail opens the full-screen photo viewer on that photo', (tester) async {
+    await tester.pumpWidget(_wrap((r) async => successResponse(_hallJson(
+          profileData: {'name': 'The Ivory Room'},
+          photos: [
+            {'id': 'p1', 'type': 'PHOTO', 'url': 'https://example.com/1.jpg'},
+            {'id': 'p2', 'type': 'PHOTO', 'url': 'https://example.com/2.jpg'},
+          ],
+        ))));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(HHNetworkImage).first);
+    await tester.pumpAndSettle();
+
+    final viewer = tester.widget<HallPhotoViewerScreen>(find.byType(HallPhotoViewerScreen));
+    expect(viewer.photos, hasLength(2));
+    expect(viewer.initialIndex, 0);
+    expect(find.text('1 / 2'), findsOneWidget);
   });
 }

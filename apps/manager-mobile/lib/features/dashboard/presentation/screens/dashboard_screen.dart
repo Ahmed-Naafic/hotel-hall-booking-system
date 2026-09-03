@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 
 import '../../../halls/data/hall_repository.dart';
 import '../../../hotel/application/hotel_context_controller.dart';
+import '../../../hotel/data/hotel_models.dart';
+import '../../../hotel/data/hotel_repository.dart';
 import '../../../hotel/presentation/widgets/hotel_onboarding.dart';
 
 /// Manager → Home (Dashboard tab). Every value shown here already exists
@@ -23,34 +25,81 @@ class DashboardScreen extends StatefulWidget {
   final VoidCallback onOpenHallsTab;
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+/// Public so `HomeScreen` (the `IndexedStack` owner) can hold a `GlobalKey`
+/// and call [refresh] explicitly when the Home tab is (re)selected — an
+/// `IndexedStack` tab has no built-in "became visible again" callback, and
+/// without this the Hall count would only ever be fetched once per Hotel
+/// id and then silently go stale the moment a Hall is created or deleted
+/// from the Halls tab while Home stays alive in the background.
+class DashboardScreenState extends State<DashboardScreen> {
   Future<int>? _hallCountFuture;
   String? _hallCountLoadedForHotelId;
+  HotelMedia? _logo;
+  String? _logoLoadedForHotelId;
 
   /// A single cheap `limit: 1` call read only for `HallPage.total` — never
   /// a hardcoded number, and never the full Hall list just to count it.
-  /// Re-fires only when the resolved Hotel id actually changes (e.g. after
-  /// `createHotel()`), not on every rebuild.
-  void _maybeLoadHallCount(String? hotelId) {
+  /// Re-fires when the resolved Hotel id changes, or when `force` is set
+  /// (an explicit [refresh] — e.g. returning to this tab, or pull-to-refresh
+  /// — must always re-fetch, never trust the cached count).
+  void _maybeLoadHallCount(String? hotelId, {bool force = false}) {
     if (hotelId == null) {
       _hallCountFuture = null;
       _hallCountLoadedForHotelId = null;
       return;
     }
-    if (hotelId == _hallCountLoadedForHotelId) return;
+    if (!force && hotelId == _hallCountLoadedForHotelId) return;
     _hallCountLoadedForHotelId = hotelId;
     _hallCountFuture = HallRepository(context.read<ApiClient>())
         .listHalls(hotelId: hotelId, limit: 1)
         .then((page) => page.total);
   }
 
+  /// The Hotel Logo is Hotel Media, not part of the `Hotel` model itself
+  /// (`GET /hotels/:hotelId/media`) — fetched separately for this card's
+  /// own thumbnail, same per-Hotel-id cache pattern as [_maybeLoadHallCount]
+  /// above, just resolved via `setState` instead of a `FutureBuilder` since
+  /// [HotelIdentityCard] takes a plain resolved URL, not a Future.
+  Future<void> _maybeLoadLogo(String? hotelId, {bool force = false}) async {
+    if (hotelId == null) {
+      _logo = null;
+      _logoLoadedForHotelId = null;
+      return;
+    }
+    if (!force && hotelId == _logoLoadedForHotelId) return;
+    _logoLoadedForHotelId = hotelId;
+    try {
+      final media = await HotelRepository(context.read<ApiClient>()).getMedia(hotelId);
+      if (!mounted) return;
+      setState(() => _logo = media.logo);
+    } on ApiException {
+      // The card's logo thumbnail is a non-essential nicety — falls back
+      // to the generic icon rather than surfacing an error for something
+      // the Manager didn't explicitly ask to load.
+    } on NetworkException {
+      // Same as above.
+    }
+  }
+
+  /// Called by `HomeScreen` when the Home tab becomes selected again, and
+  /// by this screen's own pull-to-refresh — always re-fetches, never relies
+  /// on the per-Hotel-id cache.
+  Future<void> refresh() async {
+    final hotelContext = context.read<HotelContextController>();
+    await hotelContext.load();
+    if (!mounted) return;
+    setState(() => _maybeLoadHallCount(hotelContext.hotel?.id, force: true));
+    await _maybeLoadLogo(hotelContext.hotel?.id, force: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hotelContext = context.watch<HotelContextController>();
     _maybeLoadHallCount(hotelContext.hotel?.id);
+    _maybeLoadLogo(hotelContext.hotel?.id);
 
     return Scaffold(
       backgroundColor: HHColors.surfacePage,
@@ -87,11 +136,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case HotelContextStatus.ready:
         final hotel = hotelContext.hotel!;
         return RefreshIndicator(
-          onRefresh: hotelContext.load,
+          onRefresh: refresh,
           child: ListView(
             padding: const EdgeInsets.all(HHSpacing.space7),
             children: [
-              HotelIdentityCard(hotel: hotel, onTap: widget.onOpenHotelTab),
+              HotelIdentityCard(hotel: hotel, logoUrl: _logo?.url, onTap: widget.onOpenHotelTab),
               const SizedBox(height: HHSpacing.space5),
               _HallCountCard(
                 hallCountFuture: _hallCountFuture,

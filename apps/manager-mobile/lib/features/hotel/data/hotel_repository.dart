@@ -39,21 +39,31 @@ class HotelRepository {
   }
 
   /// `PATCH /api/v1/hotels/:id` — completes a `REGISTERED` Hotel's initial
-  /// profile (HM2, `BR-HOTEL-02`). The request body is the profile fields
-  /// themselves, not wrapped in a `profileData` key (`hotel.controller.js`'s
-  /// `updateHotel` passes `req.body` straight through to
-  /// `profileService.completeProfile`) — unlike `POST /hotels`, which does
-  /// wrap it. The backend requires at least one field and rejects an empty
-  /// object with `422`. This method is only ever called while the Hotel is
-  /// `REGISTERED`; the same endpoint behaves differently for `REJECTED` or
-  /// `APPROVED_ACTIVE` Hotels (Technical Design §8), which this app does not
-  /// call this method for.
+  /// profile (HM2, `BR-HOTEL-02`), edits a `REJECTED` Hotel's draft (HM7),
+  /// or applies an ordinary/critical profile change to an `APPROVED_ACTIVE`
+  /// Hotel (HM12, `BR-HOTEL-11`/`BR-HOTEL-12`) — the backend picks the
+  /// behavior from the Hotel's own current status
+  /// (`hotel.controller.js#updateHotel`); this app never re-derives that
+  /// choice itself. The request body is the profile fields themselves, not
+  /// wrapped in a `profileData` key — unlike `POST /hotels`, which does wrap
+  /// it. The backend requires at least one field and rejects an empty object
+  /// with `422`.
+  ///
+  /// The response shape differs by status: `REGISTERED`/`REJECTED` return
+  /// the Hotel directly; `APPROVED_ACTIVE` wraps it as `{applied, hotel,
+  /// criticalChangeRequestId}` (a critical field would route the change to
+  /// Platform Administrator review instead of applying immediately —
+  /// Pending Business Decision #5 means no field is classified as critical
+  /// yet, so `applied` is always `true` in current practice, but this parses
+  /// defensively for when that changes rather than assuming one fixed
+  /// shape). Returns the resulting Hotel either way.
   Future<Hotel> completeProfile(
     String hotelId,
     Map<String, dynamic> profileData,
   ) async {
-    final data = await _client.patch('/hotels/$hotelId', body: profileData);
-    return Hotel.fromJson(data as Map<String, dynamic>);
+    final data = await _client.patch('/hotels/$hotelId', body: profileData) as Map<String, dynamic>;
+    final hotelJson = data.containsKey('hotel') ? (data['hotel'] as Map).cast<String, dynamic>() : data;
+    return Hotel.fromJson(hotelJson);
   }
 
   Future<String?> reverseGeocode(

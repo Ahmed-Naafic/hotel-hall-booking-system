@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_list_screen.dart';
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
 import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
+import 'package:manager_mobile/features/hotel/presentation/screens/hotel_details_screen.dart';
 import 'package:manager_mobile/features/hotel/presentation/screens/hotel_profile_form_screen.dart';
 import 'package:manager_mobile/features/hotel/presentation/screens/my_hotel_screen.dart';
 import 'package:provider/provider.dart';
@@ -86,6 +87,70 @@ void main() {
     // preparation remains available regardless (BR-HOTEL-04).
     expect(find.text('Complete your Hotel profile'), findsOneWidget);
   });
+
+  testWidgets(
+    'the Hotel identity card shows only the name, status, and creation date — never Description/Location/Contact info (that lives one tap away, at Hotel Details)',
+    (tester) async {
+      await tester.pumpWidget(_wrap((r) async {
+        if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+          return successResponse({'logo': null, 'photos': []});
+        }
+        return successResponse(_myHotelJson(
+          status: 'APPROVED_ACTIVE',
+          profileData: {
+            'name': 'Liido Beach Hotel',
+            'description': 'A beachfront venue in Mogadishu.',
+            'location': {
+              'latitude': 2.045611,
+              'longitude': 45.370024,
+              'address': 'Karaan, Muqdisho, Banaadir, Soomaaliya',
+            },
+            'contactPhone': '+252611234567',
+            'email': 'contact@liidobeach.example',
+          },
+        ));
+      }));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Liido Beach Hotel'), findsOneWidget);
+      expect(find.text('A beachfront venue in Mogadishu.'), findsNothing);
+      expect(find.text('Karaan, Muqdisho, Banaadir, Soomaaliya'), findsNothing);
+      expect(find.text('+252611234567'), findsNothing);
+      expect(find.text('contact@liidobeach.example'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'tapping the Hotel identity card opens the read-only Hotel Details screen, never the edit form directly',
+    (tester) async {
+      await tester.pumpWidget(_wrap((r) async {
+        if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+          return successResponse({'logo': null, 'photos': []});
+        }
+        // GET /hotels/h1 (HotelDetailsScreen's own fetch) returns a bare
+        // Hotel; GET /hotels/me (HotelContextController's) returns it
+        // wrapped — the two must never be conflated.
+        if (r.method == 'GET' && r.url.path == '/api/v1/hotels/h1') {
+          return successResponse(_hotelJson(
+            status: 'APPROVED_ACTIVE',
+            profileData: {'name': 'Liido Beach Hotel'},
+          ));
+        }
+        return successResponse(_myHotelJson(
+          status: 'APPROVED_ACTIVE',
+          profileData: {'name': 'Liido Beach Hotel'},
+        ));
+      }));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Liido Beach Hotel'));
+      await tester.pumpAndSettle();
+
+      final details = tester.widget<HotelDetailsScreen>(find.byType(HotelDetailsScreen));
+      expect(details.hotelId, 'h1');
+      expect(find.byType(HotelProfileFormScreen), findsNothing);
+    },
+  );
 
   testWidgets('"Manage Halls" navigates to HallListScreen with the resolved hotelId', (tester) async {
     final apiClient = ApiClient(
@@ -187,6 +252,117 @@ void main() {
     expect(find.text('Under Review'), findsOneWidget);
     expect(find.text('Application submitted for review.'), findsOneWidget);
   });
+
+  testWidgets(
+    'tapping the identity card for a REJECTED Hotel also opens Hotel Details (not directly editable from here either)',
+    (tester) async {
+      final apiClient = ApiClient(
+        httpClient: MockClient((r) async {
+          if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+            return successResponse({'logo': null, 'photos': []});
+          }
+          if (r.method == 'GET' && r.url.path == '/api/v1/hotels/h1') {
+            return successResponse(_hotelJson(status: 'REJECTED', profileData: {'name': 'Liido Beach Hotel'}));
+          }
+          return successResponse(_myHotelJson(status: 'REJECTED', profileData: {'name': 'Liido Beach Hotel'}));
+        }),
+        baseUrl: 'http://test/api/v1',
+      );
+      final storage = InMemoryTokenStorage();
+      final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: storage);
+
+      await tester.pumpWidget(wrapWithContext(hotelContext, apiClient));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Liido Beach Hotel'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HotelDetailsScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a full edit round trip (card -> Hotel Details -> Edit -> save) updates the identity card name once back on My Hotel, live off the shared HotelContextController',
+    (tester) async {
+      var patched = false;
+      Map<String, dynamic> currentProfileData() => patched
+          ? {
+              'name': 'The Grand Hall Hotel',
+              'description': 'A premium event venue.',
+              'location': {
+                'latitude': -1.286389,
+                'longitude': 36.817223,
+                'address': 'Nairobi, Kenya',
+              },
+              'contactPhone': '+254700000000',
+            }
+          : {'name': 'Liido Beach Hotel'};
+
+      final apiClient = ApiClient(
+        httpClient: MockClient((r) async {
+          if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+            return successResponse({'logo': null, 'photos': []});
+          }
+          if (r.method == 'POST' && r.url.path.endsWith('/location/reverse-geocode')) {
+            return successResponse({'available': true, 'address': 'Nairobi, Kenya'});
+          }
+          if (r.method == 'PATCH') {
+            patched = true;
+            return successResponse(_hotelJson(status: 'APPROVED_ACTIVE', profileData: currentProfileData()));
+          }
+          if (r.method == 'GET' && r.url.path == '/api/v1/hotels/h1') {
+            return successResponse(_hotelJson(status: 'APPROVED_ACTIVE', profileData: currentProfileData()));
+          }
+          return successResponse(_myHotelJson(status: 'APPROVED_ACTIVE', profileData: currentProfileData()));
+        }),
+        baseUrl: 'http://test/api/v1',
+      );
+      final storage = InMemoryTokenStorage();
+      final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: storage);
+
+      await tester.pumpWidget(wrapWithContext(hotelContext, apiClient));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Liido Beach Hotel'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.widgetWithText(TextFormField, 'Hotel Name'), 'The Grand Hall Hotel');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Description'), 'A premium event venue.');
+      await tester.tap(find.text('Open map and place pin'));
+      await tester.pumpAndSettle();
+      final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+      map.options.onTap!(
+        const TapPosition(Offset.zero, Offset.zero),
+        const LatLng(-1.286389, 36.817223),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm location'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextFormField, 'Contact Phone'), '+254700000000');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+      await tester.pumpAndSettle();
+
+      // Back on Hotel Details, with a confirmation and the fresh values —
+      // the still-open detail view reflects the just-saved data, not stale
+      // pre-edit values (the original "updated but nothing shows" bug).
+      expect(find.byType(HotelProfileFormScreen), findsNothing);
+      expect(find.text('Hotel profile updated.'), findsOneWidget);
+      expect(find.text('A premium event venue.'), findsOneWidget);
+      expect(find.text('Nairobi, Kenya'), findsOneWidget);
+      expect(find.text('+254700000000'), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // Back on My Hotel — the identity card's name reflects the edit too,
+      // sourced from the same shared HotelContextController.
+      expect(find.byType(HotelDetailsScreen), findsNothing);
+      expect(find.text('The Grand Hall Hotel'), findsOneWidget);
+    },
+  );
 
   testWidgets('an UNDER_REVIEW Hotel shows the waiting/review state, with no action button', (tester) async {
     final apiClient = ApiClient(

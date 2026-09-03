@@ -99,11 +99,38 @@ void main() {
     expect(find.text('Set up your Hotel'), findsOneWidget);
   });
 
+  testWidgets('shows the Hotel Logo on the Home tab identity card too, when one exists', (tester) async {
+    await tester.pumpWidget(_wrap((r) async {
+      if (r.url.path.endsWith('/hotels/me')) {
+        return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
+      }
+      if (r.url.path.endsWith('/media')) {
+        return successResponse({
+          'logo': {
+            'id': 'logo1',
+            'hotelId': 'h1',
+            'type': 'LOGO',
+            'url': 'https://example.com/logo.jpg',
+            'createdAt': '2026-08-26T00:00:00.000Z',
+            'updatedAt': '2026-08-26T00:00:00.000Z',
+          },
+          'photos': [],
+        });
+      }
+      if (r.url.path.contains('/halls')) return _hallPageResponse(0);
+      throw StateError('unexpected: ${r.method} ${r.url.path}');
+    }));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HHNetworkImage), findsOneWidget);
+  });
+
   testWidgets('shows the real Hall count from the Hall API, never a hardcoded number', (tester) async {
     await tester.pumpWidget(_wrap((r) async {
       if (r.url.path.endsWith('/hotels/me')) {
         return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
       }
+      if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
       if (r.url.path.contains('/halls')) return _hallPageResponse(5);
       throw StateError('unexpected: ${r.method} ${r.url.path}');
     }));
@@ -118,6 +145,7 @@ void main() {
       if (r.url.path.endsWith('/hotels/me')) {
         return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
       }
+      if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
       if (r.url.path.contains('/halls')) return _hallPageResponse(1);
       throw StateError('unexpected: ${r.method} ${r.url.path}');
     }));
@@ -133,6 +161,7 @@ void main() {
         if (r.url.path.endsWith('/hotels/me')) {
           return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
         }
+        if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
         return _hallPageResponse(0);
       },
       onOpenHotelTab: () => opened = true,
@@ -152,6 +181,7 @@ void main() {
         if (r.url.path.endsWith('/hotels/me')) {
           return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
         }
+        if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
         return _hallPageResponse(3);
       },
       onOpenHallsTab: () => opened = true,
@@ -169,6 +199,7 @@ void main() {
       if (r.url.path.endsWith('/hotels/me')) {
         return successResponse({'hotel': _hotelJson(status: 'REGISTERED'), 'latestApplication': null});
       }
+      if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
       return _hallPageResponse(0);
     }));
     await tester.pumpAndSettle();

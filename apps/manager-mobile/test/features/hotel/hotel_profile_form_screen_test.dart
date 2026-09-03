@@ -449,6 +449,101 @@ void main() {
     );
   });
 
+  group('Status-aware wording (APPROVED_ACTIVE / REJECTED edit, not onboarding)', () {
+    testWidgets(
+      'an APPROVED_ACTIVE Hotel shows "Edit Hotel Profile" / "Save Changes" instead of onboarding wording',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            (r) async => successResponse(_hotelJson(status: 'APPROVED_ACTIVE')),
+            hotelStatus: 'APPROVED_ACTIVE',
+          ),
+        );
+
+        expect(find.text('Edit Hotel Profile'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
+        expect(find.text('Complete Hotel Profile'), findsNothing);
+        expect(find.widgetWithText(ElevatedButton, 'Save & Continue'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a REJECTED Hotel also shows edit wording, not onboarding wording',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            (r) async => successResponse(_hotelJson(status: 'REJECTED')),
+            hotelStatus: 'REJECTED',
+          ),
+        );
+
+        expect(find.text('Edit Hotel Profile'), findsOneWidget);
+        expect(find.widgetWithText(ElevatedButton, 'Save Changes'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'saving an APPROVED_ACTIVE Hotel correctly parses the nested {applied, hotel, criticalChangeRequestId} PATCH response',
+      (tester) async {
+        late HotelContextController capturedContext;
+        final apiClient = ApiClient(
+          httpClient: MockClient(
+            (r) => _withMediaStub(r, (r) async {
+              return successResponse({
+                'applied': true,
+                'hotel': _hotelJson(
+                  status: 'APPROVED_ACTIVE',
+                  profileData: {
+                    'name': 'The Grand Hall Hotel',
+                    'description': 'A premium event venue.',
+                    'location': {
+                      'latitude': -1.286389,
+                      'longitude': 36.817223,
+                      'address': 'Nairobi, Kenya',
+                    },
+                    'contactPhone': '+254700000000',
+                  },
+                ),
+                'criticalChangeRequestId': null,
+              });
+            }),
+          ),
+          baseUrl: 'http://test/api/v1',
+        );
+        final hotelContext = HotelContextController(
+          repository: HotelRepository(apiClient),
+          storage: InMemoryTokenStorage(),
+        )..hotel = Hotel.fromJson(_hotelJson(status: 'APPROVED_ACTIVE'));
+        capturedContext = hotelContext;
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              Provider<ApiClient>.value(value: apiClient),
+              ChangeNotifierProvider<HotelContextController>.value(
+                value: hotelContext,
+              ),
+            ],
+            child: const MaterialApp(
+              home: HotelProfileFormScreen(showLocationMapTiles: false),
+            ),
+          ),
+        );
+
+        await _fillRequiredFields(tester);
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Save Changes'));
+        await tester.pumpAndSettle();
+
+        // No crash from the nested response shape, the screen closed
+        // (popped(true)) on success, and the shared HotelContextController
+        // was updated from the unwrapped `hotel` key, not the envelope.
+        expect(find.byType(HotelProfileFormScreen), findsNothing);
+        expect(capturedContext.hotel?.status, 'APPROVED_ACTIVE');
+        expect(capturedContext.hotel?.profileData?['name'], 'The Grand Hall Hotel');
+      },
+    );
+  });
+
   group('Own-Hotel scoping', () {
     testWidgets(
       'the PATCH always targets the Hotel resolved by HotelContextController, never a manually-entered id',

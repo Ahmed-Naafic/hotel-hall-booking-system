@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/presentation/manager_formatters.dart';
 import '../../../availability/presentation/screens/hall_availability_screen.dart';
+import '../../../hotel/application/image_picker_service.dart';
 import '../../data/hall_models.dart';
 import '../../data/hall_repository.dart';
 import 'hall_form_screen.dart';
@@ -22,10 +23,16 @@ const _standardFieldKeys = {'name', 'capacity', 'description', 'location'};
 /// §6/§12 deliberately never returns one; see `HallRepository`'s own doc
 /// comment).
 class HallDetailsScreen extends StatefulWidget {
-  const HallDetailsScreen({super.key, required this.hotelId, required this.hallId});
+  const HallDetailsScreen({
+    super.key,
+    required this.hotelId,
+    required this.hallId,
+    this.pickImages = pickImagesFromGallery,
+  });
 
   final String hotelId;
   final String hallId;
+  final MultiImagePickerFn pickImages;
 
   @override
   State<HallDetailsScreen> createState() => _HallDetailsScreenState();
@@ -35,6 +42,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
   _LoadStatus _status = _LoadStatus.loading;
   Hall? _hall;
   String? _errorMessage;
+  bool _isUploadingPhotos = false;
 
   @override
   void initState() {
@@ -46,7 +54,10 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
     setState(() => _status = _LoadStatus.loading);
     try {
       final repository = HallRepository(context.read<ApiClient>());
-      final hall = await repository.getHall(hotelId: widget.hotelId, id: widget.hallId);
+      final hall = await repository.getHall(
+        hotelId: widget.hotelId,
+        id: widget.hallId,
+      );
       if (!mounted) return;
       setState(() {
         _hall = hall;
@@ -71,18 +82,64 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
     final hall = _hall;
     if (hall == null) return;
     final updated = await Navigator.of(context).push<Hall>(
-      MaterialPageRoute(builder: (_) => HallFormScreen(hotelId: widget.hotelId, existingHall: hall)),
+      MaterialPageRoute(
+        builder: (_) =>
+            HallFormScreen(hotelId: widget.hotelId, existingHall: hall),
+      ),
     );
     if (updated != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hall updated.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Hall updated.')));
       _load();
     }
+  }
+
+  Future<void> _addPhotos() async {
+    final images = await widget.pickImages();
+    if (images.isEmpty || !mounted) return;
+
+    setState(() => _isUploadingPhotos = true);
+    var uploaded = 0;
+    String? failure;
+    final repository = HallRepository(context.read<ApiClient>());
+    for (final image in images) {
+      try {
+        await repository.uploadPhoto(
+          hotelId: widget.hotelId,
+          hallId: widget.hallId,
+          bytes: image.bytes,
+          filename: image.filename,
+        );
+        uploaded += 1;
+      } on ApiException catch (error) {
+        failure = error.message;
+        break;
+      } on NetworkException catch (error) {
+        failure = error.message;
+        break;
+      }
+    }
+    if (!mounted) return;
+    setState(() => _isUploadingPhotos = false);
+    if (uploaded > 0) await _load();
+    if (!mounted) return;
+
+    final message = failure == null
+        ? '$uploaded ${uploaded == 1 ? 'photo' : 'photos'} added.'
+        : '$uploaded of ${images.length} photos added. $failure';
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _openAvailability() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => HallAvailabilityScreen(hotelId: widget.hotelId, hallId: widget.hallId),
+        builder: (_) => HallAvailabilityScreen(
+          hotelId: widget.hotelId,
+          hallId: widget.hallId,
+        ),
       ),
     );
   }
@@ -100,7 +157,11 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
               icon: const Icon(Icons.event_available_outlined),
               tooltip: 'View Availability',
             ),
-            IconButton(onPressed: _openEdit, icon: const Icon(Icons.edit_outlined), tooltip: 'Edit'),
+            IconButton(
+              onPressed: _openEdit,
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit',
+            ),
           ],
         ],
       ),
@@ -144,11 +205,15 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: hall.photos.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: HHSpacing.space3),
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(width: HHSpacing.space3),
                     itemBuilder: (context, index) => GestureDetector(
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => HallPhotoViewerScreen(photos: hall.photos, initialIndex: index),
+                          builder: (_) => HallPhotoViewerScreen(
+                            photos: hall.photos,
+                            initialIndex: index,
+                          ),
                         ),
                       ),
                       child: HHNetworkImage(
@@ -161,6 +226,18 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                 ),
                 const SizedBox(height: HHSpacing.space7),
               ],
+              OutlinedButton.icon(
+                onPressed: _isUploadingPhotos ? null : _addPhotos,
+                icon: _isUploadingPhotos
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Add Photos'),
+              ),
+              const SizedBox(height: HHSpacing.space7),
               HHCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,10 +259,19 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                       const SizedBox(height: HHSpacing.space5),
                       Text(
                         'Description',
-                        style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs),
+                        style: TextStyle(
+                          color: HHColors.textMuted,
+                          fontSize: HHTypeScale.textXs,
+                        ),
                       ),
                       const SizedBox(height: HHSpacing.space2),
-                      Text(hall.description!, style: TextStyle(fontSize: HHTypeScale.textMd, height: 1.4)),
+                      Text(
+                        hall.description!,
+                        style: TextStyle(
+                          fontSize: HHTypeScale.textMd,
+                          height: 1.4,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -199,12 +285,23 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                     children: [
                       for (final entry in customFields)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: HHSpacing.space3),
+                          padding: const EdgeInsets.only(
+                            bottom: HHSpacing.space3,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(ManagerFormatters.label(entry.key), style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
-                              Text(entry.value?.toString() ?? '', style: TextStyle(fontSize: HHTypeScale.textMd)),
+                              Text(
+                                ManagerFormatters.label(entry.key),
+                                style: TextStyle(
+                                  color: HHColors.textMuted,
+                                  fontSize: HHTypeScale.textXs,
+                                ),
+                              ),
+                              Text(
+                                entry.value?.toString() ?? '',
+                                style: TextStyle(fontSize: HHTypeScale.textMd),
+                              ),
                             ],
                           ),
                         ),
@@ -218,9 +315,21 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Created ${hall.createdAt.toLocal()}', style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm)),
+                    Text(
+                      'Created ${hall.createdAt.toLocal()}',
+                      style: TextStyle(
+                        color: HHColors.textMuted,
+                        fontSize: HHTypeScale.textSm,
+                      ),
+                    ),
                     const SizedBox(height: HHSpacing.space2),
-                    Text('Last updated ${hall.updatedAt.toLocal()}', style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm)),
+                    Text(
+                      'Last updated ${hall.updatedAt.toLocal()}',
+                      style: TextStyle(
+                        color: HHColors.textMuted,
+                        fontSize: HHTypeScale.textSm,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -232,7 +341,11 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.icon, required this.label, required this.value});
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   final IconData icon;
   final String label;
@@ -249,7 +362,13 @@ class _DetailRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
+              Text(
+                label,
+                style: TextStyle(
+                  color: HHColors.textMuted,
+                  fontSize: HHTypeScale.textXs,
+                ),
+              ),
               const SizedBox(height: 2),
               Text(value, style: TextStyle(fontSize: HHTypeScale.textMd)),
             ],

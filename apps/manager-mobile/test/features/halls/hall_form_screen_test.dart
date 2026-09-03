@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:manager_mobile/features/halls/data/hall_models.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_form_screen.dart';
-import 'package:manager_mobile/features/hotel/application/image_picker_service.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
@@ -23,12 +22,13 @@ Map<String, dynamic> _hallJson({
 
 Widget _wrap(
   Widget child,
-  Future<http.Response> Function(http.Request) handler,
-) {
+  Future<http.Response> Function(http.Request) handler, {
+  List<Map<String, dynamic>> mediaPhotos = const [],
+}) {
   final client = ApiClient(
     httpClient: MockClient((request) {
       if (request.method == 'GET' && request.url.path.endsWith('/media')) {
-        return Future.value(successResponse({'photos': []}));
+        return Future.value(successResponse({'photos': mediaPhotos}));
       }
       return handler(request);
     }),
@@ -432,65 +432,75 @@ void main() {
   });
 
   group('Hall Photos', () {
-    testWidgets(
-      'explains that a Hall must be created before photos can be uploaded',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            const HallFormScreen(hotelId: 'h1'),
-            (r) async => successResponse(_hallJson()),
-          ),
-        );
-
-        expect(
-          find.text('Create the Hall first, then add photos from Edit Hall.'),
-          findsOneWidget,
-        );
-        expect(find.widgetWithText(OutlinedButton, 'Add Photos'), findsNothing);
-      },
-    );
-
-    testWidgets('edit mode uploads a selected Hall photo', (tester) async {
-      var uploaded = false;
-      final hall = Hall(
-        id: 'hall-1',
-        hotelId: 'h1',
-        profileData: const {'name': 'The Gallery', 'capacity': 80},
-        createdAt: DateTime.parse('2026-08-25T00:00:00.000Z'),
-        updatedAt: DateTime.parse('2026-08-25T00:00:00.000Z'),
-      );
+    testWidgets('create mode does not show Hall photo controls', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
-          HallFormScreen(
-            hotelId: 'h1',
-            existingHall: hall,
-            pickImage: () async => const PickedImageData(
-              bytes: [0xff, 0xd8, 0xff],
-              filename: 'hall.jpg',
-            ),
-          ),
-          (request) async {
-            uploaded =
-                request.method == 'POST' &&
-                request.url.path.endsWith('/media/photos');
-            return successResponse({
-              'id': 'photo-1',
-              'hallId': 'hall-1',
-              'type': 'PHOTO',
-              'url': 'https://example.test/hall.jpg',
-              'createdAt': '2026-08-31T00:00:00.000Z',
-              'updatedAt': '2026-08-31T00:00:00.000Z',
-            }, status: 201);
-          },
+          const HallFormScreen(hotelId: 'h1'),
+          (r) async => successResponse(_hallJson()),
         ),
       );
-      await tester.pump();
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Add Photos'));
-      await tester.pumpAndSettle();
-
-      expect(uploaded, true);
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('HALL PHOTOS'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Add Photos'), findsNothing);
     });
+
+    testWidgets(
+      'edit mode removes an existing Hall photo without offering upload',
+      (tester) async {
+        var deleted = false;
+        final hall = Hall(
+          id: 'hall-1',
+          hotelId: 'h1',
+          profileData: const {'name': 'The Gallery', 'capacity': 80},
+          photos: const [
+            HallMedia(
+              id: 'photo-1',
+              hallId: 'hall-1',
+              url: 'https://example.test/hall.jpg',
+            ),
+          ],
+          createdAt: DateTime.parse('2026-08-25T00:00:00.000Z'),
+          updatedAt: DateTime.parse('2026-08-25T00:00:00.000Z'),
+        );
+        await tester.pumpWidget(
+          _wrap(
+            HallFormScreen(hotelId: 'h1', existingHall: hall),
+            (request) async {
+              if (request.method == 'DELETE') {
+                deleted = true;
+                return successResponse({});
+              }
+              return successResponse({
+                'logo': null,
+                'photos': [
+                  {
+                    'id': 'photo-1',
+                    'hallId': 'hall-1',
+                    'url': 'https://example.test/hall.jpg',
+                  },
+                ],
+              });
+            },
+            mediaPhotos: const [
+              {
+                'id': 'photo-1',
+                'hallId': 'hall-1',
+                'url': 'https://example.test/hall.jpg',
+              },
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.widgetWithText(OutlinedButton, 'Add Photos'), findsNothing);
+        await tester.tap(find.byTooltip('Delete photo'));
+        await tester.pumpAndSettle();
+
+        expect(deleted, true);
+        expect(find.byTooltip('Delete photo'), findsNothing);
+      },
+    );
   });
 }

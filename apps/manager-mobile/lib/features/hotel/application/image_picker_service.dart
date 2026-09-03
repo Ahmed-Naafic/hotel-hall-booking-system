@@ -16,6 +16,7 @@ class PickedImageData {
 /// platform picker (which needs a platform channel `flutter test` doesn't
 /// provide).
 typedef ImagePickerFn = Future<PickedImageData?> Function();
+typedef MultiImagePickerFn = Future<List<PickedImageData>> Function();
 
 /// The real picker (gallery source — a Hotel Manager selecting an existing
 /// photo, not taking a new one; `ADR-0006`/Technical Design §8a says
@@ -26,4 +27,15 @@ Future<PickedImageData?> pickImageFromGallery() async {
   if (file == null) return null;
   final bytes = await file.readAsBytes();
   return PickedImageData(bytes: bytes, filename: file.name);
+}
+
+Future<List<PickedImageData>> pickImagesFromGallery() async {
+  final picker = ImagePicker();
+  final files = await picker.pickMultiImage();
+  return Future.wait(
+    files.map(
+      (file) async =>
+          PickedImageData(bytes: await file.readAsBytes(), filename: file.name),
+    ),
+  );
 }

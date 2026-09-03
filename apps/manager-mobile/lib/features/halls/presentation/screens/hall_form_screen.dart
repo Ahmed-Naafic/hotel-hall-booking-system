@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../../application/hall_form_controller.dart';
 import '../../application/hall_media_controller.dart';
-import '../../../hotel/application/image_picker_service.dart';
 import '../../data/hall_models.dart';
 import '../../data/hall_repository.dart';
 import '../widgets/hall_profile_data_editor.dart';
@@ -19,20 +18,14 @@ import '../widgets/hall_profile_data_editor.dart';
 /// `BR-HALL-02` means Hall preparation is allowed regardless of the owning
 /// Hotel's own approval state, so this screen has no Hotel-status
 /// precondition either.
-/// Hall photos use the approved shared-media Hall endpoints. A Hall must be
-/// created before its media path can exist, so create mode explains that
-/// photos become available from Edit Hall; edit mode provides upload/delete.
+/// Hall photos use the approved shared-media Hall endpoints. Creation collects
+/// information only. Existing photos can be removed in edit mode; new photos
+/// are added from Hall Details after the Hall exists.
 class HallFormScreen extends StatefulWidget {
-  const HallFormScreen({
-    super.key,
-    required this.hotelId,
-    this.existingHall,
-    this.pickImage = pickImageFromGallery,
-  });
+  const HallFormScreen({super.key, required this.hotelId, this.existingHall});
 
   final String hotelId;
   final Hall? existingHall;
-  final ImagePickerFn pickImage;
 
   bool get isEditing => existingHall != null;
 
@@ -65,7 +58,7 @@ class _HallFormScreenState extends State<HallFormScreen> {
         repository: HallRepository(context.read<ApiClient>()),
         hotelId: widget.hotelId,
         hallId: widget.existingHall!.id,
-        pickImage: widget.pickImage,
+        photos: widget.existingHall!.photos,
       );
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _mediaController!.load(),
@@ -203,27 +196,18 @@ class _HallFormScreenState extends State<HallFormScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: HHSpacing.space8),
-                      const HHSectionLabel('HALL PHOTOS'),
-                      HHCard(
-                        child: _mediaController == null
-                            ? Row(
-                                children: [
-                                  Icon(Icons.photo_library_outlined, color: HHColors.textMuted),
-                                  const SizedBox(width: HHSpacing.space3),
-                                  const Expanded(
-                                    child: Text(
-                                      'Create the Hall first, then add photos from Edit Hall.',
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : ListenableBuilder(
-                                listenable: _mediaController!,
-                                builder: (context, _) =>
-                                    _HallPhotosSection(controller: _mediaController!),
-                              ),
-                      ),
+                      if (_mediaController != null) ...[
+                        const SizedBox(height: HHSpacing.space8),
+                        const HHSectionLabel('HALL PHOTOS'),
+                        HHCard(
+                          child: ListenableBuilder(
+                            listenable: _mediaController!,
+                            builder: (context, _) => _HallPhotosSection(
+                              controller: _mediaController!,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: HHSpacing.space8),
                       const HHSectionLabel('ADDITIONAL INFORMATION'),
                       Text(
@@ -274,7 +258,12 @@ class _HallPhotosSection extends StatelessWidget {
         HHErrorBanner(message: controller.errorMessage!),
         const SizedBox(height: HHSpacing.space3),
       ],
-      if (controller.photos.isNotEmpty)
+      if (controller.photos.isEmpty)
+        Text(
+          'No existing photos. Add photos from the Hall Details page.',
+          style: TextStyle(color: HHColors.textMuted),
+        )
+      else
         Wrap(
           spacing: HHSpacing.space3,
           runSpacing: HHSpacing.space3,
@@ -313,19 +302,6 @@ class _HallPhotosSection extends StatelessWidget {
               )
               .toList(),
         ),
-      if (controller.photos.isNotEmpty)
-        const SizedBox(height: HHSpacing.space3),
-      OutlinedButton.icon(
-        onPressed: controller.isBusy ? null : controller.upload,
-        icon: controller.isBusy
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.add_photo_alternate_outlined),
-        label: const Text('Add Photos'),
-      ),
     ],
   );
 }

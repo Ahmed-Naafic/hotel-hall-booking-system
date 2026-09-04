@@ -66,7 +66,9 @@ function collectCommercialErrors(body, required) {
   const positiveInteger = (value) => Number.isInteger(value) && value > 0
   if ((required || body.rentAmountCents !== undefined) && !positiveInteger(body.rentAmountCents)) details.push({ field: 'rentAmountCents', message: 'rentAmountCents must be a positive integer.' })
   if ((required || body.rentDurationHours !== undefined) && body.rentDurationHours !== 24) details.push({ field: 'rentDurationHours', message: 'rentDurationHours must be 24.' })
-  if ((required || body.advancePaymentPercent !== undefined) && (typeof body.advancePaymentPercent !== 'number' || body.advancePaymentPercent < 0 || body.advancePaymentPercent > 100)) details.push({ field: 'advancePaymentPercent', message: 'advancePaymentPercent must be between 0 and 100.' })
+  // Approved V1 business rule: a fixed 30% advance, platform-wide — not a
+  // Hall-level Manager choice (mirrors rentDurationHours's fixed-24 treatment).
+  if ((required || body.advancePaymentPercent !== undefined) && body.advancePaymentPercent !== 30) details.push({ field: 'advancePaymentPercent', message: 'advancePaymentPercent must be 30.' })
   for (const field of ['customerServiceNumber', 'paymentReceivingNumber']) {
     if ((required || body[field] !== undefined) && !isNonEmptyString(body[field])) details.push({ field, message: `${field} is required and must be a non-empty string.` })
   }

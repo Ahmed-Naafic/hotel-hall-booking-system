@@ -7,7 +7,9 @@ import '../../../discovery/data/discovery_models.dart';
 import '../../application/availability_controller.dart';
 import '../../data/availability_models.dart';
 import '../../data/availability_repository.dart';
+import '../../../bookings/data/booking_models.dart';
 import '../../../bookings/data/booking_repository.dart';
+import '../../../bookings/presentation/widgets/payment_terms.dart';
 
 /// Mogadishu is a fixed UTC+3 offset, no DST (Approved Technical Design
 /// §4) — every date/time here is Mogadishu wall-clock time, computed from
@@ -55,13 +57,15 @@ class BookHallScreen extends StatelessWidget {
         repository: AvailabilityRepository(context.read<ApiClient>()),
         hallId: hall.id,
       )..load(),
-      child: const _BookHallView(),
+      child: _BookHallView(hall: hall),
     );
   }
 }
 
 class _BookHallView extends StatefulWidget {
-  const _BookHallView();
+  const _BookHallView({required this.hall});
+
+  final HallSummary hall;
 
   @override
   State<_BookHallView> createState() => _BookHallViewState();
@@ -172,32 +176,55 @@ class _BookHallViewState extends State<_BookHallView> {
       );
       if (!context.mounted) return;
       setState(() => _submitting = false);
-      final reportPayment = await showDialog<bool>(
+      final action = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Booking requested'),
-          content: Text(
-            'Total: \$${(booking.totalRentCents / 100).toStringAsFixed(2)}\nAdvance required: \$${(booking.requiredAdvanceCents / 100).toStringAsFixed(2)}',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total: ${formatMoneyCents(booking.totalRentCents)}\n'
+                  'Advance required (${booking.advancePercent.toStringAsFixed(0)}%): '
+                  '${formatMoneyCents(booking.requiredAdvanceCents)}',
+                ),
+                const SizedBox(height: HHSpacing.space4),
+                Text(
+                  'Send payment to',
+                  style: TextStyle(fontWeight: HHTypeScale.weightSemibold),
+                ),
+                Text(
+                  booking.hall?.paymentReceivingNumber.isNotEmpty == true
+                      ? booking.hall!.paymentReceivingNumber
+                      : "Contact the Hotel for the payment number.",
+                ),
+                if (booking.hall?.customerServiceNumber.isNotEmpty == true) ...[
+                  const SizedBox(height: HHSpacing.space2),
+                  Text('Hotel contact: ${booking.hall!.customerServiceNumber}'),
+                ],
+              ],
+            ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Later')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'later'),
+              child: const Text("I'll pay later"),
+            ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Report Advance Paid'),
+              onPressed: () => Navigator.pop(context, 'report'),
+              child: const Text('Report Payment Sent'),
             ),
           ],
         ),
       );
-      if (reportPayment == true && context.mounted) {
-        await BookingRepository(context.read<ApiClient>()).reportPayment(
-          bookingId: booking.id,
-          amountCents: booking.requiredAdvanceCents,
+      if (action == 'report' && context.mounted) {
+        await promptReportPayment(
+          context,
+          booking: booking,
+          repository: BookingRepository(context.read<ApiClient>()),
         );
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Payment reported for Hotel verification.')),
-          );
-        }
       }
       if (context.mounted) Navigator.pop(context, true);
     } on ApiException catch (error) {
@@ -210,9 +237,32 @@ class _BookHallViewState extends State<_BookHallView> {
     }
   }
 
+  bool get _hasCompleteTerms =>
+      widget.hall.rentAmountCents != null &&
+      widget.hall.advancePaymentPercent != null &&
+      widget.hall.paymentReceivingNumber.isNotEmpty;
+
+  ({DateTime startsAt, DateTime endsAt}) _selectedRange(
+    AvailabilityController controller,
+  ) {
+    final startsAt = _mogadishuInstant(controller.selectedDate, _startTime);
+    var endsAt = _mogadishuInstant(controller.selectedDate, _endTime);
+    if (!endsAt.isAfter(startsAt)) endsAt = endsAt.add(const Duration(days: 1));
+    return (startsAt: startsAt, endsAt: endsAt);
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<AvailabilityController>();
+    final range = _selectedRange(controller);
+    final pricingPreview = _hasCompleteTerms
+        ? calculateBookingPricingPreview(
+            startsAt: range.startsAt,
+            endsAt: range.endsAt,
+            rentAmountCents: widget.hall.rentAmountCents!,
+            advancePercent: widget.hall.advancePaymentPercent!,
+          )
+        : null;
 
     return Scaffold(
       backgroundColor: HHColors.surfacePage,
@@ -319,10 +369,26 @@ class _BookHallViewState extends State<_BookHallView> {
                 ),
               ),
               const SizedBox(height: HHSpacing.space7),
+              PaymentTermsCard(
+                rentAmountCents: widget.hall.rentAmountCents,
+                rentDurationHours: widget.hall.rentDurationHours,
+                advancePaymentPercent: widget.hall.advancePaymentPercent,
+                requiredAdvanceCents: pricingPreview?.requiredAdvanceCents,
+                paymentReceivingNumber: widget.hall.paymentReceivingNumber,
+                customerServiceNumber: widget.hall.customerServiceNumber,
+              ),
+              if (!_hasCompleteTerms) ...[
+                const SizedBox(height: HHSpacing.space3),
+                Text(
+                  'This Hall has not finished setting up its payment terms yet — booking is not available.',
+                  style: TextStyle(color: HHColors.danger700, fontSize: HHTypeScale.textSm),
+                ),
+              ],
+              const SizedBox(height: HHSpacing.space7),
               HHPrimaryButton(
                 label: 'Request Booking',
                 isLoading: controller.isChecking || _submitting,
-                onPressed: () => _submit(context),
+                onPressed: _hasCompleteTerms ? () => _submit(context) : null,
               ),
             ],
           ),

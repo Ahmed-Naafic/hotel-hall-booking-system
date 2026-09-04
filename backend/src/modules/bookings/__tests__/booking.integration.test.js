@@ -19,7 +19,7 @@ before(async () => {
     profileData: { name: 'Main Hall', capacity: 200 },
     rentAmountCents: 50000,
     rentDurationHours: 24,
-    advancePaymentPercent: 20,
+    advancePaymentPercent: 30,
     customerServiceNumber: '+252610000001',
     paymentReceivingNumber: '+252610000002',
   } })
@@ -43,10 +43,10 @@ async function createBooking(offsetDays = 10, hours = 25) {
 test('creates a booking with immutable pricing snapshots and completes payment/confirmation flow', async () => {
   const booking = await createBooking()
   assert.equal(booking.totalRentCents, 100000)
-  assert.equal(booking.requiredAdvanceCents, 20000)
+  assert.equal(booking.requiredAdvanceCents, 30000)
   assert.equal(booking.status, 'PENDING')
 
-  const reported = await bookingService.reportPayment({ bookingId: booking.id, customerUserId: customer.id, amountCents: 20000 })
+  const reported = await bookingService.reportPayment({ bookingId: booking.id, customerUserId: customer.id, amountCents: 30000 })
   assert.equal(reported.paymentStatus, 'CUSTOMER_REPORTED')
   const paid = await bookingService.verifyPayment({ bookingId: booking.id, hotelId: hotel.id, actorUserId: manager.id, decision: 'VERIFY' })
   assert.equal(paid.paymentStatus, 'PAID')

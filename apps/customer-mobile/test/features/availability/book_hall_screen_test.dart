@@ -9,7 +9,18 @@ import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
 
-final _hall = HallSummary(id: 'hall-1', hotelId: 'h1', profileData: const {'name': 'The Ivory Room'});
+final _hall = HallSummary(
+  id: 'hall-1',
+  hotelId: 'h1',
+  profileData: const {'name': 'The Ivory Room'},
+  bookingTerms: const {
+    'rentAmountCents': 50000,
+    'rentDurationHours': 24,
+    'advancePaymentPercent': 30,
+    'customerServiceNumber': '+252610000001',
+    'paymentReceivingNumber': '+252610000002',
+  },
+);
 
 Widget _wrap(Future<http.Response> Function(http.Request) handler) {
   final client = ApiClient(httpClient: MockClient(handler), baseUrl: 'http://test/api/v1');
@@ -50,8 +61,20 @@ void main() {
       if (r.method == 'GET') return successResponse({'busyPeriods': []});
       if (r.url.path.endsWith('/availability/check')) return successResponse({'available': true});
       return successResponse({
-        'id': 'booking-1', 'status': 'PENDING', 'paymentStatus': 'UNPAID',
-        'pricing': {'totalRentCents': 50000, 'requiredAdvanceCents': 10000},
+        'id': 'booking-1',
+        'hotelId': 'hotel-1',
+        'hallId': 'hall-1',
+        'startsAt': '2026-09-10T09:00:00.000Z',
+        'endsAt': '2026-09-10T17:00:00.000Z',
+        'numberOfGuests': 10,
+        'eventType': 'MEETING',
+        'status': 'PENDING',
+        'paymentStatus': 'UNPAID',
+        'paymentDeadlineAt': '2026-09-11T09:00:00.000Z',
+        'pricing': {'totalRentCents': 50000, 'advancePercent': 30, 'requiredAdvanceCents': 15000},
+        'payment': {},
+        'createdAt': '2026-09-09T09:00:00.000Z',
+        'updatedAt': '2026-09-09T09:00:00.000Z',
       });
     }));
     await tester.pumpAndSettle();
@@ -61,7 +84,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Booking requested'), findsOneWidget);
-    expect(find.textContaining('Advance required: \$100.00'), findsOneWidget);
+    expect(find.textContaining('Advance required (30%): \$150.00'), findsOneWidget);
   });
 
   testWidgets(

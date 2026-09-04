@@ -38,4 +38,28 @@ class BookingRepository {
     );
     return Booking.fromJson((data as Map).cast<String, dynamic>());
   }
+
+  /// The Customer's own booking history (`GET /bookings`), newest first.
+  Future<List<Booking>> list({String? cursor, int limit = 20}) async {
+    final result = await _client.getPaginated(
+      '/bookings',
+      query: {'limit': '$limit', if (cursor != null) 'cursor': cursor},
+    );
+    return (result.data as List)
+        .map((item) => Booking.fromJson((item as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<Booking> get(String bookingId) async {
+    final data = await _client.get('/bookings/$bookingId');
+    return Booking.fromJson((data as Map).cast<String, dynamic>());
+  }
+
+  /// Cancels the Customer's own applicable Booking. The record is never
+  /// deleted — the backend transitions it to CANCELLED and preserves it in
+  /// history.
+  Future<Booking> cancel(String bookingId) async {
+    final data = await _client.post('/bookings/$bookingId/cancellation');
+    return Booking.fromJson((data as Map).cast<String, dynamic>());
+  }
 }

@@ -70,6 +70,8 @@ class HallSummary {
       (bookingTerms['advancePaymentPercent'] as num?)?.toDouble();
   String get paymentReceivingNumber =>
       bookingTerms['paymentReceivingNumber'] as String? ?? '';
+  String get customerServiceNumber =>
+      bookingTerms['customerServiceNumber'] as String? ?? '';
 
   factory HallSummary.fromJson(Map<String, dynamic> json) => HallSummary(
     id: json['id'] as String,

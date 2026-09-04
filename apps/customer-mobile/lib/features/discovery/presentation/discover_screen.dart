@@ -9,6 +9,7 @@ import '../../../../core/pending_action_controller.dart';
 import '../../authentication/presentation/screens/login_screen.dart';
 import '../../authentication/presentation/screens/verify_screen.dart';
 import '../../availability/presentation/screens/book_hall_screen.dart';
+import '../../bookings/presentation/screens/booking_history_screen.dart';
 import '../application/discovery_controller.dart';
 import '../data/discovery_models.dart';
 import '../data/discovery_repository.dart';
@@ -322,7 +323,15 @@ class _TopHeader extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        if (auth.status == AuthStatus.authenticated) ...[
+          _HeaderButton(
+            icon: Icons.event_note_outlined,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
         _HeaderButton(
           icon: auth.status == AuthStatus.authenticated
               ? Icons.person_outline_rounded

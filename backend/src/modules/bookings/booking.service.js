@@ -7,6 +7,8 @@ import { recordBookingAudit } from './audit.js'
 import { BusinessRuleError, ConflictError, NotFoundError } from '../../shared/errors/errorTypes.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+/** Approved V1 business rule — a fixed 30% advance, platform-wide (not Hall-configurable). */
+const ADVANCE_PERCENT = 30
 
 export function calculatePricing({ startsAt, endsAt, rentAmountCents, advancePercent }) {
   const units = Math.ceil((endsAt.getTime() - startsAt.getTime()) / DAY_MS)
@@ -44,11 +46,11 @@ export async function createBooking({ customerUserId, hallId, startsAt, endsAt, 
   const eligibility = await hotelEligibility.getEligibility(hall.hotelId)
   if (!eligibility.eligible) throw new NotFoundError('Hall not found.')
   if (numberOfGuests > Number(hall.profileData?.capacity ?? 0)) throw new BusinessRuleError('The number of guests exceeds the Hall capacity.')
-  if (!hall.rentAmountCents || Number(hall.advancePaymentPercent) < 0 || hall.advancePaymentPercent === null) {
+  if (!hall.rentAmountCents || hall.advancePaymentPercent === null) {
     throw new BusinessRuleError('This Hall does not have complete booking terms.')
   }
 
-  const pricing = calculatePricing({ startsAt: start, endsAt: end, rentAmountCents: hall.rentAmountCents, advancePercent: hall.advancePaymentPercent })
+  const pricing = calculatePricing({ startsAt: start, endsAt: end, rentAmountCents: hall.rentAmountCents, advancePercent: ADVANCE_PERCENT })
   let booking
   try {
     booking = await prisma.$transaction(async (client) => {
@@ -59,7 +61,7 @@ export async function createBooking({ customerUserId, hallId, startsAt, endsAt, 
         numberOfGuests, eventType, specialRequest: specialRequest?.trim() || null,
         paymentDeadlineAt: new Date(Date.now() + DAY_MS),
         totalRentCents: pricing.totalRentCents,
-        advancePercentSnapshot: hall.advancePaymentPercent,
+        advancePercentSnapshot: ADVANCE_PERCENT,
         requiredAdvanceCents: pricing.requiredAdvanceCents,
       }, client)
     })
@@ -113,17 +115,47 @@ export async function verifyPayment({ bookingId, hotelId, actorUserId, decision,
   return updated
 }
 
+/**
+ * Re-validates everything that could have gone stale between the booking's
+ * creation and this confirmation attempt — Hotel eligibility (which is also
+ * the Hall's own eligibility, Hall Management never keeps a separate
+ * status), current Hall capacity, and a fresh Availability check through
+ * the existing Availability Query Interface (never reimplemented here).
+ * Period exclusivity is already continuously guaranteed by the DB EXCLUDE
+ * constraint from creation onward, so this call's real job is catching
+ * eligibility/capacity drift and any out-of-band block, not a booking-vs-
+ * booking race.
+ */
+async function assertConfirmable(booking) {
+  const eligibility = await hotelEligibility.getEligibility(booking.hotelId)
+  if (!eligibility.eligible) throw new BusinessRuleError('The Hotel is no longer operationally eligible.')
+  const hall = await repository.findHallWithHotel(booking.hallId)
+  if (!hall) throw new NotFoundError('Hall not found.')
+  if (booking.numberOfGuests > Number(hall.profileData?.capacity ?? 0)) throw new BusinessRuleError('The number of guests exceeds the Hall capacity.')
+  await availabilityService.assertPeriodIsFree({ hallId: booking.hallId, startsAt: booking.startsAt, endsAt: booking.endsAt, excludeBookingId: booking.id })
+}
+
 export async function transitionHotel({ bookingId, hotelId, actorUserId, action }) {
   const booking = await expireAndFindHotel(bookingId, hotelId)
   const now = new Date()
-  const rules = {
-    CONFIRMED: () => { assertTransition(booking, ['PENDING'], 'Booking cannot be confirmed.'); if (booking.paymentStatus !== 'PAID') throw new BusinessRuleError('Payment must be verified before confirmation.') },
-    REJECTED: () => { assertTransition(booking, ['PENDING'], 'Booking cannot be rejected.'); if (booking.paymentStatus === 'PAID') throw new BusinessRuleError('A paid booking cannot be rejected.') },
-    CANCELLED: () => { assertTransition(booking, ['PENDING'], 'Booking cannot be cancelled.'); if (booking.paymentStatus === 'PAID') throw new BusinessRuleError('A paid booking cannot be cancelled.') },
-    COMPLETED: () => { assertTransition(booking, ['CONFIRMED'], 'Booking cannot be completed.'); if (now < booking.endsAt) throw new BusinessRuleError('A booking can only be completed after it ends.') },
-    NO_SHOW: () => { assertTransition(booking, ['CONFIRMED'], 'Booking cannot be marked no-show.'); if (now < booking.startsAt) throw new BusinessRuleError('A booking can only be marked no-show after it starts.') },
+  if (action === 'CONFIRMED') {
+    assertTransition(booking, ['PENDING'], 'Booking cannot be confirmed.')
+    if (booking.paymentStatus !== 'PAID') throw new BusinessRuleError('Payment must be verified before confirmation.')
+    await assertConfirmable(booking)
+  } else {
+    const rules = {
+      REJECTED: () => { assertTransition(booking, ['PENDING'], 'Booking cannot be rejected.'); if (booking.paymentStatus === 'PAID') throw new BusinessRuleError('A paid booking cannot be rejected.') },
+      // Cancellation applies to any still-active Booking (PENDING or CONFIRMED),
+      // regardless of payment state — the approved rule ties cancellability to
+      // the Booking still being "applicable" (not yet REJECTED/CANCELLED/
+      // COMPLETED/NO_SHOW/EXPIRED), never to whether it has been paid. No
+      // refund/fee logic runs here; paymentStatus is left exactly as it was.
+      CANCELLED: () => { assertTransition(booking, ['PENDING', 'CONFIRMED'], 'Booking cannot be cancelled.') },
+      COMPLETED: () => { assertTransition(booking, ['CONFIRMED'], 'Booking cannot be completed.'); if (now < booking.endsAt) throw new BusinessRuleError('A booking can only be completed after it ends.') },
+      NO_SHOW: () => { assertTransition(booking, ['CONFIRMED'], 'Booking cannot be marked no-show.'); if (now < booking.startsAt) throw new BusinessRuleError('A booking can only be marked no-show after it starts.') },
+    }
+    rules[action]()
   }
-  rules[action]()
   const data = { status: action }
   if (action === 'CANCELLED') Object.assign(data, { cancelledAt: now, cancelledByUserId: actorUserId })
   if (action === 'COMPLETED') data.completedAt = now
@@ -134,8 +166,7 @@ export async function transitionHotel({ bookingId, hotelId, actorUserId, action 
 
 export async function cancelCustomer({ bookingId, customerUserId }) {
   const booking = await expireAndFindCustomer(bookingId, customerUserId)
-  assertTransition(booking, ['PENDING'], 'Booking cannot be cancelled.')
-  if (booking.paymentStatus === 'PAID') throw new BusinessRuleError('A paid booking cannot be cancelled.')
+  assertTransition(booking, ['PENDING', 'CONFIRMED'], 'Booking cannot be cancelled.')
   const updated = await repository.update(booking.id, { status: 'CANCELLED', cancelledAt: new Date(), cancelledByUserId: customerUserId })
   recordBookingAudit('BOOKING_CANCELLED', { bookingId, actorUserId: customerUserId })
   return updated

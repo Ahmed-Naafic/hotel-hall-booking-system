@@ -157,10 +157,15 @@ class _BookingCard extends StatelessWidget {
     ),
   );
 
+  // Cancellation applies to any still-applicable Booking (PENDING or
+  // CONFIRMED) regardless of payment state — it is offered alongside
+  // whichever other actions that status/payment combination already
+  // exposes, never in place of them.
   List<Widget> _actions() {
+    final actions = <Widget>[];
     if (booking.status == 'PENDING' &&
-        booking.paymentStatus == 'CUSTOMER_REPORTED')
-      return [
+        booking.paymentStatus == 'CUSTOMER_REPORTED') {
+      actions.addAll([
         FilledButton(
           onPressed: () =>
               onAction('payment-verification', {'decision': 'VERIFY'}),
@@ -173,27 +178,33 @@ class _BookingCard extends StatelessWidget {
           }),
           child: const Text('Reject Payment'),
         ),
-      ];
-    if (booking.status == 'PENDING' && booking.paymentStatus == 'PAID')
-      return [
+      ]);
+    } else if (booking.status == 'PENDING' &&
+        booking.paymentStatus == 'PAID') {
+      actions.add(
         FilledButton(
           onPressed: () => onAction('confirmation', null),
           child: const Text('Confirm'),
         ),
-      ];
-    if (booking.status == 'PENDING')
-      return [
+      );
+    } else if (booking.status == 'PENDING') {
+      actions.add(
         OutlinedButton(
           onPressed: () => onAction('rejection', null),
           child: const Text('Reject Booking'),
         ),
+      );
+    }
+    if (booking.status == 'PENDING' || booking.status == 'CONFIRMED') {
+      actions.add(
         OutlinedButton(
           onPressed: () => onAction('cancellation', null),
           child: const Text('Cancel'),
         ),
-      ];
-    if (booking.status == 'CONFIRMED')
-      return [
+      );
+    }
+    if (booking.status == 'CONFIRMED') {
+      actions.addAll([
         OutlinedButton(
           onPressed: () => onAction('completion', null),
           child: const Text('Complete'),
@@ -202,7 +213,8 @@ class _BookingCard extends StatelessWidget {
           onPressed: () => onAction('no-show', null),
           child: const Text('No-show'),
         ),
-      ];
-    return const [];
+      ]);
+    }
+    return actions;
   }
 }

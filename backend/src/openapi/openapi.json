@@ -209,7 +209,7 @@
           "profileData": { "type": "object", "nullable": true },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" },
-          "bookingTerms": { "type": "object", "properties": { "currency": { "type": "string", "enum": ["USD"] }, "rentAmountCents": { "type": "integer", "nullable": true }, "rentDurationHours": { "type": "integer", "enum": [24], "nullable": true }, "advancePaymentPercent": { "type": "number", "nullable": true }, "customerServiceNumber": { "type": "string", "nullable": true }, "paymentReceivingNumber": { "type": "string", "nullable": true } } }
+          "bookingTerms": { "type": "object", "properties": { "currency": { "type": "string", "enum": ["USD"] }, "rentAmountCents": { "type": "integer", "nullable": true }, "rentDurationHours": { "type": "integer", "enum": [24], "nullable": true }, "advancePaymentPercent": { "type": "number", "enum": [30], "nullable": true }, "customerServiceNumber": { "type": "string", "nullable": true }, "paymentReceivingNumber": { "type": "string", "nullable": true } } }
         }
       },
       "Booking": {
@@ -219,6 +219,8 @@
           "customerUserId": { "type": "string", "format": "uuid" },
           "hotelId": { "type": "string", "format": "uuid" },
           "hallId": { "type": "string", "format": "uuid" },
+          "hotel": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string", "nullable": true } } },
+          "hall": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string", "nullable": true }, "bookingTerms": { "type": "object", "properties": { "currency": { "type": "string", "enum": ["USD"] }, "rentAmountCents": { "type": "integer", "nullable": true }, "rentDurationHours": { "type": "integer", "enum": [24], "nullable": true }, "advancePaymentPercent": { "type": "number", "enum": [30], "nullable": true }, "customerServiceNumber": { "type": "string", "nullable": true }, "paymentReceivingNumber": { "type": "string", "nullable": true } } } } },
           "startsAt": { "type": "string", "format": "date-time" },
           "endsAt": { "type": "string", "format": "date-time" },
           "numberOfGuests": { "type": "integer", "minimum": 1 },

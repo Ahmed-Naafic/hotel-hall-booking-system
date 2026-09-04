@@ -44,7 +44,6 @@ class _HallFormScreenState extends State<HallFormScreen> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _locationController;
   late final TextEditingController _rentController;
-  late final TextEditingController _advanceController;
   late final TextEditingController _serviceNumberController;
   late final TextEditingController _paymentNumberController;
   late final Map<String, dynamic> _existingCustomFields;
@@ -90,9 +89,6 @@ class _HallFormScreenState extends State<HallFormScreen> {
           ? ''
           : (terms['rentAmountCents'] / 100).toStringAsFixed(2),
     );
-    _advanceController = TextEditingController(
-      text: terms['advancePaymentPercent']?.toString() ?? '',
-    );
     _serviceNumberController = TextEditingController(
       text: terms['customerServiceNumber']?.toString() ?? '',
     );
@@ -113,7 +109,6 @@ class _HallFormScreenState extends State<HallFormScreen> {
     _descriptionController.dispose();
     _locationController.dispose();
     _rentController.dispose();
-    _advanceController.dispose();
     _serviceNumberController.dispose();
     _paymentNumberController.dispose();
     super.dispose();
@@ -140,8 +135,9 @@ class _HallFormScreenState extends State<HallFormScreen> {
           'rentAmountCents': (double.parse(_rentController.text.trim()) * 100)
               .round(),
         if (_rentController.text.trim().isNotEmpty) 'rentDurationHours': 24,
-        if (_advanceController.text.trim().isNotEmpty)
-          'advancePaymentPercent': double.parse(_advanceController.text.trim()),
+        // Approved V1 business rule — a fixed 30% advance, platform-wide,
+        // never a Manager-editable value (mirrors rentDurationHours above).
+        if (_rentController.text.trim().isNotEmpty) 'advancePaymentPercent': 30,
         if (_serviceNumberController.text.trim().isNotEmpty)
           'customerServiceNumber': _serviceNumberController.text.trim(),
         if (_paymentNumberController.text.trim().isNotEmpty)
@@ -249,23 +245,6 @@ class _HallFormScreenState extends State<HallFormScreen> {
                                       (double.tryParse(v!.trim()) ?? 0) <= 0
                                   ? 'Enter a valid rent amount.'
                                   : null,
-                            ),
-                            const SizedBox(height: HHSpacing.space5),
-                            HHTextField(
-                              label: 'Advance payment (%)',
-                              controller: _advanceController,
-                              enabled: !controller.isBusy,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              validator: (v) {
-                                if (v?.trim().isEmpty ?? true) return null;
-                                final n = double.tryParse(v?.trim() ?? '');
-                                return n == null || n < 0 || n > 100
-                                    ? 'Enter a percentage from 0 to 100.'
-                                    : null;
-                              },
                             ),
                             const SizedBox(height: HHSpacing.space5),
                             HHTextField(

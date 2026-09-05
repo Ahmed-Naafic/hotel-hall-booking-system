@@ -139,7 +139,12 @@ Future<bool> promptReportPayment(
       ],
     ),
   );
-  controller.dispose();
+  // Not disposed here: showDialog returns as soon as Navigator.pop fires,
+  // before the dialog's exit animation finishes tearing down the TextField
+  // that still holds this controller — disposing synchronously at this
+  // point races that teardown and can crash with a framework assertion
+  // ('_dependents.isEmpty' in framework.dart). A single short-lived,
+  // dialog-scoped controller left for GC is the safe tradeoff.
   if (amountCents == null) return false;
 
   try {

@@ -29,6 +29,10 @@ import '../data/popular_hotel.dart';
 import '../../customer_profile/presentation/customer_profile_screen.dart';
 import '../../favorites/application/favorites_controller.dart';
 import '../../favorites/presentation/saved_hotels_screen.dart';
+import '../../reviews/application/hotel_reviews_controller.dart';
+import '../../reviews/data/review.dart';
+import '../../reviews/data/review_repository.dart';
+import '../../reviews/presentation/widgets/star_rating.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -1602,11 +1606,22 @@ class HotelDetailScreen extends StatefulWidget {
 
 class _HotelDetailScreenState extends State<HotelDetailScreen> {
   late Future<(HotelSummary, List<HallSummary>)> future;
+  late final HotelReviewsController _reviewsController = HotelReviewsController(
+    ReviewRepository(context.read<ApiClient>()),
+    widget.hotelId,
+  );
 
   @override
   void initState() {
     super.initState();
     future = _load();
+    _reviewsController.load();
+  }
+
+  @override
+  void dispose() {
+    _reviewsController.dispose();
+    super.dispose();
   }
 
   Future<(HotelSummary, List<HallSummary>)> _load() async {
@@ -1650,6 +1665,7 @@ class _HotelDetailScreenState extends State<HotelDetailScreen> {
           return _HotelDetailContent(
             hotel: hotel,
             halls: halls,
+            reviewsController: _reviewsController,
           );
         },
       ),
@@ -1661,10 +1677,12 @@ class _HotelDetailContent extends StatelessWidget {
   const _HotelDetailContent({
     required this.hotel,
     required this.halls,
+    required this.reviewsController,
   });
 
   final HotelSummary hotel;
   final List<HallSummary> halls;
+  final HotelReviewsController reviewsController;
 
   @override
   Widget build(BuildContext context) {
@@ -1775,6 +1793,40 @@ class _HotelDetailContent extends StatelessWidget {
           sliver: SliverList(
             delegate: SliverChildListDelegate(
               [
+                if (hotel.reviewSummary != null) ...[
+                  Row(
+                    children: [
+                      if (hotel.reviewSummary!.count > 0) ...[
+                        StarRatingDisplay(
+                          rating: hotel.reviewSummary!.average!.round(),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          hotel.reviewSummary!.average!.toStringAsFixed(1),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '(${hotel.reviewSummary!.count} ${hotel.reviewSummary!.count == 1 ? 'review' : 'reviews'})',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ] else
+                        Text(
+                          'No reviews yet',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
                 if (hotel.description.isNotEmpty) ...[
                   Text(
                     'Description',
@@ -1855,12 +1907,141 @@ class _HotelDetailContent extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                const SizedBox(height: 28),
+                Text(
+                  'Reviews',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListenableBuilder(
+                  listenable: reviewsController,
+                  builder: (context, _) => _ReviewsSection(controller: reviewsController),
+                ),
               ],
             ),
           ),
         ),
       ],
     );
+  }
+}
+
+class _ReviewsSection extends StatelessWidget {
+  const _ReviewsSection({required this.controller});
+
+  final HotelReviewsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (controller.state) {
+      case HotelReviewsState.loading:
+        return const Center(child: CircularProgressIndicator());
+      case HotelReviewsState.error:
+        return _ReviewsMessage(
+          message: controller.errorMessage ?? 'Could not load reviews.',
+          actionLabel: 'Retry',
+          onAction: controller.load,
+        );
+      case HotelReviewsState.empty:
+        return const _ReviewsMessage(message: 'No reviews yet.');
+      case HotelReviewsState.loaded:
+        return Column(
+          children: [
+            ...controller.reviews.map(
+              (review) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _ReviewTile(review: review),
+              ),
+            ),
+            if (controller.hasMore)
+              controller.isLoadingMore
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : TextButton(
+                      onPressed: controller.loadMore,
+                      child: const Text('Load more reviews'),
+                    ),
+          ],
+        );
+    }
+  }
+}
+
+class _ReviewsMessage extends StatelessWidget {
+  const _ReviewsMessage({required this.message, this.actionLabel, this.onAction});
+
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Text(message, textAlign: TextAlign.center),
+          if (actionLabel != null)
+            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewTile extends StatelessWidget {
+  const _ReviewTile({required this.review});
+
+  final Review review;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              StarRatingDisplay(rating: review.rating),
+              const Spacer(),
+              Text(
+                _formatDate(review.createdAt),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          if (review.text?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(review.text!),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final local = date.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
   }
 }
 

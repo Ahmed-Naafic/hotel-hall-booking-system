@@ -16,6 +16,7 @@ import { administrationRouter } from './modules/administration/administration.ro
 import { customerRouter } from './modules/customers/customer.routes.js'
 import { bookingRouter, hotelBookingRouter } from './modules/bookings/booking.routes.js'
 import { favoriteRouter } from './modules/favorites/favorite.routes.js'
+import { bookingReviewRouter, hotelReviewRouter } from './modules/reviews/review.routes.js'
 
 const openapiSpecPath = fileURLToPath(new URL('./openapi/openapi.json', import.meta.url))
 const openapiSpec = JSON.parse(readFileSync(openapiSpecPath, 'utf-8'))
@@ -36,9 +37,11 @@ export function createApp() {
   // (api-standards.md §3). One line per module as each is implemented.
   app.use('/api/v1/auth', authenticationRouter)
   app.use('/api/v1/customers', customerRouter)
+  app.use('/api/v1/bookings/:bookingId/review', bookingReviewRouter)
   app.use('/api/v1/bookings', bookingRouter)
   app.use('/api/v1/hotels/:hotelId/bookings', hotelBookingRouter)
   app.use('/api/v1/favorites', favoriteRouter)
+  app.use('/api/v1/hotels/:hotelId/reviews', hotelReviewRouter)
   app.use('/api/v1/hotels', hotelRouter)
   app.use('/api/v1/hotels/:hotelId/media', hotelMediaRouter)
   app.use('/api/v1/hotels/:hotelId/halls/:hallId/media', hallMediaRouter)

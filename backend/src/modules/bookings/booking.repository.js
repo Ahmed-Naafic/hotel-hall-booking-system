@@ -1,7 +1,7 @@
 import { prisma } from '../../shared/prismaClient.js'
 
 const db = (client) => client ?? prisma
-const includeDetails = { hall: true, hotel: true }
+const includeDetails = { hall: true, hotel: true, review: true }
 
 /**
  * Popular Hotels (Customer Mobile, Hotel Management's own read model) —

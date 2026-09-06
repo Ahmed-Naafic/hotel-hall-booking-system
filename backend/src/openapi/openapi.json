@@ -1077,6 +1077,12 @@
     "/bookings/{bookingId}/cancellation": {
       "post": { "tags": ["Bookings"], "summary": "Cancel an unpaid pending Customer booking", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Booking cancelled" } } }
     },
+    "/bookings/{bookingId}/review": {
+      "post": { "tags": ["Reviews"], "summary": "Submit a review for a completed Booking", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["rating"], "properties": { "rating": { "type": "integer", "minimum": 1, "maximum": 5 }, "text": { "type": "string" } } } } } }, "responses": { "201": { "description": "Review submitted" }, "404": { "description": "Booking not found" }, "409": { "description": "Booking not COMPLETED, or already reviewed" } } }
+    },
+    "/hotels/{hotelId}/reviews": {
+      "get": { "tags": ["Reviews"], "summary": "List a Hotel's public reviews", "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }, { "name": "cursor", "in": "query", "schema": { "type": "string", "format": "uuid" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }], "responses": { "200": { "description": "A page of reviews" } } }
+    },
     "/hotels/{hotelId}/bookings": {
       "get": { "tags": ["Bookings"], "summary": "List own-Hotel bookings", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Booking page" }, "404": { "description": "Hotel not found" } } }
     },

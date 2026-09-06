@@ -1,3 +1,5 @@
+import { toReview } from '../reviews/review.mapper.js'
+
 export function toBooking(booking) {
   return {
     id: booking.id,
@@ -39,5 +41,6 @@ export function toBooking(booking) {
     },
     createdAt: booking.createdAt,
     updatedAt: booking.updatedAt,
+    review: booking.review ? toReview(booking.review) : null,
   }
 }

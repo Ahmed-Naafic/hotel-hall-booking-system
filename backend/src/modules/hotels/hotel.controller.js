@@ -2,7 +2,8 @@ import * as hotelService from './hotel.service.js'
 import * as profileService from './profile.service.js'
 import * as applicationService from './application.service.js'
 import * as locationService from './location.service.js'
-import { toPublicHotel, toPublicApplication, toCustomerVisibleHotel, toNearbyHotel, toPopularHotel } from './hotel.mapper.js'
+import * as reviewService from '../reviews/review.service.js'
+import { toPublicHotel, toPublicApplication, toCustomerVisibleHotel, toNearbyHotel, toPopularHotel, toHotelDetail } from './hotel.mapper.js'
 import { sendSuccess } from '../../shared/utils/responseEnvelope.js'
 import { asyncHandler } from '../../shared/utils/asyncHandler.js'
 import { AuthorizationError, BusinessRuleError } from '../../shared/errors/errorTypes.js'
@@ -178,7 +179,8 @@ export const listPublicHotels = asyncHandler(async (req, res) => {
 
 export const getPublicHotel = asyncHandler(async (req, res) => {
   const hotel = await hotelService.getPublicHotelById(req.params.id)
-  sendSuccess(res, { message: 'Hotel retrieved successfully.', data: withMediaUrls(hotel) })
+  const reviewSummary = await reviewService.getHotelReviewSummary(hotel.id)
+  sendSuccess(res, { message: 'Hotel retrieved successfully.', data: toHotelDetail(hotel, reviewSummary) })
 })
 
 export const listNearbyPublicHotels = asyncHandler(async (req, res) => {

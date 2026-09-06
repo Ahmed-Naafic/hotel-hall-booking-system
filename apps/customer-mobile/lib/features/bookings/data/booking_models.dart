@@ -38,6 +38,30 @@ class BookingHall {
   );
 }
 
+/// A Customer's review of the completed Booking it belongs to (Ratings &
+/// Reviews V1, approved business decisions) — never carries any Customer
+/// identity, since none is exposed publicly anywhere in this platform.
+class BookingReview {
+  const BookingReview({
+    required this.id,
+    required this.rating,
+    this.text,
+    required this.createdAt,
+  });
+
+  final String id;
+  final int rating;
+  final String? text;
+  final DateTime createdAt;
+
+  factory BookingReview.fromJson(Map<String, dynamic> json) => BookingReview(
+    id: json['id'] as String,
+    rating: json['rating'] as int,
+    text: json['text'] as String?,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+  );
+}
+
 class Booking {
   const Booking({
     required this.id,
@@ -61,6 +85,7 @@ class Booking {
     this.paymentVerifiedAt,
     this.paymentRejectionReason,
     required this.createdAt,
+    this.review,
   });
 
   final String id;
@@ -84,6 +109,7 @@ class Booking {
   final DateTime? paymentVerifiedAt;
   final String? paymentRejectionReason;
   final DateTime createdAt;
+  final BookingReview? review;
 
   factory Booking.fromJson(Map<String, dynamic> json) {
     final pricing = (json['pricing'] as Map).cast<String, dynamic>();
@@ -117,6 +143,9 @@ class Booking {
       paymentVerifiedAt: parseOrNull(payment['verifiedAt']),
       paymentRejectionReason: payment['rejectionReason'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      review: json['review'] == null
+          ? null
+          : BookingReview.fromJson((json['review'] as Map).cast<String, dynamic>()),
     );
   }
 }

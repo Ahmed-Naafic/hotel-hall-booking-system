@@ -62,4 +62,22 @@ class BookingRepository {
     final data = await _client.post('/bookings/$bookingId/cancellation');
     return Booking.fromJson((data as Map).cast<String, dynamic>());
   }
+
+  /// Ratings & Reviews V1 — the backend is the sole authority for
+  /// eligibility (a COMPLETED Booking, not already reviewed); this only
+  /// forwards the Customer's rating/text and parses the updated Booking.
+  Future<Booking> submitReview({
+    required String bookingId,
+    required int rating,
+    String? text,
+  }) async {
+    final data = await _client.post(
+      '/bookings/$bookingId/review',
+      body: {
+        'rating': rating,
+        if (text?.trim().isNotEmpty == true) 'text': text!.trim(),
+      },
+    );
+    return Booking.fromJson((data as Map).cast<String, dynamic>());
+  }
 }

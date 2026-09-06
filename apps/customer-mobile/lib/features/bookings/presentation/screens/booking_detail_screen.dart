@@ -3,8 +3,10 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
+import '../../../reviews/presentation/widgets/star_rating.dart';
 import '../../data/booking_models.dart';
 import '../../data/booking_repository.dart';
+import '../widgets/leave_review_dialog.dart';
 import '../widgets/payment_terms.dart';
 
 /// Customer → a single Booking's detail (Booking Management V1 correction
@@ -62,6 +64,19 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     }
   }
 
+  Future<void> _leaveReview() async {
+    final booking = _booking;
+    if (booking == null) return;
+    setState(() => _busy = true);
+    final updated = await promptSubmitReview(
+      context,
+      booking: booking,
+      repository: _repository,
+    );
+    if (updated != null && mounted) setState(() => _booking = updated);
+    if (mounted) setState(() => _busy = false);
+  }
+
   Future<void> _reportPayment() async {
     final booking = _booking;
     if (booking == null) return;
@@ -85,6 +100,13 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       _booking?.status == 'PENDING' &&
       (_booking?.paymentStatus == 'UNPAID' || _booking?.paymentStatus == 'REJECTED');
 
+  // Ratings & Reviews V1 (approved business decisions) — only a COMPLETED
+  // Booking not already reviewed may be reviewed; the backend is still the
+  // sole authority (it re-checks this on submit), this only decides whether
+  // to show the button at all.
+  bool get _canLeaveReview =>
+      _booking?.status == 'COMPLETED' && _booking?.review == null;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,7 +129,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     if (booking == null) {
       return const Center(child: CircularProgressIndicator());
     }
-
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -182,6 +203,23 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             paymentReceivingNumber: booking.hall?.paymentReceivingNumber ?? '',
             customerServiceNumber: booking.hall?.customerServiceNumber ?? '',
           ),
+          if (booking.review != null) ...[
+            const SizedBox(height: HHSpacing.space5),
+            HHCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const HHSectionLabel('YOUR REVIEW'),
+                  const SizedBox(height: HHSpacing.space3),
+                  StarRatingDisplay(rating: booking.review!.rating),
+                  if (booking.review!.text?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: HHSpacing.space3),
+                    Text(booking.review!.text!),
+                  ],
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: HHSpacing.space7),
           if (_canReportPayment)
             HHPrimaryButton(
@@ -189,6 +227,14 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               isLoading: _busy,
               onPressed: _reportPayment,
             ),
+          if (_canLeaveReview) ...[
+            const SizedBox(height: HHSpacing.space4),
+            HHPrimaryButton(
+              label: 'Leave a Review',
+              isLoading: _busy,
+              onPressed: _leaveReview,
+            ),
+          ],
           if (_canCancel) ...[
             const SizedBox(height: HHSpacing.space4),
             OutlinedButton(

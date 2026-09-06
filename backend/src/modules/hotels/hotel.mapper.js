@@ -29,6 +29,14 @@ export function toPublicApplication(application) {
   }
 }
 
+/** Hotel Detail (GET /hotels/public/:id) only — never the listing endpoints, which stay out of Ratings & Reviews V1 scope. */
+export function toHotelDetail(hotel, reviewSummary) {
+  return {
+    ...toCustomerVisibleHotel(hotel),
+    reviewSummary,
+  }
+}
+
 export function toCustomerVisibleHotel(hotel) {
   const media = hotel.media ?? []
   return {

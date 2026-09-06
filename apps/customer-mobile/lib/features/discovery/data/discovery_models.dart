@@ -5,17 +5,34 @@ class MediaItem {
       MediaItem(url: json['url'] as String);
 }
 
+/// A Hotel's aggregate rating (Ratings & Reviews V1, approved business
+/// decisions) — only present on Hotel Detail (`GET /hotels/public/:id`),
+/// never on any listing endpoint. `average` is `null`, never `0`, when
+/// `count` is zero — a Hotel with no reviews has no rating, not a bad one.
+class ReviewSummary {
+  const ReviewSummary({required this.average, required this.count});
+  final double? average;
+  final int count;
+
+  factory ReviewSummary.fromJson(Map<String, dynamic> json) => ReviewSummary(
+    average: (json['average'] as num?)?.toDouble(),
+    count: json['count'] as int,
+  );
+}
+
 class HotelSummary {
   const HotelSummary({
     required this.id,
     required this.profileData,
     this.logo,
     this.photos = const [],
+    this.reviewSummary,
   });
   final String id;
   final Map<String, dynamic> profileData;
   final MediaItem? logo;
   final List<MediaItem> photos;
+  final ReviewSummary? reviewSummary;
   String get name => profileData['name'] as String? ?? 'Hotel';
   String get description => profileData['description'] as String? ?? '';
   String get location {
@@ -43,6 +60,11 @@ class HotelSummary {
           (item) => MediaItem.fromJson((item as Map).cast<String, dynamic>()),
         )
         .toList(),
+    reviewSummary: json['reviewSummary'] == null
+        ? null
+        : ReviewSummary.fromJson(
+            (json['reviewSummary'] as Map).cast<String, dynamic>(),
+          ),
   );
 }
 

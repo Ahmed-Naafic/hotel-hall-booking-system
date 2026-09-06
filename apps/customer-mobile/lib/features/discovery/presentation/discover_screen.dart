@@ -1652,7 +1652,9 @@ class _HotelDetailScreenState extends State<HotelDetailScreen> {
             return Center(
               child: TextButton.icon(
                 onPressed: () {
-                  setState(() => future = _load());
+                  setState(() {
+                    future = _load();
+                  });
                 },
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Try again'),
@@ -1666,6 +1668,12 @@ class _HotelDetailScreenState extends State<HotelDetailScreen> {
             hotel: hotel,
             halls: halls,
             reviewsController: _reviewsController,
+            onHallReturned: () {
+              setState(() {
+                future = _load();
+              });
+              _reviewsController.load();
+            },
           );
         },
       ),
@@ -1678,11 +1686,17 @@ class _HotelDetailContent extends StatelessWidget {
     required this.hotel,
     required this.halls,
     required this.reviewsController,
+    required this.onHallReturned,
   });
 
   final HotelSummary hotel;
   final List<HallSummary> halls;
   final HotelReviewsController reviewsController;
+  // Refreshes this screen's own Hotel+Halls fetch after popping back from a
+  // Hall's own detail screen (e.g. having booked it there) — otherwise the
+  // Halls list and review summary shown here would only ever reflect
+  // whatever was true when this screen was first opened.
+  final VoidCallback onHallReturned;
 
   @override
   Widget build(BuildContext context) {
@@ -1904,6 +1918,7 @@ class _HotelDetailContent extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 14),
                       child: _HallCard(
                         hall: hall,
+                        onReturned: onHallReturned,
                       ),
                     ),
                   ),
@@ -2217,9 +2232,15 @@ class _FullMapScreen extends StatelessWidget {
 class _HallCard extends StatelessWidget {
   const _HallCard({
     required this.hall,
+    this.onReturned,
   });
 
   final HallSummary hall;
+  // Called after popping back from Hall Detail (e.g. having booked the
+  // Hall there) so the Hotel Detail screen that hosts this card can
+  // refresh its own Halls/reviews rather than showing stale data until
+  // the Customer leaves and re-enters the whole screen.
+  final VoidCallback? onReturned;
 
   @override
   Widget build(BuildContext context) {
@@ -2230,12 +2251,13 @@ class _HallCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
+        onTap: () async {
+          await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => HallDetailScreen(hall: hall),
             ),
           );
+          onReturned?.call();
         },
         child: Row(
           children: [
@@ -2399,9 +2421,18 @@ class HallDetailScreen extends StatelessWidget {
 
     if (context.mounted &&
         auth.currentUser?.isVerified == true) {
-      await Navigator.of(context).push(
+      final booked = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => BookHallScreen(hall: hall)),
       );
+      if (booked == true && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Booking requested. Track its status and payment from My Bookings.',
+            ),
+          ),
+        );
+      }
     }
   }
 

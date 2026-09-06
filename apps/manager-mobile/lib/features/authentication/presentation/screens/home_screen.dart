@@ -31,6 +31,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _tabIndex = 0;
   final _dashboardKey = GlobalKey<DashboardScreenState>();
+  final _bookingsKey = GlobalKey<BookingsComingSoonScreenState>();
 
   @override
   void initState() {
@@ -50,8 +51,11 @@ class _HomeScreenState extends State<HomeScreen> {
     // `IndexedStack` has no "became visible again" callback of its own —
     // without this, the Dashboard's Hall count (fetched once per Hotel id)
     // would stay stale forever after a Hall is created/deleted on the
-    // Halls tab while Home stays alive in the background.
+    // Halls tab while Home stays alive in the background. Bookings gets
+    // the same treatment so a Booking created while this tab sat idle in
+    // the background (e.g. the Manager was on Home) is never missed.
     if (index == 0) _dashboardKey.currentState?.refresh();
+    if (index == 3) _bookingsKey.currentState?.refresh();
   }
 
   @override
@@ -69,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const MyHotelScreen(embedded: true),
           const _HallsTab(),
           BookingsComingSoonScreen(
+            key: _bookingsKey,
             hotelId: context.watch<HotelContextController>().hotel?.id,
             active: _tabIndex == 3,
           ),

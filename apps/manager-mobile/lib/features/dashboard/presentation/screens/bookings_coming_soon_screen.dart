@@ -16,10 +16,17 @@ class BookingsComingSoonScreen extends StatefulWidget {
 
   @override
   State<BookingsComingSoonScreen> createState() =>
-      _BookingsComingSoonScreenState();
+      BookingsComingSoonScreenState();
 }
 
-class _BookingsComingSoonScreenState extends State<BookingsComingSoonScreen> {
+/// Public so `HomeScreen` (the `IndexedStack` owner) can hold a `GlobalKey`
+/// and call [refresh] explicitly when the Bookings tab is (re)selected —
+/// the same reason `DashboardScreenState.refresh` exists: an `IndexedStack`
+/// tab has no built-in "became visible again" callback, so without this a
+/// Booking created while this tab sat alive in the background (e.g. a
+/// Customer books while the Manager is on the Home tab) would never appear
+/// until the app restarts.
+class BookingsComingSoonScreenState extends State<BookingsComingSoonScreen> {
   List<ManagerBooking>? _bookings;
   String? _error;
   String? _loadedHotelId;
@@ -37,6 +44,13 @@ class _BookingsComingSoonScreenState extends State<BookingsComingSoonScreen> {
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     }
+  }
+
+  /// Called by `HomeScreen` when the Bookings tab becomes selected again —
+  /// always re-fetches, never relies on `_loadedHotelId` staying unchanged
+  /// (that guard exists only to avoid a redundant fetch on first build).
+  Future<void> refresh() async {
+    if (widget.hotelId != null) await _load(widget.hotelId!);
   }
 
   Future<void> _action(
@@ -111,107 +125,210 @@ class _BookingsComingSoonScreenState extends State<BookingsComingSoonScreen> {
   }
 }
 
-class _BookingCard extends StatelessWidget {
+class _BookingCard extends StatefulWidget {
   const _BookingCard({required this.booking, required this.onAction});
   final ManagerBooking booking;
-  final void Function(String action, Object? body) onAction;
+  final Future<void> Function(String action, Object? body) onAction;
 
   @override
-  Widget build(BuildContext context) => HHCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                booking.eventType.replaceAll('_', ' '),
-                style: TextStyle(
-                  fontWeight: HHTypeScale.weightSemibold,
-                  fontSize: HHTypeScale.textMd,
-                ),
-              ),
+  State<_BookingCard> createState() => _BookingCardState();
+}
+
+class _BookingCardState extends State<_BookingCard> {
+  // Which action is currently in flight, if any — drives both the tapped
+  // button's spinner and disabling every other action on this card so a
+  // second tap can't fire while the first is still pending.
+  String? _pendingKey;
+
+  Future<void> _run(String key, String action, Object? body) async {
+    setState(() => _pendingKey = key);
+    try {
+      await widget.onAction(action, body);
+    } finally {
+      if (mounted) setState(() => _pendingKey = null);
+    }
+  }
+
+  // The required advance is informational for the Manager's own judgment,
+  // never a backend-enforced floor (approved decision) — verifying an
+  // amount below it is allowed, but only after this explicit confirmation,
+  // so it's never mistaken for a silent no-op tap.
+  Future<void> _verifyPayment() async {
+    final booking = widget.booking;
+    final insufficient = booking.reportedAmountCents != null &&
+        booking.reportedAmountCents! < booking.requiredAdvanceCents;
+    if (insufficient) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Reported amount is short'),
+          content: Text(
+            'The Customer reported \$${(booking.reportedAmountCents! / 100).toStringAsFixed(2)}, '
+            'less than the required \$${(booking.requiredAdvanceCents / 100).toStringAsFixed(2)}. '
+            'Verify anyway?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
             ),
-            HHStatusBadge(label: booking.status),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Verify Anyway'),
+            ),
           ],
         ),
-        const SizedBox(height: HHSpacing.space3),
-        Text(
-          '${booking.guests} guests • \$${(booking.totalRentCents / 100).toStringAsFixed(2)}',
-          style: TextStyle(color: HHColors.textMuted),
-        ),
-        Text(
-          '${booking.startsAt.toLocal()} – ${booking.endsAt.toLocal()}',
-          style: TextStyle(
-            color: HHColors.textMuted,
-            fontSize: HHTypeScale.textSm,
+      );
+      if (confirmed != true) return;
+    }
+    await _run('verify', 'payment-verification', {'decision': 'VERIFY'});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final booking = widget.booking;
+    return HHCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  booking.eventType.replaceAll('_', ' '),
+                  style: TextStyle(
+                    fontWeight: HHTypeScale.weightSemibold,
+                    fontSize: HHTypeScale.textMd,
+                  ),
+                ),
+              ),
+              HHStatusBadge(label: booking.status),
+            ],
           ),
-        ),
-        const SizedBox(height: HHSpacing.space4),
-        Wrap(
-          spacing: HHSpacing.space2,
-          runSpacing: HHSpacing.space2,
-          children: _actions(),
-        ),
-      ],
+          const SizedBox(height: HHSpacing.space3),
+          Text(
+            '${booking.guests} guests • \$${(booking.totalRentCents / 100).toStringAsFixed(2)}',
+            style: TextStyle(color: HHColors.textMuted),
+          ),
+          Text(
+            '${booking.startsAt.toLocal()} – ${booking.endsAt.toLocal()}',
+            style: TextStyle(
+              color: HHColors.textMuted,
+              fontSize: HHTypeScale.textSm,
+            ),
+          ),
+          if (booking.paymentStatus == 'CUSTOMER_REPORTED' &&
+              booking.reportedAmountCents != null) ...[
+            const SizedBox(height: HHSpacing.space3),
+            Text(
+              'Customer reported: \$${(booking.reportedAmountCents! / 100).toStringAsFixed(2)} '
+              '(required: \$${(booking.requiredAdvanceCents / 100).toStringAsFixed(2)})',
+              style: TextStyle(
+                fontWeight: HHTypeScale.weightSemibold,
+                color: booking.reportedAmountCents! >= booking.requiredAdvanceCents
+                    ? HHColors.success700
+                    : HHColors.danger700,
+              ),
+            ),
+          ],
+          const SizedBox(height: HHSpacing.space4),
+          Wrap(
+            spacing: HHSpacing.space2,
+            runSpacing: HHSpacing.space2,
+            children: _actions(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _spinner({required bool filled}) => SizedBox(
+    width: 16,
+    height: 16,
+    child: CircularProgressIndicator(
+      strokeWidth: 2,
+      color: filled ? Theme.of(context).colorScheme.onPrimary : null,
     ),
   );
+
+  Widget _button({
+    required String actionKey,
+    required String label,
+    required VoidCallback onPressed,
+    bool filled = false,
+  }) {
+    final isPending = _pendingKey == actionKey;
+    final isDisabled = _pendingKey != null;
+    final child = isPending ? _spinner(filled: filled) : Text(label);
+    return filled
+        ? FilledButton(onPressed: isDisabled ? null : onPressed, child: child)
+        : OutlinedButton(onPressed: isDisabled ? null : onPressed, child: child);
+  }
 
   // Cancellation applies to any still-applicable Booking (PENDING or
   // CONFIRMED) regardless of payment state — it is offered alongside
   // whichever other actions that status/payment combination already
   // exposes, never in place of them.
-  List<Widget> _actions() {
+  List<Widget> _actions(BuildContext context) {
+    final booking = widget.booking;
     final actions = <Widget>[];
     if (booking.status == 'PENDING' &&
         booking.paymentStatus == 'CUSTOMER_REPORTED') {
       actions.addAll([
-        FilledButton(
-          onPressed: () =>
-              onAction('payment-verification', {'decision': 'VERIFY'}),
-          child: const Text('Verify Payment'),
+        _button(
+          actionKey: 'verify',
+          label: 'Verify Payment',
+          filled: true,
+          onPressed: _verifyPayment,
         ),
-        OutlinedButton(
-          onPressed: () => onAction('payment-verification', {
+        _button(
+          actionKey: 'reject-payment',
+          label: 'Reject Payment',
+          onPressed: () => _run('reject-payment', 'payment-verification', {
             'decision': 'REJECT',
             'reason': 'Payment could not be verified.',
           }),
-          child: const Text('Reject Payment'),
         ),
       ]);
     } else if (booking.status == 'PENDING' &&
         booking.paymentStatus == 'PAID') {
       actions.add(
-        FilledButton(
-          onPressed: () => onAction('confirmation', null),
-          child: const Text('Confirm'),
+        _button(
+          actionKey: 'confirm',
+          label: 'Confirm',
+          filled: true,
+          onPressed: () => _run('confirm', 'confirmation', null),
         ),
       );
     } else if (booking.status == 'PENDING') {
       actions.add(
-        OutlinedButton(
-          onPressed: () => onAction('rejection', null),
-          child: const Text('Reject Booking'),
+        _button(
+          actionKey: 'reject-booking',
+          label: 'Reject Booking',
+          onPressed: () => _run('reject-booking', 'rejection', null),
         ),
       );
     }
     if (booking.status == 'PENDING' || booking.status == 'CONFIRMED') {
       actions.add(
-        OutlinedButton(
-          onPressed: () => onAction('cancellation', null),
-          child: const Text('Cancel'),
+        _button(
+          actionKey: 'cancel',
+          label: 'Cancel',
+          onPressed: () => _run('cancel', 'cancellation', null),
         ),
       );
     }
     if (booking.status == 'CONFIRMED') {
       actions.addAll([
-        OutlinedButton(
-          onPressed: () => onAction('completion', null),
-          child: const Text('Complete'),
+        _button(
+          actionKey: 'complete',
+          label: 'Complete',
+          onPressed: () => _run('complete', 'completion', null),
         ),
-        OutlinedButton(
-          onPressed: () => onAction('no-show', null),
-          child: const Text('No-show'),
+        _button(
+          actionKey: 'no-show',
+          label: 'No-show',
+          onPressed: () => _run('no-show', 'no-show', null),
         ),
       ]);
     }

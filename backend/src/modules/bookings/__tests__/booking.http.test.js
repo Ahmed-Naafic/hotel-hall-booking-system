@@ -336,12 +336,13 @@ describe('Payment reporting and verification', () => {
     assert.equal(res.body.data.payment.reportedAmountCents, booking.pricing.requiredAdvanceCents)
   })
 
-  test('the Manager rejects verification of an insufficient reported amount (422) — stays CUSTOMER_REPORTED', async () => {
+  test('the Manager can verify an insufficient reported amount anyway (200, PAID) — the amount is a warning, never a backend block', async () => {
     const { customer, manager, hotelId, booking } = await createPendingBooking()
     await post(`/api/v1/bookings/${booking.id}/payment-report`, { amountCents: 100 }, authHeader(customer.accessToken))
 
     const res = await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/payment-verification`, { decision: 'VERIFY' }, authHeader(manager.accessToken))
-    assert.equal(res.status, 422)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.paymentStatus, 'PAID')
   })
 
   test('the Manager verifies a sufficient payment report (200, PAID)', async () => {

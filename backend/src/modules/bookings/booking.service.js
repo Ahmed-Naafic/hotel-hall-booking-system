@@ -106,7 +106,10 @@ export async function verifyPayment({ bookingId, hotelId, actorUserId, decision,
   const booking = await expireAndFindHotel(bookingId, hotelId)
   assertTransition(booking, ['PENDING'], 'Payment cannot be reviewed for this booking.')
   if (booking.paymentStatus !== 'CUSTOMER_REPORTED') throw new ConflictError('There is no active payment report to review.')
-  if (decision === 'VERIFY' && booking.reportedAmountCents < booking.requiredAdvanceCents) throw new BusinessRuleError('The reported amount is less than the required advance payment.')
+  // A reported amount below the required advance is surfaced to the Hotel
+  // Manager as a warning (Manager Mobile, before this call is ever made) —
+  // never a hard backend block. The Manager's own judgment is the final
+  // check; the backend enforces ownership and status, not the amount.
   const verified = decision === 'VERIFY'
   const updated = await repository.update(booking.id, verified
     ? { paymentStatus: 'PAID', paymentVerifiedAt: new Date(), paymentVerifiedById: actorUserId, paymentRejectionReason: null }

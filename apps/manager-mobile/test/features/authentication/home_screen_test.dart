@@ -195,4 +195,51 @@ void main() {
     expect(hallsListCallCount, listCallsAfterFirstVisit);
     expect(hallCountCallCount, greaterThan(0));
   });
+
+  testWidgets(
+    'reselecting the Bookings tab re-fetches, so a Booking created while it sat idle in the background is never missed',
+    (tester) async {
+      var bookingsCallCount = 0;
+      final apiClient = ApiClient(
+        httpClient: MockClient((r) async {
+          if (r.url.path.endsWith('/hotels/me')) return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
+          if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
+          if (r.url.path.endsWith('/bookings')) {
+            bookingsCallCount += 1;
+            return successResponse([]);
+          }
+          if (r.url.path.contains('/halls')) return _hallPageResponse();
+          throw StateError('unexpected: ${r.method} ${r.url.path}');
+        }),
+        baseUrl: 'http://test/api/v1',
+      );
+      final authController = AuthController(
+        repository: AuthRepository(apiClient),
+        sessionStore: SessionStore(storage: InMemoryTokenStorage()),
+      );
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          Provider<ApiClient>.value(value: apiClient),
+          ChangeNotifierProvider<AuthController>.value(value: authController),
+          ChangeNotifierProvider<HotelContextController>(
+            create: (_) => HotelContextController(repository: HotelRepository(apiClient), storage: InMemoryTokenStorage()),
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(_navLabel('Bookings'));
+      await tester.pumpAndSettle();
+      final callsAfterFirstVisit = bookingsCallCount;
+      expect(callsAfterFirstVisit, greaterThan(0));
+
+      await tester.tap(_navLabel('Home'));
+      await tester.pumpAndSettle();
+      await tester.tap(_navLabel('Bookings'));
+      await tester.pumpAndSettle();
+
+      expect(bookingsCallCount, greaterThan(callsAfterFirstVisit));
+    },
+  );
 }

@@ -71,13 +71,19 @@ test('rejects overlapping bookings and manual blocks against bookings', async ()
   }), (error) => error.statusCode === 409)
 })
 
-test('rejected payment report can be resubmitted and insufficient reports cannot be verified', async () => {
+test('rejected payment report can be resubmitted, and an insufficient report can still be rejected (Manager\'s own choice)', async () => {
   const booking = await createBooking(30, 2)
   await bookingService.reportPayment({ bookingId: booking.id, customerUserId: customer.id, amountCents: 100 })
-  await assert.rejects(() => bookingService.verifyPayment({ bookingId: booking.id, hotelId: hotel.id, actorUserId: manager.id, decision: 'VERIFY' }), (error) => error.statusCode === 422)
   await bookingService.verifyPayment({ bookingId: booking.id, hotelId: hotel.id, actorUserId: manager.id, decision: 'REJECT', reason: 'Amount not received in full.' })
   const resubmitted = await bookingService.reportPayment({ bookingId: booking.id, customerUserId: customer.id, amountCents: booking.requiredAdvanceCents })
   assert.equal(resubmitted.paymentStatus, 'CUSTOMER_REPORTED')
+})
+
+test('an insufficient reported amount can still be verified anyway — the amount is a warning, never a backend block', async () => {
+  const booking = await createBooking(31, 2)
+  await bookingService.reportPayment({ bookingId: booking.id, customerUserId: customer.id, amountCents: 100 })
+  const verified = await bookingService.verifyPayment({ bookingId: booking.id, hotelId: hotel.id, actorUserId: manager.id, decision: 'VERIFY' })
+  assert.equal(verified.paymentStatus, 'PAID')
 })
 
 test('lazy expiration releases an overdue pending period', async () => {

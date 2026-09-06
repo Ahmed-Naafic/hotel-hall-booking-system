@@ -58,6 +58,20 @@ export function listCandidatesForBrowse({ hotelId, cursor, take }) {
     take,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     orderBy: { createdAt: 'desc' },
-    include: { media: true },
+    include: { media: true, hotel: true },
+  })
+}
+
+/**
+ * Every Hall candidate for capacity ranking (Large Halls) — unfiltered by
+ * Hotel eligibility, same as listCandidatesForBrowse above; the Visibility
+ * Component (visibility.service.js) applies that filter, never this
+ * repository (architecture-principles.md §5). `hotel: true` is a display
+ * join (the owning Hotel's name), not a filter criterion.
+ */
+export function findAllCandidatesForRanking() {
+  return prisma.hall.findMany({
+    where: { deletedAt: null },
+    include: { media: true, hotel: true },
   })
 }

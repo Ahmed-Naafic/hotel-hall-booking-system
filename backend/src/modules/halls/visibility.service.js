@@ -99,3 +99,29 @@ export async function browseVisibleHalls({ hotelId, cursor, limit }) {
   const nextCursor = hasNext ? page[page.length - 1].id : null
   return { halls, hasNext, nextCursor }
 }
+
+function hallCapacity(hall) {
+  const value = Number(hall.profileData?.capacity)
+  return Number.isFinite(value) ? value : 0
+}
+
+/**
+ * Large Halls (Customer Mobile, approved V1 business rules) — every
+ * Visible Hall (the same Visibility Component this file already applies to
+ * the platform-wide browse above), ranked by capacity descending, tied
+ * Halls broken deterministically by id. No new "large" field or
+ * classification is stored — "large" is purely this ranking. No pagination
+ * (not required for V1); a single bounded, ranked list, sorted in the
+ * backend so Customer Mobile never computes the ranking itself.
+ */
+export async function listLargeHalls({ limit }) {
+  const candidates = await hallRepository.findAllCandidatesForRanking()
+  const halls = await filterVisible(candidates, () => false)
+  return halls
+    .sort((a, b) => {
+      const diff = hallCapacity(b) - hallCapacity(a)
+      if (diff !== 0) return diff
+      return a.id.localeCompare(b.id)
+    })
+    .slice(0, limit)
+}

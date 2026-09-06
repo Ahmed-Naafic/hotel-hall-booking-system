@@ -29,3 +29,18 @@ export function toPublicHall(hall) {
     })),
   }
 }
+
+/**
+ * The same Hall shape as toPublicHall, plus the owning Hotel's name — a
+ * purely additive field (never removes/renames anything toPublicHall
+ * already returns) used only by discovery-style browse contexts (the
+ * platform-wide GET /halls, Large Halls) where the Hall is shown outside
+ * the context of any one already-known Hotel screen. Requires the caller's
+ * Prisma query to `include: { hotel: true }`.
+ */
+export function toBrowsableHall(hall) {
+  return {
+    ...toPublicHall(hall),
+    hotel: hall.hotel ? { id: hall.hotel.id, name: hall.hotel.profileData?.name ?? null } : null,
+  }
+}

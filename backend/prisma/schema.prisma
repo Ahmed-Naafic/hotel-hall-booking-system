@@ -34,6 +34,7 @@ model User {
   customerBookings                         Booking[]                          @relation("CustomerBookings")
   verifiedBookingPayments                  Booking[]                          @relation("VerifiedBookingPayments")
   cancelledBookings                        Booking[]                          @relation("CancelledBookings")
+  savedHotels                              SavedHotel[]
 
   @@map("users")
 }
@@ -139,9 +140,29 @@ model Hotel {
   media                  HotelMedia[]
   bookings               Booking[]
   registeredBy           User                               @relation(fields: [registeredByUserId], references: [id])
+  savedBy                SavedHotel[]
 
   @@index([status], map: "idx_hotels_status")
   @@map("hotels")
+}
+
+/// A Customer's saved/bookmarked Hotel — a personal, non-business-rule
+/// bookmark (never a live eligibility/availability check): a Hotel stays
+/// saved even if it later becomes ineligible for ordinary browsing, the
+/// same way Booking History still shows past Bookings regardless of the
+/// Hotel's current status.
+model SavedHotel {
+  id             String   @id @default(uuid()) @db.Uuid
+  customerUserId String   @map("customer_user_id") @db.Uuid
+  hotelId        String   @map("hotel_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  customer User  @relation(fields: [customerUserId], references: [id])
+  hotel    Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@unique([customerUserId, hotelId])
+  @@index([customerUserId, createdAt], map: "idx_saved_hotels_customer_created_at")
+  @@map("saved_hotels")
 }
 
 /// A single uploaded Hotel Logo or Photo (BDR-015, ADR-0006, Technical
@@ -219,26 +240,26 @@ model CriticalInformationChangeRequest {
 /// eligibility status (Technical Design §6), never persisted or
 /// synchronized here, so there is nothing to keep in sync or invalidate.
 model Hall {
-  id          String      @id @default(uuid()) @db.Uuid
-  hotelId     String      @map("hotel_id") @db.Uuid
+  id                     String                  @id @default(uuid()) @db.Uuid
+  hotelId                String                  @map("hotel_id") @db.Uuid
   /// Profile content (including Amenities, BR-HALL-06) is deliberately
   /// unspecified — Business Specification Pending Business Decision #2
   /// (Required Hall Information). Held as a flexible field until that
   /// decision resolves, mirroring Hotel's own profileData design exactly
   /// (Technical Design §4, §8).
-  profileData Json?       @map("profile_data")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  deletedAt   DateTime?   @map("deleted_at")
-  hotel       Hotel       @relation(fields: [hotelId], references: [id])
-  media       HallMedia[]
-  availabilityBlocks HallAvailabilityBlock[]
-  bookings           Booking[]
-  rentAmountCents         Int?     @map("rent_amount_cents")
-  rentDurationHours       Int?     @default(24) @map("rent_duration_hours")
-  advancePaymentPercent  Decimal? @map("advance_payment_percent") @db.Decimal(5, 2)
-  customerServiceNumber  String?  @map("customer_service_number")
-  paymentReceivingNumber String?  @map("payment_receiving_number")
+  profileData            Json?                   @map("profile_data")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  deletedAt              DateTime?               @map("deleted_at")
+  hotel                  Hotel                   @relation(fields: [hotelId], references: [id])
+  media                  HallMedia[]
+  availabilityBlocks     HallAvailabilityBlock[]
+  bookings               Booking[]
+  rentAmountCents        Int?                    @map("rent_amount_cents")
+  rentDurationHours      Int?                    @default(24) @map("rent_duration_hours")
+  advancePaymentPercent  Decimal?                @map("advance_payment_percent") @db.Decimal(5, 2)
+  customerServiceNumber  String?                 @map("customer_service_number")
+  paymentReceivingNumber String?                 @map("payment_receiving_number")
 
   @@index([hotelId], map: "idx_halls_hotel_id")
   @@map("halls")
@@ -271,9 +292,9 @@ model Booking {
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
 
-  customer         User  @relation("CustomerBookings", fields: [customerUserId], references: [id])
-  hotel            Hotel @relation(fields: [hotelId], references: [id])
-  hall             Hall  @relation(fields: [hallId], references: [id])
+  customer          User  @relation("CustomerBookings", fields: [customerUserId], references: [id])
+  hotel             Hotel @relation(fields: [hotelId], references: [id])
+  hall              Hall  @relation(fields: [hallId], references: [id])
   paymentVerifiedBy User? @relation("VerifiedBookingPayments", fields: [paymentVerifiedById], references: [id])
   cancelledBy       User? @relation("CancelledBookings", fields: [cancelledByUserId], references: [id])
 
@@ -310,12 +331,12 @@ model HallMedia {
 /// `availability_foundation` migration), not by Prisma/application code
 /// alone.
 model HallAvailabilityBlock {
-  id     String @id @default(uuid()) @db.Uuid
-  hallId String @map("hall_id") @db.Uuid
+  id              String   @id @default(uuid()) @db.Uuid
+  hallId          String   @map("hall_id") @db.Uuid
   /// Absolute instant — the block covers [startsAt, endsAt).
-  startsAt DateTime @map("starts_at")
+  startsAt        DateTime @map("starts_at")
   /// Absolute instant, exclusive end.
-  endsAt DateTime @map("ends_at")
+  endsAt          DateTime @map("ends_at")
   /// Free-text Manager note (e.g. "Maintenance"). Never shown to Customers.
   reason          String?
   createdByUserId String   @map("created_by_user_id") @db.Uuid

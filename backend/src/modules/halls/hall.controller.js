@@ -1,7 +1,7 @@
 import * as hallService from './hall.service.js'
 import * as profileService from './profile.service.js'
 import * as visibilityService from './visibility.service.js'
-import { toPublicHall } from './hall.mapper.js'
+import { toPublicHall, toBrowsableHall } from './hall.mapper.js'
 import { sendSuccess } from '../../shared/utils/responseEnvelope.js'
 import { asyncHandler } from '../../shared/utils/asyncHandler.js'
 
@@ -113,7 +113,22 @@ export const browseHalls = asyncHandler(async (req, res) => {
   sendSuccess(res, {
     statusCode: 200,
     message: 'Halls retrieved successfully.',
-    data: halls.map(toPublicHall),
+    data: halls.map(toBrowsableHall),
     pagination: { limit, nextCursor, hasNext },
+  })
+})
+
+/**
+ * Large Halls (`GET /api/v1/halls/large-capacity`) — public, unconditionally;
+ * every Visible Hall ranked by capacity descending. Not paginated (no
+ * approved V1 requirement for it) — a single bounded, ranked list.
+ */
+export const listLargeHalls = asyncHandler(async (req, res) => {
+  const limit = req.query.limit ? Math.min(Number(req.query.limit), 100) : 20
+  const halls = await visibilityService.listLargeHalls({ limit })
+  sendSuccess(res, {
+    statusCode: 200,
+    message: 'Halls retrieved successfully.',
+    data: halls.map(toBrowsableHall),
   })
 })

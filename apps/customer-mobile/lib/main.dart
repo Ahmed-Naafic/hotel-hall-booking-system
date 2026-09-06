@@ -7,6 +7,8 @@ import 'core/auth_gate.dart';
 import 'core/pending_action_controller.dart';
 import 'features/discovery/application/discovery_controller.dart';
 import 'features/discovery/data/discovery_repository.dart';
+import 'features/favorites/application/favorites_controller.dart';
+import 'features/favorites/data/favorites_repository.dart';
 
 void main() {
   runApp(const CustomerMobileApp());
@@ -48,6 +50,11 @@ class CustomerMobileApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) => DiscoveryController(
             DiscoveryRepository(context.read<ApiClient>()),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => FavoritesController(
+            FavoritesRepository(context.read<ApiClient>()),
           ),
         ),
       ],

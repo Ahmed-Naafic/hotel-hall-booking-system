@@ -3,6 +3,25 @@ import { prisma } from '../../shared/prismaClient.js'
 const db = (client) => client ?? prisma
 const includeDetails = { hall: true, hotel: true }
 
+/**
+ * Popular Hotels (Customer Mobile, Hotel Management's own read model) —
+ * a single database-side GROUP BY per qualifying status, never a per-Hotel
+ * query and never every Booking loaded into memory. `dateField` is whichever
+ * timestamp represents "when this Booking most recently entered `status`"
+ * (no dedicated confirmedAt column exists — CONFIRMED's own updatedAt is
+ * the closest authoritative signal Prisma's @updatedAt already maintains;
+ * COMPLETED has its own explicit completedAt).
+ */
+export function aggregateQualifyingBookingCountsByHotel({ status, dateField, since }) {
+  return prisma.booking.groupBy({
+    by: ['hotelId'],
+    where: { status, [dateField]: { gte: since } },
+    _count: { _all: true },
+    _max: { [dateField]: true },
+    orderBy: { hotelId: 'asc' },
+  })
+}
+
 export function findCustomer(userId, client) {
   return db(client).user.findFirst({ where: { id: userId, accountType: 'CUSTOMER', deletedAt: null } })
 }

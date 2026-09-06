@@ -1089,6 +1089,13 @@
     "/hotels/{hotelId}/bookings/{bookingId}/{action}": {
       "post": { "tags": ["Bookings"], "summary": "Apply a booking lifecycle action", "description": "action is one of confirmation, rejection, cancellation, completion, or no-show.", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }, { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }, { "name": "action", "in": "path", "required": true, "schema": { "type": "string", "enum": ["confirmation", "rejection", "cancellation", "completion", "no-show"] } }], "responses": { "200": { "description": "Booking updated" } } }
     },
+    "/favorites/hotels": {
+      "get": { "tags": ["Favorites"], "summary": "List the authenticated Customer's saved Hotel IDs", "security": [{ "bearerAuth": [] }], "responses": { "200": { "description": "Saved hotel IDs", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "array", "items": { "type": "string", "format": "uuid" } } } }] } } } } } }
+    },
+    "/favorites/hotels/{hotelId}": {
+      "put": { "tags": ["Favorites"], "summary": "Save (bookmark) a Hotel for the authenticated Customer", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Hotel saved" }, "404": { "description": "Hotel not found" } } },
+      "delete": { "tags": ["Favorites"], "summary": "Unsave (remove bookmark for) a Hotel for the authenticated Customer", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "204": { "description": "Hotel unsaved" } } }
+    },
     "/halls": {
       "get": {
         "tags": ["Halls"],

@@ -83,6 +83,36 @@ export function validateReverseGeocode(req, res, next) {
   next()
 }
 
+function queryCoordinate(value) {
+  if (typeof value !== 'string' || value.trim().length === 0) return NaN
+  return Number(value)
+}
+
+export function validateNearbyHotels(req, res, next) {
+  const { latitude, longitude } = req.query ?? {}
+  const details = []
+  if (!validCoordinate(queryCoordinate(latitude), -90, 90)) {
+    details.push({ field: 'latitude', message: 'latitude must be a number between -90 and 90.' })
+  }
+  if (!validCoordinate(queryCoordinate(longitude), -180, 180)) {
+    details.push({ field: 'longitude', message: 'longitude must be a number between -180 and 180.' })
+  }
+  if (details.length > 0) {
+    throw new ValidationError('The request could not be processed due to invalid input.', details)
+  }
+  next()
+}
+
+export function validatePopularHotels(req, res, next) {
+  const { limit } = req.query ?? {}
+  if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'limit', message: 'limit must be a positive integer.' },
+    ])
+  }
+  next()
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function validateHotelId(req, res, next) {

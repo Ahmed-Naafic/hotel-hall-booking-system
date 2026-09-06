@@ -54,6 +54,12 @@ dependencies:
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
 
+  # Device GPS position + permission handling for Nearby Hotels (Customer
+  # Mobile only — approved V1 business rules). Isolated behind
+  # lib/core/location_service.dart so the rest of the app never imports
+  # this package directly.
+  geolocator: ^13.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

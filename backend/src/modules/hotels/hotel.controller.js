@@ -2,7 +2,7 @@ import * as hotelService from './hotel.service.js'
 import * as profileService from './profile.service.js'
 import * as applicationService from './application.service.js'
 import * as locationService from './location.service.js'
-import { toPublicHotel, toPublicApplication, toCustomerVisibleHotel } from './hotel.mapper.js'
+import { toPublicHotel, toPublicApplication, toCustomerVisibleHotel, toNearbyHotel, toPopularHotel } from './hotel.mapper.js'
 import { sendSuccess } from '../../shared/utils/responseEnvelope.js'
 import { asyncHandler } from '../../shared/utils/asyncHandler.js'
 import { AuthorizationError, BusinessRuleError } from '../../shared/errors/errorTypes.js'
@@ -179,4 +179,23 @@ export const listPublicHotels = asyncHandler(async (req, res) => {
 export const getPublicHotel = asyncHandler(async (req, res) => {
   const hotel = await hotelService.getPublicHotelById(req.params.id)
   sendSuccess(res, { message: 'Hotel retrieved successfully.', data: withMediaUrls(hotel) })
+})
+
+export const listNearbyPublicHotels = asyncHandler(async (req, res) => {
+  const latitude = Number(req.query.latitude)
+  const longitude = Number(req.query.longitude)
+  const results = await hotelService.listNearbyPublicHotels({ latitude, longitude })
+  sendSuccess(res, {
+    message: 'Nearby Hotels retrieved successfully.',
+    data: results.map(({ hotel, distanceKm }) => toNearbyHotel(hotel, distanceKm)),
+  })
+})
+
+export const listPopularPublicHotels = asyncHandler(async (req, res) => {
+  const limit = req.query.limit ? Number(req.query.limit) : 20
+  const results = await hotelService.listPopularPublicHotels({ limit })
+  sendSuccess(res, {
+    message: 'Popular Hotels retrieved successfully.',
+    data: results.map(({ hotel, count }) => toPopularHotel(hotel, count)),
+  })
 })

@@ -147,3 +147,13 @@ export function validateBrowseHalls(req, res, next) {
   }
   next()
 }
+
+export function validateLargeHalls(req, res, next) {
+  const { limit } = req.query ?? {}
+  if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'limit', message: 'limit must be a positive integer.' },
+    ])
+  }
+  next()
+}

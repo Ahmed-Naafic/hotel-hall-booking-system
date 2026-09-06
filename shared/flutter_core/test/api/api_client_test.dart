@@ -459,6 +459,25 @@ void main() {
       expect(data, isNull);
     });
 
+    test('PUT sends a JSON body and returns data', () async {
+      final mock = MockClient((request) async {
+        expect(request.method, 'PUT');
+        expect(request.url.path, '/api/v1/favorites/hotels/h1');
+        return http.Response(
+          jsonEncode({
+            'status': 'success',
+            'message': 'ok',
+            'data': {'hotelId': 'h1', 'saved': true},
+          }),
+          200,
+        );
+      });
+      final client = ApiClient(httpClient: mock, baseUrl: 'http://test/api/v1');
+
+      final data = await client.put('/favorites/hotels/h1');
+      expect(data, {'hotelId': 'h1', 'saved': true});
+    });
+
     test(
       'postMultipart sends the file as multipart/form-data with the Authorization header',
       () async {

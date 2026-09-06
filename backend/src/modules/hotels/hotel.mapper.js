@@ -39,6 +39,22 @@ export function toCustomerVisibleHotel(hotel) {
   }
 }
 
+/** Nearby Hotels — the same Customer-visible shape plus the backend-computed distance. */
+export function toNearbyHotel(hotel, distanceKm) {
+  return {
+    ...toCustomerVisibleHotel(hotel),
+    distanceKm: Math.round(distanceKm * 10) / 10,
+  }
+}
+
+/** Popular Hotels — the same Customer-visible shape plus the real qualifying booking count. */
+export function toPopularHotel(hotel, bookingCount) {
+  return {
+    ...toCustomerVisibleHotel(hotel),
+    bookingCount,
+  }
+}
+
 function toMedia(media) {
   if (!media) return null
   return {

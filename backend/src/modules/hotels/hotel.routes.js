@@ -16,6 +16,9 @@ import { requireAccountType } from '../../shared/middleware/authorize.js'
 export const hotelRouter = Router()
 
 hotelRouter.get('/public', hotelValidation.validatePublicHotels, hotelController.listPublicHotels)
+// Registered before /public/:id so "nearby"/"popular" are never captured by the :id param route.
+hotelRouter.get('/public/nearby', hotelValidation.validateNearbyHotels, hotelController.listNearbyPublicHotels)
+hotelRouter.get('/public/popular', hotelValidation.validatePopularHotels, hotelController.listPopularPublicHotels)
 hotelRouter.get('/public/:id', hotelValidation.validateHotelId, hotelController.getPublicHotel)
 
 // GET /hotels (Platform-Administrator-only query interface) must be

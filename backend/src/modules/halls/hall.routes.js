@@ -18,6 +18,7 @@ import { requireAccountType } from '../../shared/middleware/authorize.js'
 export const hallRouter = Router()
 
 hallRouter.get('/', hallValidation.validateBrowseHalls, hallController.browseHalls)
+hallRouter.get('/large-capacity', hallValidation.validateLargeHalls, hallController.listLargeHalls)
 
 export const hotelHallsRouter = Router({ mergeParams: true })
 

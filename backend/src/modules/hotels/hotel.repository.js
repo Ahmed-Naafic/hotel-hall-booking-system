@@ -73,3 +73,33 @@ export function findPublicById(id) {
     include: publicInclude,
   })
 }
+
+/**
+ * Every Customer-visible Hotel, unpaginated — the candidate set Nearby
+ * Hotels (hotel.service.js#listNearbyPublicHotels) filters down by
+ * coordinate validity and the fixed 5km radius. Same eligibility filter as
+ * listPublic/findPublicById (BR: only APPROVED_ACTIVE is Customer-visible).
+ */
+export function findAllApprovedActive() {
+  return prisma.hotel.findMany({
+    where: { deletedAt: null, status: 'APPROVED_ACTIVE' },
+    include: publicInclude,
+  })
+}
+
+/**
+ * Popular Hotels — the same Customer-visible eligibility filter as
+ * listPublic/findPublicById/findAllApprovedActive, scoped to a specific
+ * candidate id set (the Hotels with at least one qualifying Booking).
+ * Halls are included (non-deleted only) so the service layer can apply the
+ * "at least one Hall" requirement without a second query.
+ */
+export function findApprovedActiveByIds(ids) {
+  return prisma.hotel.findMany({
+    where: { id: { in: ids }, deletedAt: null, status: 'APPROVED_ACTIVE' },
+    include: {
+      ...publicInclude,
+      halls: { where: { deletedAt: null }, select: { id: true } },
+    },
+  })
+}

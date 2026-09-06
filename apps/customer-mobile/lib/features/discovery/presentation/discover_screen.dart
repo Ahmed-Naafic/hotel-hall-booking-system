@@ -28,6 +28,7 @@ import '../data/nearby_hotel.dart';
 import '../data/popular_hotel.dart';
 import '../../customer_profile/presentation/customer_profile_screen.dart';
 import '../../favorites/application/favorites_controller.dart';
+import '../../favorites/presentation/saved_hotels_screen.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -661,6 +662,13 @@ class _TopHeader extends StatelessWidget {
           ),
         ),
         if (auth.status == AuthStatus.authenticated) ...[
+          _HeaderButton(
+            icon: Icons.bookmark_border_rounded,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SavedHotelsScreen()),
+            ),
+          ),
+          const SizedBox(width: 12),
           _HeaderButton(
             icon: Icons.event_note_outlined,
             onTap: () => Navigator.of(context).push(

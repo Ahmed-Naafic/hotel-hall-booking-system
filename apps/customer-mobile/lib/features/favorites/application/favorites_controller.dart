@@ -16,6 +16,11 @@ class FavoritesController extends ChangeNotifier {
 
   bool isSaved(String hotelId) => _savedHotelIds.contains(hotelId);
 
+  /// The Customer's currently-saved Hotel IDs, in no particular order —
+  /// Saved Hotels reads this directly rather than re-fetching the same
+  /// list this controller already holds.
+  List<String> get savedHotelIds => List.unmodifiable(_savedHotelIds);
+
   Future<void> load() async {
     isLoading = true;
     notifyListeners();

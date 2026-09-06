@@ -3,6 +3,8 @@ import 'package:customer_mobile/core/pending_action_controller.dart';
 import 'package:customer_mobile/features/discovery/application/discovery_controller.dart';
 import 'package:customer_mobile/features/discovery/data/discovery_repository.dart';
 import 'package:customer_mobile/features/discovery/presentation/discover_screen.dart';
+import 'package:customer_mobile/features/favorites/application/favorites_controller.dart';
+import 'package:customer_mobile/features/favorites/data/favorites_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
@@ -25,6 +27,9 @@ Widget _wrap(AuthController controller) {
       ChangeNotifierProvider(
         create: (_) =>
             DiscoveryController(DiscoveryRepository(discoveryClient)),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => FavoritesController(FavoritesRepository(discoveryClient)),
       ),
     ],
     child: const MaterialApp(home: AuthGate()),

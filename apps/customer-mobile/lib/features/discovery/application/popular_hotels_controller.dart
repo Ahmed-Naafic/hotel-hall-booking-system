@@ -16,9 +16,25 @@ class PopularHotelsController extends ChangeNotifier {
   List<PopularHotel> hotels = [];
   String? errorMessage;
 
+  // Ranking here is driven by qualifying (CONFIRMED/COMPLETED) Booking
+  // counts (approved V1 business rules) — the one Discover ranking that a
+  // Customer's own Booking action can actually change. This controller is
+  // app-wide (registered once in main.dart, not per-screen) specifically
+  // so a successful booking elsewhere in the app can mark it stale; the
+  // next time the Customer actually looks at Popular Hotels, it silently
+  // refetches instead of showing whatever was true before the booking.
+  // Never refetches eagerly on its own — that would be an unprompted
+  // extra API call for a screen the Customer isn't even looking at.
+  bool isStale = false;
+
+  void markStale() {
+    isStale = true;
+  }
+
   Future<void> load() async {
     state = PopularHotelsState.loading;
     errorMessage = null;
+    isStale = false;
     notifyListeners();
     try {
       hotels = await repository.getPopularHotels();

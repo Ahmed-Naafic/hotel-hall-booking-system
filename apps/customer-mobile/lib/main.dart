@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'core/auth_gate.dart';
 import 'core/pending_action_controller.dart';
 import 'features/discovery/application/discovery_controller.dart';
+import 'features/discovery/application/popular_hotels_controller.dart';
 import 'features/discovery/data/discovery_repository.dart';
 import 'features/favorites/application/favorites_controller.dart';
 import 'features/favorites/data/favorites_repository.dart';
@@ -49,6 +50,14 @@ class CustomerMobileApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PendingActionController()),
         ChangeNotifierProvider(
           create: (context) => DiscoveryController(
+            DiscoveryRepository(context.read<ApiClient>()),
+          ),
+        ),
+        // App-wide (not screen-local) specifically so a successful Booking
+        // made from anywhere in the app can mark this stale — see
+        // PopularHotelsController's own doc comment.
+        ChangeNotifierProvider(
+          create: (context) => PopularHotelsController(
             DiscoveryRepository(context.read<ApiClient>()),
           ),
         ),

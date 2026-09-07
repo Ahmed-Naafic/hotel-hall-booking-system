@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:customer_mobile/core/pending_action_controller.dart';
 import 'package:customer_mobile/features/discovery/application/discovery_controller.dart';
+import 'package:customer_mobile/features/discovery/application/popular_hotels_controller.dart';
 import 'package:customer_mobile/features/discovery/data/discovery_repository.dart';
 import 'package:customer_mobile/features/discovery/presentation/discover_screen.dart';
 import 'package:customer_mobile/features/favorites/application/favorites_controller.dart';
@@ -111,6 +112,9 @@ Widget _wrapDiscover(NavigatorObserver observer) {
       ),
       ChangeNotifierProvider(
         create: (_) => FavoritesController(FavoritesRepository(apiClient)),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => PopularHotelsController(DiscoveryRepository(apiClient)),
       ),
     ],
     child: MaterialApp(

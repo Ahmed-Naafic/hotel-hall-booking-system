@@ -88,4 +88,37 @@ void main() {
     final controller = PopularHotelsController(DiscoveryRepository(client));
     expect(controller.state, PopularHotelsState.loading);
   });
+
+  test('markStale sets isStale without refetching on its own', () async {
+    var requestCount = 0;
+    final client = ApiClient(
+      httpClient: MockClient((_) async {
+        requestCount++;
+        return successResponse([]);
+      }),
+      baseUrl: 'http://test/api/v1',
+    );
+    final controller = PopularHotelsController(DiscoveryRepository(client));
+    await controller.load();
+    expect(requestCount, 1);
+
+    controller.markStale();
+
+    expect(controller.isStale, true);
+    expect(requestCount, 1, reason: 'markStale must never itself trigger a fetch');
+  });
+
+  test('load() clears isStale, whether just marked stale or freshly constructed', () async {
+    final client = ApiClient(
+      httpClient: MockClient((_) async => successResponse([])),
+      baseUrl: 'http://test/api/v1',
+    );
+    final controller = PopularHotelsController(DiscoveryRepository(client));
+    controller.markStale();
+    expect(controller.isStale, true);
+
+    await controller.load();
+
+    expect(controller.isStale, false);
+  });
 }

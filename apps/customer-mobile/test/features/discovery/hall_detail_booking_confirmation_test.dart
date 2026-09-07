@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:customer_mobile/core/pending_action_controller.dart';
 import 'package:customer_mobile/features/availability/presentation/screens/book_hall_screen.dart';
+import 'package:customer_mobile/features/discovery/application/popular_hotels_controller.dart';
 import 'package:customer_mobile/features/discovery/data/discovery_models.dart';
+import 'package:customer_mobile/features/discovery/data/discovery_repository.dart';
 import 'package:customer_mobile/features/discovery/presentation/discover_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +46,9 @@ Widget _wrap({required AuthController auth, required MockClient httpClient}) {
       Provider<ApiClient>.value(value: apiClient),
       ChangeNotifierProvider<AuthController>.value(value: auth),
       ChangeNotifierProvider(create: (_) => PendingActionController()),
+      ChangeNotifierProvider(
+        create: (_) => PopularHotelsController(DiscoveryRepository(apiClient)),
+      ),
     ],
     child: MaterialApp(home: HallDetailScreen(hall: _hall)),
   );

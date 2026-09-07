@@ -68,9 +68,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     context.read<ApiClient>(),
   );
   NearbyHotelsController? _nearbyController;
-  PopularHotelsController? _popularController;
   LargeHallsController? _largeHallsController;
   AllHallsController? _allHallsController;
+  // Unlike the others, Popular Hotels' controller is app-wide (registered
+  // in main.dart) rather than owned here — a successful Booking made from
+  // any screen marks it stale, so this only needs to track whether *this*
+  // screen has triggered its first load yet.
+  bool _popularEverLoaded = false;
 
   NearbyHotelsController get _nearby => _nearbyController ??=
       NearbyHotelsController(
@@ -78,8 +82,24 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         locationService: const LocationService(),
       )..load();
 
-  PopularHotelsController get _popular =>
-      _popularController ??= PopularHotelsController(_repository)..load();
+  PopularHotelsController get _popular => context.read<PopularHotelsController>();
+
+  // Deliberately not inside the `_popular` getter above: that getter is
+  // also read during build (via `ListenableBuilder(listenable: _popular,
+  // ...)`), and calling `load()` there would call the app-wide
+  // PopularHotelsController's `notifyListeners()` — which now has a live
+  // listener (the ChangeNotifierProvider itself) — synchronously during a
+  // build, which Flutter forbids. This is called instead from the filter
+  // chip's own `onTap`, a plain event handler, exactly the same event
+  // that used to lazily construct+load a screen-local controller before
+  // Popular Hotels became app-wide.
+  void _ensurePopularLoaded() {
+    final controller = context.read<PopularHotelsController>();
+    if (!_popularEverLoaded || controller.isStale) {
+      _popularEverLoaded = true;
+      controller.load();
+    }
+  }
 
   LargeHallsController get _largeHalls =>
       _largeHallsController ??= LargeHallsController(_repository)..load();
@@ -111,7 +131,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     _searchController.dispose();
     _scrollController.dispose();
     _nearbyController?.dispose();
-    _popularController?.dispose();
     _largeHallsController?.dispose();
     _allHallsController?.dispose();
     super.dispose();
@@ -214,7 +233,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         // Category selectors, not navigation destinations —
                         // every tab just switches which section renders
                         // below, in this same Discover screen.
-                        onTap: () => setState(() => _selectedFilter = index),
+                        onTap: () {
+                          setState(() => _selectedFilter = index);
+                          if (index == 1) _ensurePopularLoaded();
+                        },
                       );
                     },
                   ),
@@ -2425,6 +2447,11 @@ class HallDetailScreen extends StatelessWidget {
         MaterialPageRoute(builder: (_) => BookHallScreen(hall: hall)),
       );
       if (booked == true && context.mounted) {
+        // Popular Hotels' ranking is Booking-count-driven — mark it stale
+        // rather than refetch immediately (the Customer isn't looking at
+        // Discover right now), so the next time they actually view that
+        // tab it's never showing pre-Booking data.
+        context.read<PopularHotelsController>().markStale();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(

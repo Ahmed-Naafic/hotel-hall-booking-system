@@ -36,6 +36,8 @@ model User {
   cancelledBookings                        Booking[]                          @relation("CancelledBookings")
   savedHotels                              SavedHotel[]
   reviews                                  Review[]
+  notifications                            Notification[]
+  deviceTokens                             DeviceToken[]
 
   @@map("users")
 }
@@ -143,6 +145,7 @@ model Hotel {
   registeredBy           User                               @relation(fields: [registeredByUserId], references: [id])
   savedBy                SavedHotel[]
   reviews                Review[]
+  notifications          Notification[]
 
   @@index([status], map: "idx_hotels_status")
   @@map("hotels")
@@ -233,6 +236,7 @@ model HotelApplication {
   createdAt       DateTime               @default(now()) @map("created_at")
   decidedBy       User?                  @relation(fields: [decidedByUserId], references: [id])
   hotel           Hotel                  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  notifications   Notification[]
 
   @@index([hotelId], map: "idx_hotel_applications_hotel_id")
   @@map("hotel_applications")
@@ -324,6 +328,7 @@ model Booking {
   paymentVerifiedBy User?   @relation("VerifiedBookingPayments", fields: [paymentVerifiedById], references: [id])
   cancelledBy       User?   @relation("CancelledBookings", fields: [cancelledByUserId], references: [id])
   review            Review?
+  notifications     Notification[]
 
   @@index([customerUserId, createdAt], map: "idx_bookings_customer_created_at")
   @@index([hotelId, status, createdAt], map: "idx_bookings_hotel_status_created_at")
@@ -454,4 +459,80 @@ enum CriticalChangeStatus {
   REJECTED
 
   @@map("critical_change_status")
+}
+
+/// A persisted, user-facing Notification (Notification V1, Module 10 —
+/// Business Specification "Business Rules" #2/#13). Distinct from the
+/// structured-log audit events `bookings/audit.js`/`hotels/audit.js` already
+/// record — this is an owned entity with its own read/unread lifecycle, not
+/// a resurrection of the project-wide "no approved Audit Record entity" gap.
+/// `bookingId`/`hotelId`/`hotelApplicationId` are independent and nullable —
+/// present only so the client can compute a navigation target; the backend
+/// never re-derives a business rule from them.
+model Notification {
+  id                 String             @id @default(uuid()) @db.Uuid
+  recipientUserId    String             @map("recipient_user_id") @db.Uuid
+  type               NotificationType
+  status             NotificationStatus @default(UNREAD)
+  title              String
+  body               String
+  bookingId          String?            @map("booking_id") @db.Uuid
+  hotelId            String?            @map("hotel_id") @db.Uuid
+  hotelApplicationId String?            @map("hotel_application_id") @db.Uuid
+  readAt             DateTime?          @map("read_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  recipient        User              @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  booking          Booking?          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotel            Hotel?            @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  hotelApplication HotelApplication? @relation(fields: [hotelApplicationId], references: [id], onDelete: Cascade)
+
+  @@index([recipientUserId, createdAt], map: "idx_notifications_recipient_created_at")
+  @@index([recipientUserId, status], map: "idx_notifications_recipient_status")
+  @@map("notifications")
+}
+
+enum NotificationType {
+  BOOKING_REQUEST_SUBMITTED
+  BOOKING_CONFIRMED
+  BOOKING_REJECTED
+  BOOKING_CANCELLED
+  PAYMENT_REPORTED
+  PAYMENT_VERIFIED
+  PAYMENT_REJECTED
+  BOOKING_EXPIRED
+  NEW_BOOKING_REQUEST
+  CUSTOMER_PAYMENT_REPORTED
+  CUSTOMER_BOOKING_CANCELLED
+  NEW_HOTEL_APPLICATION
+  HOTEL_APPLICATION_WITHDRAWN
+  HOTEL_APPLICATION_RESUBMITTED
+
+  @@map("notification_type")
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+
+  @@map("notification_status")
+}
+
+/// One registered push-delivery target (Firebase Cloud Messaging, ADR-0001)
+/// per physical device/app-install. `token` is globally unique, not unique
+/// per user — re-registering the same device under a different account
+/// (a shared device, or logout/login as someone else) moves it to the new
+/// owner via upsert-by-token rather than duplicating it under both.
+model DeviceToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  platform  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_device_tokens_user_id")
+  @@map("device_tokens")
 }

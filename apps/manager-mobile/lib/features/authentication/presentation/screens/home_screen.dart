@@ -69,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
             key: _dashboardKey,
             onOpenHotelTab: () => _openTab(1),
             onOpenHallsTab: () => _openTab(2),
+            onOpenBookingsTab: () => _openTab(3),
           ),
           const MyHotelScreen(embedded: true),
           const _HallsTab(),

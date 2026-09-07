@@ -4,6 +4,7 @@ import * as availabilityService from '../availability/availability.service.js'
 import * as hotelEligibility from '../hotels/eligibility.service.js'
 import { lockHallSchedule } from '../availability/hallScheduleLock.js'
 import { recordBookingAudit } from './audit.js'
+import * as notificationEvents from '../notifications/notification.events.js'
 import { BusinessRuleError, ConflictError, NotFoundError } from '../../shared/errors/errorTypes.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -20,15 +21,20 @@ function assertTransition(booking, statuses, message) {
   if (!statuses.includes(booking.status)) throw new ConflictError(message)
 }
 
+/** Notification V1, C8 — one Notification per Booking actually flipped to EXPIRED by this call (never a re-notification of one already expired). */
+function notifyExpired(expiredBookings) {
+  return Promise.all(expiredBookings.map((booking) => notificationEvents.onBookingExpired(booking)))
+}
+
 async function expireAndFindCustomer(id, userId) {
-  await repository.expireOverdue({ customerUserId: userId })
+  await notifyExpired(await repository.expireOverdue({ customerUserId: userId }))
   const booking = await repository.findForCustomer(id, userId)
   if (!booking) throw new NotFoundError('Booking not found.')
   return booking
 }
 
 async function expireAndFindHotel(id, hotelId) {
-  await repository.expireOverdue({ hotelId })
+  await notifyExpired(await repository.expireOverdue({ hotelId }))
   const booking = await repository.findForHotel(id, hotelId)
   if (!booking) throw new NotFoundError('Booking not found.')
   return booking
@@ -71,16 +77,17 @@ export async function createBooking({ customerUserId, hallId, startsAt, endsAt, 
     throw error
   }
   recordBookingAudit('BOOKING_CREATED', { bookingId: booking.id, actorUserId: customerUserId })
+  await notificationEvents.onBookingCreated(booking)
   return booking
 }
 
 export async function listCustomer({ customerUserId, cursor, limit }) {
-  await repository.expireOverdue({ customerUserId })
+  await notifyExpired(await repository.expireOverdue({ customerUserId }))
   return paged(await repository.listForCustomer({ customerUserId, cursor, take: limit + 1 }), limit)
 }
 
 export async function listHotel({ hotelId, status, cursor, limit }) {
-  await repository.expireOverdue({ hotelId })
+  await notifyExpired(await repository.expireOverdue({ hotelId }))
   return paged(await repository.listForHotel({ hotelId, status, cursor, take: limit + 1 }), limit)
 }
 
@@ -99,6 +106,7 @@ export async function reportPayment({ bookingId, customerUserId, amountCents }) 
   if (!['UNPAID', 'REJECTED'].includes(booking.paymentStatus)) throw new ConflictError('A payment report is already active.')
   const updated = await repository.update(booking.id, { paymentStatus: 'CUSTOMER_REPORTED', reportedAmountCents: amountCents, paymentReportedAt: new Date(), paymentRejectionReason: null })
   recordBookingAudit('PAYMENT_REPORTED', { bookingId, actorUserId: customerUserId, details: { amountCents } })
+  await notificationEvents.onPaymentReported(updated)
   return updated
 }
 
@@ -115,6 +123,7 @@ export async function verifyPayment({ bookingId, hotelId, actorUserId, decision,
     ? { paymentStatus: 'PAID', paymentVerifiedAt: new Date(), paymentVerifiedById: actorUserId, paymentRejectionReason: null }
     : { paymentStatus: 'REJECTED', paymentRejectionReason: reason.trim(), paymentVerifiedAt: null, paymentVerifiedById: null })
   recordBookingAudit(verified ? 'PAYMENT_VERIFIED' : 'PAYMENT_REJECTED', { bookingId, actorUserId })
+  await (verified ? notificationEvents.onPaymentVerified(updated) : notificationEvents.onPaymentRejected(updated))
   return updated
 }
 
@@ -164,6 +173,14 @@ export async function transitionHotel({ bookingId, hotelId, actorUserId, action 
   if (action === 'COMPLETED') data.completedAt = now
   const updated = await repository.update(booking.id, data)
   recordBookingAudit(`BOOKING_${action}`, { bookingId, actorUserId })
+  // Notification V1 Catalog: COMPLETED/NO_SHOW have no approved Notification
+  // Catalog entry (Business Specification) — deliberately not notified.
+  const onTransition = {
+    CONFIRMED: notificationEvents.onBookingConfirmed,
+    REJECTED: notificationEvents.onBookingRejected,
+    CANCELLED: notificationEvents.onBookingCancelledByManager,
+  }[action]
+  if (onTransition) await onTransition(updated)
   return updated
 }
 
@@ -172,5 +189,6 @@ export async function cancelCustomer({ bookingId, customerUserId }) {
   assertTransition(booking, ['PENDING', 'CONFIRMED'], 'Booking cannot be cancelled.')
   const updated = await repository.update(booking.id, { status: 'CANCELLED', cancelledAt: new Date(), cancelledByUserId: customerUserId })
   recordBookingAudit('BOOKING_CANCELLED', { bookingId, actorUserId: customerUserId })
+  await notificationEvents.onBookingCancelledByCustomer(updated)
   return updated
 }

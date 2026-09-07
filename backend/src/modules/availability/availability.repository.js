@@ -88,8 +88,19 @@ export async function hasBlockingBookingOverlap({ hallId, startsAt, endsAt, excl
   return match !== null
 }
 
+/**
+ * `updateManyAndReturn`, not `updateMany` — the caller (availability.service.js)
+ * fires the Booking-expired Notification (Notification V1, C8) for each row
+ * actually returned here. This is a genuinely separate lazy-expiration
+ * sweep from `booking.repository.js#expireOverdue` (pre-existing
+ * duplication, not introduced by Notification V1 — see that module's own
+ * Technical Design "Idempotency"), so both must be able to trigger the
+ * Notification; the shared `status: 'PENDING'` guard means only whichever
+ * sweep reaches a given row first can ever match and return it, preventing
+ * a duplicate regardless of which path catches it.
+ */
 export function expireOverdueBookings({ hallId, now }, client) {
-  return db(client).booking.updateMany({
+  return db(client).booking.updateManyAndReturn({
     where: {
       hallId,
       status: 'PENDING',
@@ -97,5 +108,6 @@ export function expireOverdueBookings({ hallId, now }, client) {
       paymentStatus: { not: 'PAID' },
     },
     data: { status: 'EXPIRED' },
+    include: { hall: true, hotel: true },
   })
 }

@@ -12,6 +12,8 @@ import 'package:manager_mobile/features/halls/presentation/screens/hall_list_scr
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
 import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
 import 'package:manager_mobile/features/hotel/presentation/screens/my_hotel_screen.dart';
+import 'package:manager_mobile/features/notifications/application/notification_controller.dart';
+import 'package:manager_mobile/features/notifications/data/notification_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
@@ -58,6 +60,9 @@ Widget _wrap({bool withHotel = true}) {
       ChangeNotifierProvider<AuthController>.value(value: authController),
       ChangeNotifierProvider<HotelContextController>(
         create: (_) => HotelContextController(repository: HotelRepository(apiClient), storage: InMemoryTokenStorage()),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => NotificationController(NotificationRepository(apiClient)),
       ),
     ],
     child: const MaterialApp(home: HomeScreen()),
@@ -174,6 +179,9 @@ void main() {
         ChangeNotifierProvider<HotelContextController>(
           create: (_) => HotelContextController(repository: HotelRepository(apiClient), storage: InMemoryTokenStorage()),
         ),
+        ChangeNotifierProvider(
+          create: (_) => NotificationController(NotificationRepository(apiClient)),
+        ),
       ],
       child: const MaterialApp(home: HomeScreen()),
     ));
@@ -223,6 +231,9 @@ void main() {
           ChangeNotifierProvider<AuthController>.value(value: authController),
           ChangeNotifierProvider<HotelContextController>(
             create: (_) => HotelContextController(repository: HotelRepository(apiClient), storage: InMemoryTokenStorage()),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => NotificationController(NotificationRepository(apiClient)),
           ),
         ],
         child: const MaterialApp(home: HomeScreen()),

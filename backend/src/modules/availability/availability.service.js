@@ -4,6 +4,7 @@ import * as hallService from '../halls/hall.service.js'
 import * as visibilityService from '../halls/visibility.service.js'
 import { recordAuditEvent } from './audit.js'
 import { lockHallSchedule } from './hallScheduleLock.js'
+import * as notificationEvents from '../notifications/notification.events.js'
 import { BusinessRuleError, ConflictError, NotFoundError } from '../../shared/errors/errorTypes.js'
 
 /**
@@ -112,7 +113,22 @@ function isExclusionViolation(error) {
   return error?.code === 'P2039' || pgCode === '23P01'
 }
 
-/** The Availability Query Interface's write-side guard — throws on conflict. */
+/**
+ * The Availability Query Interface's write-side guard — throws on conflict.
+ *
+ * Deliberately does not fire the Booking-expired Notification (C8) for any
+ * row this expires: `client` here is frequently an in-progress
+ * `prisma.$transaction` (block/Booking creation) that can still roll back
+ * for an unrelated reason (e.g. an exclusion-constraint conflict on the
+ * very write this guard is checking for) — a Notification persisted
+ * against the ambient global Prisma client would not roll back with it,
+ * which could announce a Booking as expired when it, in fact, was not.
+ * `isPeriodFree`/`getPublicAvailability` below (never transactional) and
+ * `booking.repository.js#expireOverdue` (covering every ordinary
+ * list/get) all independently sweep the same overdue Bookings, so this
+ * omission only ever delays a correct Notification to the next safe,
+ * non-transactional touch point — it never skips one.
+ */
 export async function assertPeriodIsFree({ hallId, startsAt, endsAt, excludeBlockId, excludeBookingId, client }) {
   await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() }, client)
   const overlapping = await availabilityRepository.hasOverlap(
@@ -131,9 +147,10 @@ export async function assertPeriodIsFree({ hallId, startsAt, endsAt, excludeBloc
   }
 }
 
-/** The Availability Query Interface's read-side check — never throws. */
+/** The Availability Query Interface's read-side check — never throws. Never transactional, so it is safe to notify on any Booking it expires. */
 export async function isPeriodFree({ hallId, startsAt, endsAt, excludeBlockId }) {
-  await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() })
+  const expired = await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() })
+  await Promise.all(expired.map((booking) => notificationEvents.onBookingExpired(booking)))
   const [blockOverlap, bookingOverlap] = await Promise.all([
     availabilityRepository.hasOverlap({ hallId, startsAt, endsAt, excludeId: excludeBlockId }),
     availabilityRepository.hasBlockingBookingOverlap({ hallId, startsAt, endsAt }),
@@ -234,7 +251,8 @@ export async function getPublicAvailability({ hallId, date }) {
     throw new NotFoundError('Hall not found.')
   }
   const { rangeStart, rangeEnd } = mogadishuDayToUtcRange(date)
-  await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() })
+  const expired = await availabilityRepository.expireOverdueBookings({ hallId, now: new Date() })
+  await Promise.all(expired.map((booking) => notificationEvents.onBookingExpired(booking)))
   const [blocks, bookings] = await Promise.all([
     availabilityRepository.listForHallInRange({ hallId, rangeStart, rangeEnd }),
     availabilityRepository.listBlockingBookingsForHallInRange({ hallId, rangeStart, rangeEnd }),

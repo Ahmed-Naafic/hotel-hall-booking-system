@@ -15,6 +15,8 @@ import '../../availability/presentation/screens/book_hall_screen.dart';
 import '../../bookings/data/booking_models.dart';
 import '../../bookings/presentation/screens/booking_history_screen.dart';
 import '../../bookings/presentation/widgets/payment_terms.dart';
+import '../../notifications/application/notification_controller.dart';
+import '../../notifications/presentation/screens/notification_center_screen.dart';
 import '../application/all_halls_controller.dart';
 import '../application/discovery_controller.dart';
 import '../application/large_halls_controller.dart';
@@ -688,6 +690,12 @@ class _TopHeader extends StatelessWidget {
           ),
         ),
         if (auth.status == AuthStatus.authenticated) ...[
+          _NotificationHeaderButton(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+            ),
+          ),
+          const SizedBox(width: 12),
           _HeaderButton(
             icon: Icons.bookmark_border_rounded,
             onTap: () => Navigator.of(context).push(
@@ -723,6 +731,45 @@ class _TopHeader extends StatelessWidget {
             }
           },
         ),
+      ],
+    );
+  }
+}
+
+/// The bell header button, with an unread-count badge sourced from the
+/// app-wide `NotificationController` (never a poll — the count only ever
+/// changes because this screen, or the Notification Center, explicitly
+/// refreshed it).
+class _NotificationHeaderButton extends StatelessWidget {
+  const _NotificationHeaderButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadCount = context.select<NotificationController, int>((c) => c.unreadCount);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        _HeaderButton(icon: Icons.notifications_none_rounded, onTap: onTap),
+        if (unreadCount > 0)
+          Positioned(
+            right: 4,
+            top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: HHColors.danger700,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              constraints: const BoxConstraints(minWidth: 16),
+              child: Text(
+                unreadCount > 99 ? '99+' : '$unreadCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
       ],
     );
   }

@@ -8,6 +8,8 @@ import '../../../hotel/application/hotel_context_controller.dart';
 import '../../../hotel/data/hotel_models.dart';
 import '../../../hotel/data/hotel_repository.dart';
 import '../../../hotel/presentation/widgets/hotel_onboarding.dart';
+import '../../../notifications/application/notification_controller.dart';
+import '../../../notifications/presentation/screens/notification_center_screen.dart';
 
 /// Manager → Home (Dashboard tab). Every value shown here already exists
 /// on a screen elsewhere in the app (`MyHotelScreen`, `HallListScreen`) —
@@ -19,10 +21,12 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     required this.onOpenHotelTab,
     required this.onOpenHallsTab,
+    required this.onOpenBookingsTab,
   });
 
   final VoidCallback onOpenHotelTab;
   final VoidCallback onOpenHallsTab;
+  final VoidCallback onOpenBookingsTab;
 
   @override
   State<DashboardScreen> createState() => DashboardScreenState();
@@ -103,7 +107,13 @@ class DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: HHColors.surfacePage,
-      appBar: AppBar(title: const Text('Dashboard')),
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          _NotificationBellAction(onOpenBookingsTab: widget.onOpenBookingsTab),
+          const SizedBox(width: HHSpacing.space2),
+        ],
+      ),
       body: SafeArea(child: _body(context, hotelContext)),
     );
   }
@@ -208,6 +218,57 @@ class _HallCountCard extends StatelessWidget {
           Icon(Icons.chevron_right, color: HHColors.textSubtle),
         ],
       ),
+    );
+  }
+}
+
+/// Dashboard's bell action, with an unread-count badge sourced from the
+/// app-wide `NotificationController` (never a poll). The Bookings tab
+/// lives inside `HomeScreen`'s `IndexedStack`, not a pushable route, so a
+/// `true` return from Notification Center (a booking-related Notification
+/// was tapped) is what triggers `onOpenBookingsTab` — the same
+/// push-and-react-on-return shape `HomeScreen`/`_HallsTab` already use.
+class _NotificationBellAction extends StatelessWidget {
+  const _NotificationBellAction({required this.onOpenBookingsTab});
+
+  final VoidCallback onOpenBookingsTab;
+
+  Future<void> _open(BuildContext context) async {
+    final goToBookings = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+    );
+    if (goToBookings == true) onOpenBookingsTab();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadCount = context.select<NotificationController, int>((c) => c.unreadCount);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.notifications_none_rounded),
+          onPressed: () => _open(context),
+        ),
+        if (unreadCount > 0)
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: HHColors.danger700,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              constraints: const BoxConstraints(minWidth: 16),
+              child: Text(
+                unreadCount > 99 ? '99+' : '$unreadCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

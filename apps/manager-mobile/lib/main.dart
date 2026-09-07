@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'core/auth_gate.dart';
 import 'features/hotel/application/hotel_context_controller.dart';
 import 'features/hotel/data/hotel_repository.dart';
+import 'features/notifications/application/notification_controller.dart';
+import 'features/notifications/data/notification_repository.dart';
 
 void main() {
   runApp(const ManagerMobileApp());
@@ -43,6 +45,12 @@ class ManagerMobileApp extends StatelessWidget {
             repository: HotelRepository(apiClient),
             storage: const SecureTokenStorage(),
           ),
+        ),
+        // App-wide so the Dashboard's unread badge and the Notification
+        // Center screen always agree — same rationale as Customer Mobile's
+        // own app-wide controllers this session.
+        ChangeNotifierProvider(
+          create: (_) => NotificationController(NotificationRepository(apiClient)),
         ),
       ],
       child: MaterialApp(

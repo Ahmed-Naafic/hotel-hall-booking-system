@@ -8,6 +8,8 @@ import 'package:http/testing.dart';
 import 'package:manager_mobile/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
 import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
+import 'package:manager_mobile/features/notifications/application/notification_controller.dart';
+import 'package:manager_mobile/features/notifications/data/notification_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
@@ -71,6 +73,7 @@ Widget _wrap(
   Future<http.Response> Function(http.Request) handler, {
   VoidCallback? onOpenHotelTab,
   VoidCallback? onOpenHallsTab,
+  VoidCallback? onOpenBookingsTab,
 }) {
   final apiClient = ApiClient(httpClient: MockClient(handler), baseUrl: 'http://test/api/v1');
   final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: InMemoryTokenStorage());
@@ -78,6 +81,7 @@ Widget _wrap(
     providers: [
       Provider<ApiClient>.value(value: apiClient),
       ChangeNotifierProvider<HotelContextController>.value(value: hotelContext),
+      ChangeNotifierProvider(create: (_) => NotificationController(NotificationRepository(apiClient))),
     ],
     child: _Harness(
       hotelContext: hotelContext,
@@ -85,6 +89,7 @@ Widget _wrap(
         home: DashboardScreen(
           onOpenHotelTab: onOpenHotelTab ?? () {},
           onOpenHallsTab: onOpenHallsTab ?? () {},
+          onOpenBookingsTab: onOpenBookingsTab ?? () {},
         ),
       ),
     ),

@@ -2,6 +2,7 @@ import * as applicationRepository from './application.repository.js'
 import * as lifecycleService from './lifecycle.service.js'
 import { recordAuditEvent } from './audit.js'
 import { prisma } from '../../shared/prismaClient.js'
+import * as notificationEvents from '../notifications/notification.events.js'
 import { BusinessRuleError, ConflictError, NotFoundError } from '../../shared/errors/errorTypes.js'
 
 /**
@@ -59,6 +60,9 @@ export async function submitOrResubmitApplication(hotel) {
     actorUserId: hotel.registeredByUserId,
     details: { applicationId: application.id },
   })
+  await (wasRejected
+    ? notificationEvents.onHotelApplicationResubmitted(application, hotel)
+    : notificationEvents.onHotelApplicationSubmitted(application, hotel))
   return application
 }
 
@@ -81,6 +85,7 @@ export async function withdrawApplication(hotel, applicationId) {
     actorUserId: hotel.registeredByUserId,
     details: { applicationId: withdrawn.id },
   })
+  await notificationEvents.onHotelApplicationWithdrawn(withdrawn, hotel)
   return withdrawn
 }
 

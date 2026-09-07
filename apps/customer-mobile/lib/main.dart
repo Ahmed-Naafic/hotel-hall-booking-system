@@ -10,6 +10,8 @@ import 'features/discovery/application/popular_hotels_controller.dart';
 import 'features/discovery/data/discovery_repository.dart';
 import 'features/favorites/application/favorites_controller.dart';
 import 'features/favorites/data/favorites_repository.dart';
+import 'features/notifications/application/notification_controller.dart';
+import 'features/notifications/data/notification_repository.dart';
 
 void main() {
   runApp(const CustomerMobileApp());
@@ -64,6 +66,14 @@ class CustomerMobileApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) => FavoritesController(
             FavoritesRepository(context.read<ApiClient>()),
+          ),
+        ),
+        // App-wide so the unread badge (wherever it's shown) and the
+        // Notification Center screen always agree — same rationale as
+        // PopularHotelsController above.
+        ChangeNotifierProvider(
+          create: (context) => NotificationController(
+            NotificationRepository(context.read<ApiClient>()),
           ),
         ),
       ],

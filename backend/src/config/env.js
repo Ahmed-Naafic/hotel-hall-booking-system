@@ -84,6 +84,23 @@ export const env = {
     },
   },
 
+  // Push notification delivery (Firebase Cloud Messaging, already approved
+  // via ADR-0001 — Notification Management, Module 10, is its first real
+  // consumer) — intentionally NOT read via required(). Absent credentials
+  // are an expected, valid local-development state
+  // (shared/providers/pushProvider.js falls back to MockPushProvider, the
+  // same pattern sms.twilio/storage.supabase above already use); never
+  // hardcode a placeholder value here. A service-account private key (not
+  // the deprecated legacy FCM server key) is the current, correct
+  // credential shape for the Firebase Admin SDK's HTTP v1 API.
+  push: {
+    firebase: {
+      projectId: process.env.FIREBASE_PROJECT_ID || undefined,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL || undefined,
+      privateKey: (process.env.FIREBASE_PRIVATE_KEY || undefined)?.replace(/\\n/g, '\n'),
+    },
+  },
+
   // CORS — Admin Web (BDR-007) is the only approved browser client; the
   // Flutter apps don't go through a browser, so CORS doesn't apply to them.
   // Comma-separated explicit origin allowlist, e.g.

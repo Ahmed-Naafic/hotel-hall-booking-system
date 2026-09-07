@@ -46,10 +46,25 @@ export function update(id, data, client) {
   return db(client).booking.update({ where: { id }, data, include: includeDetails })
 }
 
+/**
+ * `updateManyAndReturn`, not `updateMany` — the caller (booking.service.js)
+ * needs the actually-expired rows, with their Hall/Hotel relations, to fire
+ * the Booking-expired Notification (Notification V1, C8) exactly once per
+ * newly-expired Booking. No separate "was this already notified" flag is
+ * needed: the `status: 'PENDING'` guard below means a row can only ever be
+ * matched and returned by whichever caller's sweep reaches it first, the
+ * same guard every other lifecycle transition in this module already
+ * relies on for idempotency.
+ *
+ * Deliberately `{ hall: true, hotel: true }`, not the full `includeDetails`
+ * — Prisma's `updateManyAndReturn` output type only supports a row's own
+ * forward relations, never a one-to-one back-relation like `review`.
+ */
 export function expireOverdue(where, now = new Date(), client) {
-  return db(client).booking.updateMany({
+  return db(client).booking.updateManyAndReturn({
     where: { ...where, status: 'PENDING', paymentDeadlineAt: { lte: now }, paymentStatus: { not: 'PAID' } },
     data: { status: 'EXPIRED' },
+    include: { hall: true, hotel: true },
   })
 }
 

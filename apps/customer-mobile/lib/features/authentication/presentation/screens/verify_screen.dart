@@ -3,6 +3,9 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/push_notification_service.dart';
+import '../../../notifications/application/notification_controller.dart';
+
 /// C3 — mobile-number verification. Rendered by `AuthGate` whenever the
 /// authenticated user's `isVerified` is `false` — never a separate route
 /// pushed onto the stack, so there is nothing to navigate back out of.
@@ -57,7 +60,17 @@ class VerifyScreen extends StatelessWidget {
               const SizedBox(height: HHSpacing.space6),
               Center(
                 child: TextButton(
-                  onPressed: auth.logout,
+                  onPressed: () async {
+                    // Best-effort — unregister this device's push token
+                    // before the session that authorized it goes away, so
+                    // a shared device never keeps receiving this account's
+                    // notifications after logging out.
+                    final token = await PushNotificationService.instance.getToken();
+                    if (context.mounted) {
+                      await context.read<NotificationController>().unregisterDeviceToken(token);
+                    }
+                    await auth.logout();
+                  },
                   child: const Text('Log out'),
                 ),
               ),

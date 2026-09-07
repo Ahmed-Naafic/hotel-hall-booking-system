@@ -60,6 +60,13 @@ dependencies:
   # this package directly.
   geolocator: ^13.0.2
 
+  # Push notification delivery (Notification V1, ADR-0001 — Firebase Cloud
+  # Messaging is the platform's approved provider). Isolated behind
+  # lib/core/push_notification_service.dart so the rest of the app never
+  # calls the Firebase SDK directly.
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

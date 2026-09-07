@@ -77,4 +77,26 @@ class NotificationController extends ChangeNotifier {
     unreadCount = 0;
     notifyListeners();
   }
+
+  /// Best-effort — a device without a real FCM token (Firebase not yet
+  /// configured, or the platform declined one) has nothing to register;
+  /// this is not an app-facing error either way (Business Specification,
+  /// push is a delivery mechanism, never a precondition).
+  Future<void> registerDeviceToken(String? token) async {
+    if (token == null) return;
+    try {
+      await _repository.registerDeviceToken(token);
+    } on Object {
+      // Best-effort — see doc comment.
+    }
+  }
+
+  Future<void> unregisterDeviceToken(String? token) async {
+    if (token == null) return;
+    try {
+      await _repository.unregisterDeviceToken(token);
+    } on Object {
+      // Best-effort — see doc comment.
+    }
+  }
 }

@@ -39,4 +39,13 @@ class NotificationRepository {
   }
 
   Future<void> markAllRead() => _client.post('/notifications/read-all');
+
+  Future<void> registerDeviceToken(String token, {String? platform}) =>
+      _client.put('/notifications/device-tokens', body: {'token': token, if (platform != null) 'platform': platform});
+
+  /// `token` goes as a query parameter, not a URL path segment or a
+  /// request body — an FCM token's character set is not guaranteed
+  /// URL-path-safe, and `ApiClient.delete` doesn't support a body.
+  Future<void> unregisterDeviceToken(String token) =>
+      _client.delete('/notifications/device-tokens?token=${Uri.encodeQueryComponent(token)}');
 }

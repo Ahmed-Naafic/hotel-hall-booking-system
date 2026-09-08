@@ -1,4 +1,5 @@
-import admin from 'firebase-admin'
+import { cert, initializeApp } from 'firebase-admin/app'
+import { getMessaging } from 'firebase-admin/messaging'
 import { logger } from '../../config/logger.js'
 
 /**
@@ -17,10 +18,7 @@ import { logger } from '../../config/logger.js'
  */
 export class FcmPushProvider {
   constructor({ projectId, clientEmail, privateKey }) {
-    this.app = admin.initializeApp(
-      { credential: admin.credential.cert({ projectId, clientEmail, privateKey }) },
-      'notifications',
-    )
+    this.app = initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) }, 'notifications')
   }
 
   async sendPush({ deviceToken, title, body, data }) {
@@ -28,7 +26,7 @@ export class FcmPushProvider {
       const stringData = data
         ? Object.fromEntries(Object.entries(data).map(([key, value]) => [key, String(value)]))
         : undefined
-      const messageId = await admin.messaging(this.app).send({
+      const messageId = await getMessaging(this.app).send({
         token: deviceToken,
         notification: { title, body },
         data: stringData,

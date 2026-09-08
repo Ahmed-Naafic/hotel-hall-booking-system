@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
@@ -73,5 +74,37 @@ class NotificationController extends ChangeNotifier {
     notifications = [for (final n in notifications) n.copyWith(status: 'READ', readAt: DateTime.now())];
     unreadCount = 0;
     notifyListeners();
+  }
+
+  /// Best-effort — a device without a real FCM token (Firebase not yet
+  /// configured, or the platform declined one) has nothing to register;
+  /// this is not an app-facing error either way (Business Specification,
+  /// push is a delivery mechanism, never a precondition).
+  Future<void> registerDeviceToken(String? token) async {
+    if (token == null) return;
+    try {
+      await _repository.registerDeviceToken(token, platform: _currentPlatform());
+    } on Object {
+      // Best-effort — see doc comment.
+    }
+  }
+
+  /// Only Android is a real, configured target today (this app has no iOS
+  /// Firebase configuration yet — `firebase_options.dart`'s own doc
+  /// comment) — `null` on any other platform rather than guessing a value
+  /// nothing here actually supports.
+  String? _currentPlatform() {
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isIOS) return 'ios';
+    return null;
+  }
+
+  Future<void> unregisterDeviceToken(String? token) async {
+    if (token == null) return;
+    try {
+      await _repository.unregisterDeviceToken(token);
+    } on Object {
+      // Best-effort — see doc comment.
+    }
   }
 }

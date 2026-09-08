@@ -2,7 +2,7 @@
 title: "Notification Management — Implementation Plan (Notification V1)"
 document_type: Implementation Planning
 module: 10-communication-and-notification-management
-status: In Progress (Customer Mobile Android FCM configured; see "FCM Configuration Required Later")
+status: Done — FCM configured end-to-end (backend + Customer Mobile Android + Manager Mobile Android); see "FCM Configuration Required Later" for what remains (iOS)
 owner: Engineering
 reviewer: Approved by stakeholder
 depends_on: ["docs/05-technical-design/modules/10-communication-and-notification-management/technical-design.md"]
@@ -84,24 +84,82 @@ Gradle project and the Flutter pub cache live on different drive letters (this m
 project, `C:` pub cache) — `kotlin.incremental=false` added to Customer Mobile's
 `android/gradle.properties` works around it (full recompiles only, never incorrect output).
 
+**Done (2026-09-07, later same day):** Backend now has real Firebase service-account
+credentials (`FIREBASE_PROJECT_ID`/`CLIENT_EMAIL`/`PRIVATE_KEY` in `.env`, gitignored; the raw
+downloaded `hotel-hall-booking-sys-firebase-adminsdk-*.json` is also gitignored) —
+`FcmPushProvider` is active and confirmed sending real pushes. This surfaced and fixed a real
+bug in `fcmPushProvider.js`: it used the pre-v12 `admin.credential.cert(...)` /
+`admin.messaging()` namespaced API, which does not exist on `firebase-admin` v14.3.0's ESM
+default export (`admin.credential` was `undefined`, crashing the server at startup the moment
+real credentials were supplied) — fixed to use the modular API (`cert`/`initializeApp` from
+`firebase-admin/app`, `getMessaging` from `firebase-admin/messaging`).
+
+Manager Mobile's Android app is now fully wired the same way Customer Mobile's is:
+`firebase_core`/`firebase_messaging` dependencies, the `com.google.gms.google-services`
+Gradle plugin, `lib/firebase_options.dart` (hand-written from its `google-services.json`,
+which already had both apps' entries — the Firebase-console registration step had been done
+ahead of the client wiring), `lib/core/push_notification_service.dart`, device-token
+registration in `AuthGate` and unregistration in `ProfileScreen`'s logout (Manager Mobile's
+only reachable logout site — it has no `VerifyScreen`-based logout path). Its
+`NotificationController`/`NotificationRepository` were missing the
+`registerDeviceToken`/`unregisterDeviceToken` methods Customer Mobile's already had; added to
+match. `kotlin.incremental=false` was already present in its `gradle.properties` from an
+earlier fix.
+
+Also found and fixed the actual reason no push notification was ever visible on a real device
+even with everything above correctly wired: **Android 13+ (API 33+) blocks all notifications
+for an app until it is granted the runtime `POST_NOTIFICATIONS` permission**, and neither app
+declared it or requested it. Added `<uses-permission
+android:name="android.permission.POST_NOTIFICATIONS"/>` to both apps'
+`AndroidManifest.xml` and `await FirebaseMessaging.instance.requestPermission();` to both
+apps' `PushNotificationService.initialize()`. Confirmed via `adb shell dumpsys notification`
+that Customer Mobile's per-app setting changed from `importance=NONE` to `importance=DEFAULT,
+userSet=true` after reinstalling. Confirmed end-to-end on a physical device for both the
+Customer role (`BOOKING_REQUEST_SUBMITTED`) and the Hotel Manager role (`NEW_BOOKING_REQUEST`,
+`CUSTOMER_BOOKING_CANCELLED`) once each account had a registered device token.
+
+**Done (2026-09-08), delivery-mechanics hardening pass** (prompted by "implement whatever
+needs push notification in the entire code" — an audit of the delivery path itself, not the
+event catalog, which was already complete at 14/14):
+
+- **Dead-token cleanup.** `notification.service.js#deliverPush` now prunes a `DeviceToken`
+  row when `admin.messaging()` reports the token itself is permanently gone
+  (`messaging/registration-token-not-registered`, `.../invalid-registration-token`,
+  `.../invalid-argument`) — otherwise a reinstalled/uninstalled device's dead token would fail
+  forever on every future Notification for that recipient. Any other failure (quota, network,
+  transient) leaves the token in place. `MockPushProvider.failNextSend(code)` now accepts an
+  optional FCM-style error code and wraps its thrown error the same way `FcmPushProvider` does
+  (`Error('Push delivery failed.', { cause })`) — the two were inconsistent before this pass,
+  which would have made the cleanup logic untestable against the mock. Two new integration
+  tests cover both branches.
+- **Token-refresh handling.** Neither app previously listened for
+  `FirebaseMessaging.instance.onTokenRefresh` — a rotated token (reinstall, cleared app data,
+  a security-driven rotation) would silently stop receiving push until the next cold start
+  happened to call `getToken()` again on its own. Both apps' `PushNotificationService` now
+  expose an `onTokenRefreshed` stream; `AuthGate` subscribes and re-registers.
+- **Tap-to-navigate from background/terminated state.** Previously documented as not
+  implemented ("needs a global `navigatorKey`"). Solved without one: `PushNotificationService`
+  exposes `onNotificationTapped` (warm tap) and `consumeInitialTap()` (cold-start tap);
+  `AuthGate` — already the app's root routing decision — subscribes/checks these using its own
+  `State`'s `BuildContext` (which sits directly inside `MaterialApp`'s Navigator) and pushes
+  the existing `NotificationCenterScreen`, reusing its already-correct per-Notification
+  tap-to-navigate/mark-read behavior rather than resolving a route a second time elsewhere.
+- **`platform` field.** Was always stored `null` — neither app's `NotificationController`
+  passed it. Both now send `'android'`/`'ios'` via `dart:io Platform`.
+
 **Still pending (developer action):**
 
-1. Generate a service-account credential for `hotel-hall-booking-sys` (Firebase Console →
-   Project Settings → Service Accounts → Generate new private key) and set, server-side
-   only, never committed: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
-   `FIREBASE_PRIVATE_KEY` — this is what turns on `FcmPushProvider` on the backend; nothing
-   client-side needs it.
-2. Register Manager Mobile as a second Android app in the same Firebase project
-   (`com.hotelhallbooking.manager_mobile`), download its own `google-services.json`, and
-   repeat this same wiring for that app (plugin in its `settings.gradle.kts`/
-   `build.gradle.kts`, its own `lib/firebase_options.dart`, the same
-   `kotlin.incremental=false` workaround).
-3. Register an iOS app for each Flutter app if/when iOS is targeted, and add the resulting
+1. Register an iOS app for each Flutter app if/when iOS is targeted, and add the resulting
    `GoogleService-Info.plist` + iOS entries in each `firebase_options.dart`.
-4. Add `backend/scripts/testEnv.js`'s three Firebase variables to its forced-empty list
+2. Add `backend/scripts/testEnv.js`'s three Firebase variables to its forced-empty list
    (mirroring the existing Supabase override) so automated tests keep using
    `MockPushProvider` even after real credentials exist in `.env` — **already done**, no
    further action needed here.
+3. Cosmetic only: neither app declares a `default_notification_icon`/`default_notification_color`
+   meta-data in `AndroidManifest.xml`, so FCM falls back to the full-color launcher icon as the
+   status-bar icon, which Android may render as a plain white silhouette on some versions. Not
+   implemented here — it needs a real monochrome icon asset (a design deliverable), not just
+   wiring; a placeholder would look worse than the current fallback.
 
 ## Rollout Note
 

@@ -6,6 +6,8 @@ import 'package:http/testing.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/profile_screen.dart';
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
 import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
+import 'package:manager_mobile/features/notifications/application/notification_controller.dart';
+import 'package:manager_mobile/features/notifications/data/notification_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
@@ -35,6 +37,7 @@ Widget _wrap({
     providers: [
       ChangeNotifierProvider<AuthController>.value(value: auth),
       ChangeNotifierProvider<HotelContextController>.value(value: hotelContext),
+      ChangeNotifierProvider(create: (_) => NotificationController(NotificationRepository(apiClient))),
     ],
     child: const MaterialApp(home: ProfileScreen()),
   );

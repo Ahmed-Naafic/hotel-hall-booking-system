@@ -51,6 +51,10 @@ dependencies:
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
 
+  # Notification V1 (ADR-0001) — same versions as apps/customer-mobile.
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

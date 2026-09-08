@@ -4,7 +4,9 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/presentation/manager_formatters.dart';
+import '../../../../core/push_notification_service.dart';
 import '../../../hotel/application/hotel_context_controller.dart';
+import '../../../notifications/application/notification_controller.dart';
 
 /// Manager → Account — a standalone pushed screen (never a bottom-nav tab;
 /// this app has no bottom navigation, `folder-structure.md`'s approved nav
@@ -17,6 +19,13 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _logout(BuildContext context) async {
     final auth = context.read<AuthController>();
     final hotelContext = context.read<HotelContextController>();
+    // Best-effort — unregister this device's push token before the session
+    // that authorized it goes away, so a shared device never keeps
+    // receiving this account's notifications after logging out.
+    final token = await PushNotificationService.instance.getToken();
+    if (context.mounted) {
+      await context.read<NotificationController>().unregisterDeviceToken(token);
+    }
     await auth.logout();
     await hotelContext.clearOnLogout();
   }

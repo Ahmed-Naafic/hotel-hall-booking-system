@@ -4,3 +4,8 @@ node_modules
 
 /src/generated/prisma
 /logs
+
+# Firebase service-account key — its contents are already extracted into
+# .env (FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY); never commit the raw
+# download.
+*firebase-adminsdk*.json

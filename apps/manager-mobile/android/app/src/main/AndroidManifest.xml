@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Notification V1 (ADR-0001) — Android 13+ (API 33+) blocks all
+         notifications for an app until this is declared and the runtime
+         prompt (PushNotificationService.initialize()) is granted. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="manager_mobile"
         android:name="${applicationName}"

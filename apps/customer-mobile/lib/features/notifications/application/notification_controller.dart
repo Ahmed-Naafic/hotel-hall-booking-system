@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
@@ -85,10 +86,20 @@ class NotificationController extends ChangeNotifier {
   Future<void> registerDeviceToken(String? token) async {
     if (token == null) return;
     try {
-      await _repository.registerDeviceToken(token);
+      await _repository.registerDeviceToken(token, platform: _currentPlatform());
     } on Object {
       // Best-effort — see doc comment.
     }
+  }
+
+  /// Only Android is a real, configured target today (this app has no iOS
+  /// Firebase configuration yet — `firebase_options.dart`'s own doc
+  /// comment) — `null` on any other platform rather than guessing a value
+  /// nothing here actually supports.
+  String? _currentPlatform() {
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isIOS) return 'ios';
+    return null;
   }
 
   Future<void> unregisterDeviceToken(String? token) async {

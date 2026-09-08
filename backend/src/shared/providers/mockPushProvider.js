@@ -14,13 +14,23 @@ export class MockPushProvider {
   constructor() {
     this.sentPushes = []
     this._failNextSend = false
+    this._nextFailureCode = undefined
   }
 
   async sendPush({ deviceToken, title, body, data }) {
     if (this._failNextSend) {
       this._failNextSend = false
-      logger.warn('[MockPushProvider] Simulated push delivery failure', { deviceToken })
-      throw new Error('Simulated push delivery failure.')
+      const code = this._nextFailureCode
+      this._nextFailureCode = undefined
+      logger.warn('[MockPushProvider] Simulated push delivery failure', { deviceToken, code })
+      // Mirrors FcmPushProvider's own failure shape exactly (a generic
+      // message wrapping the real cause — coding-standards.md §9, no
+      // internal-implementation leakage) so callers that branch on
+      // `err.cause?.code` (e.g. dead-token pruning) behave identically
+      // against Mock and real FCM.
+      const cause = new Error('Simulated push delivery failure.')
+      if (code) cause.code = code
+      throw new Error('Push delivery failed.', { cause })
     }
     const push = { deviceToken, title, body, data, sentAt: new Date() }
     this.sentPushes.push(push)
@@ -35,14 +45,19 @@ export class MockPushProvider {
     return [...this.sentPushes].reverse().find((push) => push.deviceToken === deviceToken)
   }
 
-  /** Test helper — makes the next `sendPush()` call reject. */
-  failNextSend() {
+  /** Test helper — makes the next `sendPush()` call reject, optionally
+   *  with a specific FCM-style error `code` (e.g.
+   *  'messaging/registration-token-not-registered') carried on the
+   *  wrapped error's `.cause`. */
+  failNextSend(code) {
     this._failNextSend = true
+    this._nextFailureCode = code
   }
 
   /** Test helper — clears state between test runs. */
   reset() {
     this.sentPushes = []
     this._failNextSend = false
+    this._nextFailureCode = undefined
   }
 }

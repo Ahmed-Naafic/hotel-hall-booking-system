@@ -3,6 +3,10 @@
          when the Customer opens Nearby Hotels, never on app start. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Notification V1 (ADR-0001) — Android 13+ (API 33+) blocks all
+         notifications for an app until this is declared and the runtime
+         prompt (PushNotificationService.initialize()) is granted. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="customer_mobile"
         android:name="${applicationName}"

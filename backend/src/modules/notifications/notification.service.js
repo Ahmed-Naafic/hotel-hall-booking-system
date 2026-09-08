@@ -23,23 +23,43 @@ export async function notify({ recipientUserId, type, title, body, bookingId, ho
   return notification
 }
 
+/** FCM error codes meaning the token itself is permanently dead (uninstalled,
+ *  cleared app data, or never valid) — see admin.messaging()'s documented
+ *  error codes. Any other failure (network, quota, malformed payload) leaves
+ *  the token in place: it may well still be good next time. */
+const DEAD_TOKEN_ERROR_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+  'messaging/invalid-argument',
+])
+
 async function deliverPush(notification) {
   const tokens = await repository.listDeviceTokensForUser(notification.recipientUserId)
   await Promise.all(
-    tokens.map((deviceToken) =>
-      pushProvider.sendPush({
-        deviceToken: deviceToken.token,
-        title: notification.title,
-        body: notification.body,
-        data: {
-          notificationId: notification.id,
-          type: notification.type,
-          ...(notification.bookingId ? { bookingId: notification.bookingId } : {}),
-          ...(notification.hotelId ? { hotelId: notification.hotelId } : {}),
-          ...(notification.hotelApplicationId ? { hotelApplicationId: notification.hotelApplicationId } : {}),
-        },
-      }),
-    ),
+    tokens.map(async (deviceToken) => {
+      try {
+        await pushProvider.sendPush({
+          deviceToken: deviceToken.token,
+          title: notification.title,
+          body: notification.body,
+          data: {
+            notificationId: notification.id,
+            type: notification.type,
+            ...(notification.bookingId ? { bookingId: notification.bookingId } : {}),
+            ...(notification.hotelId ? { hotelId: notification.hotelId } : {}),
+            ...(notification.hotelApplicationId ? { hotelApplicationId: notification.hotelApplicationId } : {}),
+          },
+        })
+      } catch (err) {
+        // A dead token will fail forever otherwise, growing the fan-out on
+        // every future Notification for this recipient — prune it, but only
+        // for the specific error that actually means "this token is gone."
+        if (DEAD_TOKEN_ERROR_CODES.has(err.cause?.code)) {
+          await repository.deleteDeviceToken(deviceToken.token)
+        }
+        throw err
+      }
+    }),
   )
 }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
@@ -5,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../features/discovery/presentation/discover_screen.dart';
 import '../features/notifications/application/notification_controller.dart';
+import '../features/notifications/presentation/screens/notification_center_screen.dart';
 import 'push_notification_service.dart';
 
 /// Root routing decision: which screen the app shows for the current
@@ -20,14 +23,43 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   bool _deviceTokenRegistered = false;
+  StreamSubscription<String>? _tokenRefreshSubscription;
+  StreamSubscription<void>? _tapSubscription;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthController>().restoreSession();
-      PushNotificationService.instance.initialize();
+    final authController = context.read<AuthController>();
+    final notificationController = context.read<NotificationController>();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      authController.restoreSession();
+      await PushNotificationService.instance.initialize();
+      _tokenRefreshSubscription = PushNotificationService.instance.onTokenRefreshed.listen((token) {
+        notificationController.registerDeviceToken(token);
+      });
+      _tapSubscription = PushNotificationService.instance.onNotificationTapped.listen((_) {
+        if (mounted) _openNotificationCenter();
+      });
+      if (await PushNotificationService.instance.consumeInitialTap() && mounted) {
+        _openNotificationCenter();
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _tokenRefreshSubscription?.cancel();
+    _tapSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Both a tapped background/foreground notification ([onNotificationTapped])
+  /// and a tapped cold-start one ([consumeInitialTap]) land here — reusing
+  /// the Notification Center's own existing tap-to-navigate behavior
+  /// (Business Specification, Rule: tap-to-navigate) rather than resolving
+  /// a route per Notification type a second time in a different place.
+  void _openNotificationCenter() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationCenterScreen()));
   }
 
   /// Registers this device's FCM token once per authenticated session —

@@ -25,6 +25,21 @@ function uniqueMobileNumber() {
   return `+1${suffix}`
 }
 
+/** Polls `read()` until `isDone()` accepts its result, or gives up after
+ *  ~5s and returns the last value anyway (letting the caller's own assert
+ *  produce the failure message) — for asserting on a fire-and-forget
+ *  side effect (push delivery) whose completion the HTTP response doesn't
+ *  wait for. */
+async function pollUntil(read, isDone, { timeoutMs = 5000, intervalMs = 100 } = {}) {
+  const deadline = Date.now() + timeoutMs
+  let value = await read()
+  while (!isDone(value) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    value = await read()
+  }
+  return value
+}
+
 async function post(path, body, headers = {}) {
   const res = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
@@ -93,7 +108,9 @@ afterEach(async () => {
 async function registerAndLogin(accountType) {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
-  await post('/api/v1/auth/register', { mobileNumber, password, accountType })
+  // BDR-018: Full Name is required at registration for a CUSTOMER account only.
+  const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : undefined
+  await post('/api/v1/auth/register', { mobileNumber, password, accountType, fullName })
   const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
   createdUserIds.push(loginRes.body.data.user.id)
   return loginRes.body.data
@@ -448,6 +465,69 @@ describe('Push delivery failure handling', () => {
     const list = await notificationsFor(customer.accessToken)
     createdNotificationIds.push(...list.body.data.map((n) => n.id))
     assert.ok(list.body.data.some((n) => n.bookingId === created.body.data.id), 'the Notification must exist even though its push delivery failed')
+  })
+
+  test('a dead-token error (registration-token-not-registered) prunes that DeviceToken', async () => {
+    const customer = await registerVerifiedCustomer()
+    const deadToken = `dead-device-${uniqueMobileNumber()}`
+    const res = await fetch(`${baseUrl}/api/v1/notifications/device-tokens`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeader(customer.accessToken) },
+      body: JSON.stringify({ token: deadToken }),
+    })
+    assert.equal(res.status, 200)
+    pushProvider.failNextSend('messaging/registration-token-not-registered')
+
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const hotelId = await createApprovedHotel(manager.accessToken)
+    const hall = await createHall(hotelId)
+    const { startsAt, endsAt } = futureRange()
+    const created = await post('/api/v1/bookings', { hallId: hall.id, startsAt, endsAt, numberOfGuests: 10, eventType: 'OTHER' }, authHeader(customer.accessToken))
+    createdBookingIds.push(created.body.data.id)
+
+    // deliverPush (and the token-deletion inside it) is fire-and-forget from
+    // the booking-creation response's point of view — poll rather than a
+    // fixed sleep, since this environment's shared dev DB has shown highly
+    // variable latency (individual writes have taken 10s of seconds under
+    // load elsewhere in this same suite).
+    const remaining = await pollUntil(
+      () => prisma.deviceToken.findMany({ where: { userId: customer.user.id } }),
+      (rows) => rows.some((t) => t.token === deadToken) === false,
+    )
+    assert.equal(remaining.some((t) => t.token === deadToken), false, 'a dead-token error must delete that DeviceToken row')
+
+    const list = await notificationsFor(customer.accessToken)
+    createdNotificationIds.push(...list.body.data.map((n) => n.id))
+  })
+
+  test('a non-dead-token failure (e.g. quota-exceeded) leaves the DeviceToken in place', async () => {
+    const customer = await registerVerifiedCustomer()
+    const flakyToken = `flaky-device-${uniqueMobileNumber()}`
+    const res = await fetch(`${baseUrl}/api/v1/notifications/device-tokens`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeader(customer.accessToken) },
+      body: JSON.stringify({ token: flakyToken }),
+    })
+    assert.equal(res.status, 200)
+    pushProvider.failNextSend('messaging/quota-exceeded')
+
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const hotelId = await createApprovedHotel(manager.accessToken)
+    const hall = await createHall(hotelId)
+    const { startsAt, endsAt } = futureRange()
+    const created = await post('/api/v1/bookings', { hallId: hall.id, startsAt, endsAt, numberOfGuests: 10, eventType: 'OTHER' }, authHeader(customer.accessToken))
+    createdBookingIds.push(created.body.data.id)
+
+    // Asserting an absence of a side effect can't be polled for the side
+    // effect itself — give deliverPush the same generous budget as the
+    // dead-token test's poll timeout to actually finish running first.
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    const remaining = await prisma.deviceToken.findMany({ where: { userId: customer.user.id } })
+    assert.equal(remaining.some((t) => t.token === flakyToken), true, 'a non-dead-token failure must leave the DeviceToken row in place')
+
+    const list = await notificationsFor(customer.accessToken)
+    createdNotificationIds.push(...list.body.data.map((n) => n.id))
   })
 })
 

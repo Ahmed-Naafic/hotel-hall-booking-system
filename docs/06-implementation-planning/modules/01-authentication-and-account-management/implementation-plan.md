@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/folder-structure.md", "docs/03-standards/coding-standards.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/03-standards/testing-standards.md", "docs/03-standards/git-workflow-and-branching.md"]
-version: 1.9
-last_updated: 2026-08-25
+version: 1.10
+last_updated: 2026-09-08
 ---
 
 # Authentication & Account Management — Implementation Plan
@@ -443,6 +443,7 @@ be authored before that phase begins in earnest.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.10 | 2026-09-08 | Ahmed | **Post-completion amendment, `BDR-018`.** `POST /api/v1/auth/register` (WBS-08's endpoint) now requires `fullName` for a `CUSTOMER` registration, and creates the CustomerProfile (Customer Management, Module 2) in the same database transaction as the User Account — Technical Design v1.11 documents the change and its rationale (registration collecting a name is now needed so a Hotel Manager can identify a Booking's Customer). No WBS task is reopened; this is additive behavior on an already-`Done` endpoint, the same category of change §9 anticipates ("updated if implementation reveals a gap either document didn't anticipate"). `FE-03` (Customer Mobile Register/Verify) gains a Full Name field; `FE-06` (Hotel Manager Register/Login, which shares `FE-03`'s components) is unaffected — `BDR-018` is Customer-only. |
 | 1.9 | 2026-08-25 | Ahmed | `FE-00` (shared Flutter design-token package) marked Done — `shared/flutter_design_tokens/`, ports `Hotel Hall Design System/tokens/*.css` in full, consumed by both `apps/customer-mobile` and `apps/manager-mobile` via a path dependency, theme applied in both apps' `MaterialApp`. Prioritized ahead of `FE-03`–`FE-07` specifically to resolve a blocker Hall Management's (Module 4) own Development phase surfaced — no Hall Management screens are built by this task. §3.1 and §5 updated accordingly. |
 | 1.7 | 2026-08-04 | Ahmed | §3.1 (`FE-00`–`FE-07`) reviewed and approved by Mohamed — status changed from "proposed, pending review" to `Approved`, matching Technical Design §18. Scope only; still no Flutter/React code. |
 | 1.8 | 2026-08-04 | Ahmed | `FE-01` and `FE-02` marked Done — implemented on `feature/authentication-admin-web-ui`, manually verified end-to-end against the real backend (login, change password, logout). §3, §5 updated accordingly. `FE-00`, `FE-03`–`FE-07` remain not yet built. |

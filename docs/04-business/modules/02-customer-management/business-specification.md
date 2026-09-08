@@ -6,8 +6,8 @@ module_id: M02
 status: Draft
 owner: Ahmed
 reviewer: TBD
-version: 1.0
-last_updated: 2026-08-30
+version: 1.1
+last_updated: 2026-09-08
 depends_on: ["docs/Project-Overview.md", "docs/Project-Glossary.md", "docs/04-business/business-decision-register.md", "docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/04-business/modules/03-hotel-management/business-specification.md", "docs/04-business/modules/04-hall-management/business-specification.md"]
 ---
 
@@ -20,7 +20,7 @@ depends_on: ["docs/Project-Overview.md", "docs/Project-Glossary.md", "docs/04-bu
 | Module | Customer Management |
 | Module ID | M02 |
 | Document Type | Business Specification |
-| Version | 1.0 |
+| Version | 1.1 |
 | Status | Draft |
 | Business Owner | Ahmed |
 | Reviewer | TBD |
@@ -249,6 +249,10 @@ Customer Management owns the Customer's business profile.
 
 The exact required and optional profile fields must be explicitly defined and approved before
 implementation.
+
+**Full Name is required (`BDR-018`), collected at registration alongside mobile number and
+password.** No other field is required — every other candidate remains subject to `BDR-CUST-01`/
+`BDR-CUST-02` and must not be treated as required until separately approved.
 
 The module should distinguish between:
 
@@ -545,16 +549,19 @@ Management respectively.
 
 ### BDR-CUST-01 — Required Customer Profile Information
 
-What information must a Customer provide?
+**Partially resolved by `BDR-018` (2026-09-08): Full Name is required, collected at registration.**
+Every other candidate field below remains genuinely pending — `BDR-018` approved only Full Name,
+not a general answer to this question.
+
+What other information must a Customer provide?
 
 Potential categories may include:
 
-- Name.
-- Contact information.
+- Contact information (beyond mobile number, already required by Module 1).
 - Email.
 - Other Customer-specific information.
 
-The actual required fields must be explicitly approved.
+Any further required field must be explicitly approved the same way.
 
 ### BDR-CUST-02 — Optional Customer Information
 
@@ -707,3 +714,36 @@ Booking Management
 
 Authentication identifies the person. Customer Management manages the Customer. Hotel/Hall
 Management provide inventory. Booking Management manages the transaction.
+
+---
+
+## 25. V1 Delivered Scope (Implementation Note)
+
+This section records what has actually shipped against the design above, without altering
+the approved design itself. It exists so this document stays useful as a status reference
+without being confused with the forward design in §1–§24.
+
+- **Customer profile existence.** A Customer can create and view a profile record tied to
+  their authenticated account (`GET/POST/PATCH /customers/me`, `/customers/me/profile`).
+  **`BDR-018` (2026-09-08) approved `fullName` as the first named profile field** — every
+  other candidate under `BDR-CUST-01`/`BDR-CUST-02` remains genuinely unresolved, so
+  `profileData` accepts only `fullName` today. A Customer registration now creates this
+  profile automatically, with the Full Name collected at registration (Authentication &
+  Account Management, `BR-AUTH-02`) — a Customer no longer needs a separate "Create Profile"
+  step to have one. An account registered before `BDR-018` may still have no profile, or a
+  profile with no `fullName`; the Customer Mobile app lets that Customer set one from "My
+  Profile" without treating it as an error state.
+- **Profile completion signal.** `readiness.isComplete` and `readiness.missingRequiredFields`
+  are `null` until BDR-CUST-03 (Profile Completion Requirement) is resolved — §11's
+  distinction between complete/incomplete profiles is not yet computable.
+- **Favorites (Saved Hotels) — delivered, not in the original design above.** A Customer may
+  bookmark and unbookmark a Hotel (`GET/PUT/DELETE /favorites/hotels[...]`) and view their
+  saved list on Customer Mobile. This is a personal bookmark, not a business rule or
+  eligibility check (see `docs/05-technical-design/modules/02-customer-management/technical-design.md`)
+  — it was added as natural Customer-facing functionality per §2 Objective 8, and should be
+  folded into a future revision of this document's formal scope (§3.1) rather than treated as
+  an undocumented addition indefinitely.
+
+See `docs/05-technical-design/modules/02-customer-management/technical-design.md` and
+`docs/06-implementation-planning/modules/02-customer-management/implementation-plan.md` for
+the delivered technical shape.

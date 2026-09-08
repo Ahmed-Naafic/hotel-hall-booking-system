@@ -8,13 +8,13 @@ import { BusinessRuleError } from '../../shared/errors/errorTypes.js'
  * verifies a credential itself (Credential Component's job).
  */
 
-export async function registerIdentity({ mobileNumber, passwordHash, accountType }) {
+export async function registerIdentity({ mobileNumber, passwordHash, accountType }, client) {
   const existing = await identityRepository.findByMobileNumber(mobileNumber)
   if (existing) {
     // BR-AUTH-02: registration fails if the identifier is already registered.
     throw new BusinessRuleError('This mobile number is already registered.')
   }
-  return identityRepository.create({ mobileNumber, passwordHash, accountType })
+  return identityRepository.create({ mobileNumber, passwordHash, accountType }, client)
 }
 
 export function findIdentityByMobileNumber(mobileNumber) {

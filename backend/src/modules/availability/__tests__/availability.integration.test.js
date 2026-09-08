@@ -38,7 +38,9 @@ async function request(method, path, { body, token } = {}) {
 async function registerAndLogin(accountType = 'HOTEL_MANAGER') {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
-  await request('POST', '/api/v1/auth/register', { body: { mobileNumber, password, accountType } })
+  // BDR-018: Full Name is required at registration for a CUSTOMER account only.
+  const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : undefined
+  await request('POST', '/api/v1/auth/register', { body: { mobileNumber, password, accountType, fullName } })
   const response = await request('POST', '/api/v1/auth/login', { body: { mobileNumber, password } })
   return response.body.data
 }

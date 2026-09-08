@@ -1,7 +1,9 @@
 import { prisma } from '../../shared/prismaClient.js'
 
 const db = (client) => client ?? prisma
-const includeDetails = { hall: true, hotel: true, review: true }
+// `customer.customerProfile` surfaces the Customer's Full Name (BDR-018) to
+// a Hotel Manager viewing a Booking — booking.mapper.js#toBooking reads it.
+const includeDetails = { hall: true, hotel: true, review: true, customer: { include: { customerProfile: true } } }
 
 /**
  * Popular Hotels (Customer Mobile, Hotel Management's own read model) —

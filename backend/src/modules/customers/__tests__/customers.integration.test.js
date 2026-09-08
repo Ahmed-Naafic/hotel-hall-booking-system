@@ -27,7 +27,9 @@ async function request(method, path, { body, token } = {}) {
 async function registerAndLogin(accountType = 'CUSTOMER') {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
-  await request('POST', '/api/v1/auth/register', { body: { mobileNumber, password, accountType } })
+  // BDR-018: Full Name is required at registration for a CUSTOMER account only.
+  const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : undefined
+  await request('POST', '/api/v1/auth/register', { body: { mobileNumber, password, accountType, fullName } })
   const response = await request('POST', '/api/v1/auth/login', { body: { mobileNumber, password } })
   return response.body.data
 }
@@ -44,45 +46,41 @@ after(async () => {
 })
 
 describe('Customer self-service profile', () => {
-  test('authenticated CUSTOMER reads identity with no profile and unresolved readiness', async () => {
+  test('authenticated CUSTOMER reads identity with their Full Name profile, auto-created at registration (BDR-018)', async () => {
     const { accessToken, user } = await registerAndLogin()
     const response = await request('GET', '/api/v1/customers/me', { token: accessToken })
     assert.equal(response.status, 200)
     assert.equal(response.body.data.user.id, user.id)
-    assert.equal(response.body.data.profile, null)
+    assert.ok(response.body.data.profile, 'registration must create a CustomerProfile')
+    assert.equal(response.body.data.profile.profileData.fullName, 'Test Customer')
     assert.deepEqual(response.body.data.readiness, {
-      profileExists: false,
+      profileExists: true,
       isComplete: null,
       missingRequiredFields: null,
     })
     assert.equal(response.body.data.user.passwordHash, undefined)
   })
 
-  test('CUSTOMER creates, persists, reads, and updates only their own empty profile', async () => {
+  test('CUSTOMER can update their Full Name after registration (BDR-018 — a profile already exists)', async () => {
     const { accessToken, user } = await registerAndLogin()
-    const created = await request('POST', '/api/v1/customers/me/profile', {
-      token: accessToken,
-      body: { profileData: {} },
-    })
-    assert.equal(created.status, 201)
-    assert.equal(created.body.data.readiness.profileExists, true)
-
     const persisted = await prisma.customerProfile.findUnique({ where: { userId: user.id } })
     assert.ok(persisted)
+    assert.equal(persisted.profileData.fullName, 'Test Customer')
 
     const updated = await request('PATCH', '/api/v1/customers/me/profile', {
       token: accessToken,
-      body: { profileData: {} },
+      body: { profileData: { fullName: 'Updated Name' } },
     })
     assert.equal(updated.status, 200)
+    assert.equal(updated.body.data.profile.profileData.fullName, 'Updated Name')
 
     const read = await request('GET', '/api/v1/customers/me', { token: accessToken })
     assert.equal(read.body.data.profile.id, persisted.id)
+    assert.equal(read.body.data.profile.profileData.fullName, 'Updated Name')
   })
 
-  test('duplicate creation is rejected', async () => {
+  test('creating a profile via POST after registration is rejected as a duplicate (BDR-018 — one already exists)', async () => {
     const { accessToken } = await registerAndLogin()
-    await request('POST', '/api/v1/customers/me/profile', { token: accessToken, body: { profileData: {} } })
     const duplicate = await request('POST', '/api/v1/customers/me/profile', {
       token: accessToken,
       body: { profileData: {} },
@@ -107,7 +105,11 @@ describe('Customer self-service profile', () => {
       body: { userId: customerB.user.id, profileData: {} },
     })
     assert.equal(manipulated.status, 400)
-    assert.equal(await prisma.customerProfile.count({ where: { userId: customerB.user.id } }), 0)
+    // customerB already has exactly one CustomerProfile from their own
+    // registration (BDR-018) — the assertion is that the attempted
+    // `userId` override didn't create a second one against their account,
+    // not that they have none at all.
+    assert.equal(await prisma.customerProfile.count({ where: { userId: customerB.user.id } }), 1)
 
     const arbitrary = await request('POST', '/api/v1/customers/me/profile', {
       token: customerA.accessToken,

@@ -17,12 +17,42 @@ class CustomerProfileScreen extends StatelessWidget {
   );
 }
 
-class _CustomerProfileView extends StatelessWidget {
+class _CustomerProfileView extends StatefulWidget {
   const _CustomerProfileView();
+  @override
+  State<_CustomerProfileView> createState() => _CustomerProfileViewState();
+}
+
+class _CustomerProfileViewState extends State<_CustomerProfileView> {
+  final _fullNameController = TextEditingController();
+  bool _canSave = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fullNameController.addListener(() {
+      final canSave = _fullNameController.text.trim().isNotEmpty;
+      if (canSave != _canSave) setState(() => _canSave = canSave);
+    });
+  }
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    super.dispose();
+  }
+
+  String? _fullNameFrom(CustomerSnapshot? snapshot) {
+    final profileData = snapshot?.profile?['profileData'];
+    if (profileData is! Map) return null;
+    return profileData['fullName'] as String?;
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<CustomerProfileController>();
     final snapshot = controller.snapshot;
+    final fullName = _fullNameFrom(snapshot);
     return Scaffold(
       appBar: AppBar(title: const Text('My Profile')),
       body: Padding(
@@ -39,27 +69,35 @@ class _CustomerProfileView extends StatelessWidget {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // A registration made after Full Name became required
+                  // (BDR-018) always has one; only an account registered
+                  // before then can still lack it.
+                  if (fullName != null && fullName.isNotEmpty)
+                    Text(fullName, style: Theme.of(context).textTheme.titleLarge)
+                  else
+                    Text(
+                      'Full name not set yet',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  const SizedBox(height: HHSpacing.space2),
                   Text(
                     snapshot?.user['mobileNumber'] as String? ?? '',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: HHSpacing.space4),
-                  Text(
-                    snapshot?.profile == null
-                        ? 'No Customer profile has been created.'
-                        : 'Customer profile created.',
-                  ),
-                  const SizedBox(height: HHSpacing.space4),
-                  const Text(
-                    'Profile fields and completion requirements are awaiting business approval.',
-                  ),
-                  if (snapshot?.profile == null) ...[
+                  if (fullName == null || fullName.isEmpty) ...[
                     const SizedBox(height: HHSpacing.space6),
+                    TextField(
+                      controller: _fullNameController,
+                      decoration: const InputDecoration(labelText: 'Full name'),
+                    ),
+                    const SizedBox(height: HHSpacing.space4),
                     FilledButton(
-                      onPressed: controller.isLoading
+                      onPressed: controller.isLoading || !_canSave
                           ? null
-                          : controller.createProfile,
-                      child: const Text('Create Profile'),
+                          : () => snapshot?.profile == null
+                              ? controller.createProfile(_fullNameController.text.trim())
+                              : controller.updateFullName(_fullNameController.text.trim()),
+                      child: const Text('Save name'),
                     ),
                   ],
                 ],

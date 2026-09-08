@@ -206,6 +206,17 @@ class _BookingCardState extends State<_BookingCard> {
             ],
           ),
           const SizedBox(height: HHSpacing.space3),
+          // BDR-018 — the Customer's own Full Name/Mobile Number, never a
+          // fake placeholder; `null` only for a pre-BDR-018 account that
+          // has not since set a name (booking_models.dart's own doc comment).
+          if (booking.customerFullName != null || booking.customerMobileNumber != null)
+            Text(
+              [
+                if (booking.customerFullName != null) booking.customerFullName!,
+                if (booking.customerMobileNumber != null) booking.customerMobileNumber!,
+              ].join(' • '),
+              style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textMd),
+            ),
           Text(
             '${booking.guests} guests • \$${(booking.totalRentCents / 100).toStringAsFixed(2)}',
             style: TextStyle(color: HHColors.textMuted),

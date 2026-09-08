@@ -6,6 +6,8 @@ import 'package:http/testing.dart';
 import 'package:manager_mobile/core/auth_gate.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/login_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/register_screen.dart';
+import 'package:manager_mobile/features/notifications/application/notification_controller.dart';
+import 'package:manager_mobile/features/notifications/data/notification_repository.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_support.dart';
@@ -68,8 +70,18 @@ void main() {
 
   testWidgets('navigating from Login to Register and back reaches LoginScreen again via AuthGate', (tester) async {
     final controller = _controller();
-    await tester.pumpWidget(ChangeNotifierProvider<AuthController>.value(
-      value: controller,
+    final notificationClient = ApiClient(
+      httpClient: MockClient((r) async => successResponse({})),
+      baseUrl: 'http://test/api/v1',
+      accessTokenProvider: () async => null,
+    );
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthController>.value(value: controller),
+        ChangeNotifierProvider(
+          create: (_) => NotificationController(NotificationRepository(notificationClient)),
+        ),
+      ],
       child: const MaterialApp(home: AuthGate()),
     ));
     await tester.pumpAndSettle();

@@ -72,7 +72,9 @@ function codeSentTo(mobileNumber) {
 async function registerAndLogin(accountType) {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
-  await post('/api/v1/auth/register', { mobileNumber, password, accountType })
+  // BDR-018: Full Name is required at registration for a CUSTOMER account only.
+  const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : undefined
+  await post('/api/v1/auth/register', { mobileNumber, password, accountType, fullName })
   const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
   return { mobileNumber, password, ...loginRes.body.data }
 }
@@ -315,6 +317,41 @@ describe('Ownership and cross-tenant access', () => {
 
     const res = await get(`/api/v1/hotels/${hotelId}/bookings`, authHeader(customer.accessToken))
     assert.equal(res.status, 403)
+  })
+})
+
+describe('Manager visibility of Customer identity (BDR-018)', () => {
+  test('a Hotel Manager viewing a Booking sees the real Customer Full Name and Mobile Number', async () => {
+    const { customer, manager, hotelId, booking } = await createPendingBooking()
+
+    const detail = await get(`/api/v1/hotels/${hotelId}/bookings/${booking.id}`, authHeader(manager.accessToken))
+    assert.equal(detail.status, 200)
+    assert.equal(detail.body.data.customer.fullName, 'Test Customer')
+    assert.equal(detail.body.data.customer.mobileNumber, customer.mobileNumber)
+
+    const list = await get(`/api/v1/hotels/${hotelId}/bookings`, authHeader(manager.accessToken))
+    assert.equal(list.status, 200)
+    const listed = list.body.data.find((b) => b.id === booking.id)
+    assert.equal(listed.customer.fullName, 'Test Customer')
+    assert.equal(listed.customer.mobileNumber, customer.mobileNumber)
+  })
+
+  test('a Manager cannot see Customer information for a Booking outside their own Hotel (404 — same as any other cross-tenant access)', async () => {
+    const { booking } = await createPendingBooking()
+    const otherManager = await registerAndLogin('HOTEL_MANAGER')
+    const otherHotelId = await createApprovedHotel(otherManager.accessToken)
+
+    const res = await get(`/api/v1/hotels/${otherHotelId}/bookings/${booking.id}`, authHeader(otherManager.accessToken))
+    assert.equal(res.status, 404)
+  })
+
+  test("the Customer's own view of their Booking also includes their own name and number (not a privacy leak — it is their own data)", async () => {
+    const { customer, booking } = await createPendingBooking()
+
+    const res = await get(`/api/v1/bookings/${booking.id}`, authHeader(customer.accessToken))
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.customer.fullName, 'Test Customer')
+    assert.equal(res.body.data.customer.mobileNumber, customer.mobileNumber)
   })
 })
 

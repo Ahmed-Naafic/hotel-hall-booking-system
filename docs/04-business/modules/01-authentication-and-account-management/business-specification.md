@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/Project-Overview.md", "docs/04-business/stakeholders-and-personas.md", "docs/04-business/business-decision-register.md", "docs/Project-Glossary.md"]
-version: 1.2
-last_updated: 2026-08-03
+version: 1.3
+last_updated: 2026-09-08
 ---
 
 # Authentication & Account Management — Business Specification
@@ -119,6 +119,7 @@ the following approved decisions:
 | `BDR-005` | Customer Eligibility | Confirms open Customer registration, subject only to the identity/contact verification this module defines (§6, §7.1). |
 | `BDR-007` | Platform Administration Web Interface | The Platform Administrator reviews Hotel applications (Module 13) through the approved web dashboard; this module's Platform Administrator login (§7.3) is the entry point to that dashboard. |
 | `BDR-009` | Customer Registration Timing | A Customer may browse Hotels and Halls without an account; registration is required only when proceeding to book a Hall (§7.1). |
+| `BDR-018` | Required Customer Full Name at Registration | A Customer registration must include a Full Name in addition to mobile number and password (BR-AUTH-02, §7.1 C2). |
 
 ---
 
@@ -165,7 +166,7 @@ they exist as Active from provisioning (Module 13, out of scope here per §2.2).
 | ID | Rule |
 |---|---|
 | BR-AUTH-01 | A Customer may browse Hotels, Halls, availability, and pricing without an account or being logged in (`BDR-009`). |
-| BR-AUTH-02 | A Customer must register an account, providing at minimum a mobile number and a password, and must verify that mobile number, before completing a Booking or accessing any account-specific feature (e.g. booking history, saved favorites). Registration eligibility is open per `BDR-005` — no age or category restriction applies. |
+| BR-AUTH-02 | A Customer must register an account, providing at minimum a Full Name, a mobile number, and a password (`BDR-018`), and must verify that mobile number, before completing a Booking or accessing any account-specific feature (e.g. booking history, saved favorites). Registration eligibility is open per `BDR-005` — no age or category restriction applies. Full Name is the only required Customer profile field; every other candidate field (email, address, profile photo, etc.) remains optional and is not made required by this rule (`BDR-CUST-02`, Customer Management Business Specification). |
 | BR-AUTH-03 | A Hotel must create an account, complete its business profile (Module 3), and submit an onboarding application before it can be reviewed by a Platform Administrator (`BDR-003`). |
 | BR-AUTH-04 | A Hotel account may log in at any application state (Registered through Rejected), but may only access Hotel operational features (halls, bookings, staff, payments, events) once its application has reached **Approved / Active** (`BDR-003`). A Hotel attempting to access operational features before approval, or after rejection, must be blocked with a clear, business-worded explanation of its current application state. |
 | BR-AUTH-05 | A Platform Administrator account is not self-registrable; it must already exist (provisioned by Module 13) before this module's login rules apply to it. |
@@ -188,7 +189,7 @@ they exist as Active from provisioning (Module 13, out of scope here per §2.2).
 | # | Journey | Preconditions | Flow | Result |
 |---|---|---|---|---|
 | C1 | Browse without an account | None | Customer opens the Customer application and searches/views Hotels, Halls, availability, and pricing. | No account is required or created (BR-AUTH-01). |
-| C2 | Register when booking | Customer has selected a Hall to book | Customer proceeds to book; is prompted to register (mobile number, password); submits registration. | A Customer account is created in an unverified state pending C3. |
+| C2 | Register when booking | Customer has selected a Hall to book | Customer proceeds to book; is prompted to register (Full Name, mobile number, password — `BDR-018`); submits registration. | A Customer account is created in an unverified state pending C3; the Customer's Full Name is recorded (Customer Management). |
 | C3 | Verify mobile number | Customer has just registered, or has an unverified account | Customer receives and enters a verification credential tied to their mobile number. | Account becomes Active (§5.1); Customer may proceed to complete the Booking. |
 | C4 | Log in | Customer has an Active account | Customer enters credentials. | Customer is authenticated and reaches their account-specific and booking features. |
 | C5 | Log out | Customer is logged in | Customer chooses to log out. | Session ends (BR-AUTH-13); Customer returns to the unauthenticated browsing experience (C1). |
@@ -315,7 +316,7 @@ on its own (`business-decision-register.md` §1).
 - `Project-Overview.md` §5 (Objectives), §6–§7 (Scope), §8 (Target Users), §23 (Next
   Milestone) — this module's mandate and place in the roadmap.
 - `docs/04-business/business-decision-register.md` — `BDR-001`, `BDR-003`, `BDR-005`,
-  `BDR-007`, `BDR-009` (§4).
+  `BDR-007`, `BDR-009`, `BDR-018` (§4).
 - `Project-Glossary.md` §3 — Customer, Hotel, Hotel Manager, Staff, Platform Administrator
   definitions used throughout.
 - `docs/02-architecture/mobile-application-architecture.md` §8, §12 — confirms session
@@ -336,6 +337,7 @@ on its own (`business-decision-register.md` §1).
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.3 | 2026-09-08 | Ahmed | `BR-AUTH-02` and Journey C2 updated per `BDR-018`: Customer registration now requires a Full Name in addition to mobile number and password. Every other Customer profile field remains optional and unaffected (`BDR-CUST-02`). §4 (Referenced Business Decisions) and §11 (Dependencies) updated to cite `BDR-018`. |
 | 1.2 | 2026-08-03 | Ahmed | Status changed `Draft` → `Approved`: independent review by Mohamed or Abukar is complete, per `documentation-architecture.md` §4's no-self-review rule. This document is now the authoritative source of truth for Module 1 — Technical Design may begin (`documentation-architecture.md` §5). |
 | 1.1 | 2026-08-03 | Ahmed | §10 renamed from "Open Business Questions" to "Pending Business Decisions" and reframed: each item is now a named future `BDR-0##` candidate (title, category, business problem) to be formally proposed in `business-decision-register.md`, rather than an informal open question — keeps unresolved policy tracked through the same governance mechanism as every other business decision. Cross-references elsewhere in the document (§2.2, §5.1, §5.2, H6, Password recovery) updated to match. |
 | 1.0 | 2026-08-03 | Ahmed | Initial draft Business Specification for Authentication & Account Management, authored ahead of the `Project-Overview.md` §23 sequencing on Ahmed's explicit instruction. Grounded in `BDR-001`, `BDR-003`, `BDR-005`, `BDR-007`, and newly-recorded `BDR-009`. Not yet reviewed — see status. |

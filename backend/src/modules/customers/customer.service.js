@@ -11,10 +11,10 @@ export async function getCurrentCustomer(userId) {
   return { user, profile, readiness: getReadiness(profile) }
 }
 
-export async function createProfile(userId, profileData) {
-  const existing = await customerRepository.findProfileByUserId(userId)
+export async function createProfile(userId, profileData, client) {
+  const existing = await customerRepository.findProfileByUserId(userId, client)
   if (existing) throw new ConflictError('Customer profile already exists.')
-  return customerRepository.createProfile({ userId, profileData })
+  return customerRepository.createProfile({ userId, profileData }, client)
 }
 
 export async function updateProfile(userId, profileData) {

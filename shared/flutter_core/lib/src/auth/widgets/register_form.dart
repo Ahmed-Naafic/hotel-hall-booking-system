@@ -8,22 +8,29 @@ import '../../widgets/hh_text_field.dart';
 /// Registration form — C2/H1, BR-AUTH-02/03. `accountType` is fixed by the
 /// hosting app (`CUSTOMER` for Customer Mobile, `HOTEL_MANAGER` for Manager
 /// Mobile), never user-chosen — self-registration only ever creates one of
-/// those two types, and each app already knows which. Only the two fields
-/// the backend accepts (`mobileNumber`, `password`) are collected — no
-/// `confirmPassword` or other field the API doesn't define.
+/// those two types, and each app already knows which. Only the fields the
+/// backend actually accepts are collected — no `confirmPassword` or other
+/// field the API doesn't define.
+///
+/// [requireFullName] (BDR-018) shows and requires a Full Name field ahead of
+/// Mobile number — Customer Mobile passes `true`; Hotel registration is
+/// unaffected by that decision and leaves this at its default `false`.
 class RegisterForm extends StatefulWidget {
   const RegisterForm({
     super.key,
     required this.onSubmit,
     required this.isBusy,
     this.errorMessage,
+    this.requireFullName = false,
   });
 
   /// Returns `true` on success (caller navigates away); the form does not
-  /// navigate itself.
-  final Future<bool> Function({required String mobileNumber, required String password}) onSubmit;
+  /// navigate itself. `fullName` is non-null only when [requireFullName] is
+  /// true — a caller that leaves it `false` may safely ignore the parameter.
+  final Future<bool> Function({required String mobileNumber, required String password, String? fullName}) onSubmit;
   final bool isBusy;
   final String? errorMessage;
+  final bool requireFullName;
 
   @override
   State<RegisterForm> createState() => _RegisterFormState();
@@ -31,11 +38,13 @@ class RegisterForm extends StatefulWidget {
 
 class _RegisterFormState extends State<RegisterForm> {
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
   final _mobileController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
   void dispose() {
+    _fullNameController.dispose();
     _mobileController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -43,7 +52,11 @@ class _RegisterFormState extends State<RegisterForm> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await widget.onSubmit(mobileNumber: _mobileController.text.trim(), password: _passwordController.text);
+    await widget.onSubmit(
+      mobileNumber: _mobileController.text.trim(),
+      password: _passwordController.text,
+      fullName: widget.requireFullName ? _fullNameController.text.trim() : null,
+    );
   }
 
   @override
@@ -54,6 +67,20 @@ class _RegisterFormState extends State<RegisterForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (widget.errorMessage != null) HHErrorBanner(message: widget.errorMessage!),
+          if (widget.requireFullName) ...[
+            HHTextField(
+              label: 'Full name',
+              controller: _fullNameController,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.name],
+              enabled: !widget.isBusy,
+              validator: (value) {
+                if ((value ?? '').trim().isEmpty) return 'Full name is required.';
+                return null;
+              },
+            ),
+            const SizedBox(height: HHSpacing.space5),
+          ],
           HHTextField(
             label: 'Mobile number',
             controller: _mobileController,

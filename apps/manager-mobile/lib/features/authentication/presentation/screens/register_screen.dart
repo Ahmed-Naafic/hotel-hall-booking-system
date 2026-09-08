@@ -32,7 +32,7 @@ class RegisterScreen extends StatelessWidget {
               RegisterForm(
                 isBusy: auth.isBusy,
                 errorMessage: auth.errorMessage,
-                onSubmit: ({required mobileNumber, required password}) async {
+                onSubmit: ({required mobileNumber, required password, fullName}) async {
                   auth.clearError();
                   final ok = await auth.registerAndRequestVerification(
                     mobileNumber: mobileNumber,

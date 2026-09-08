@@ -23,6 +23,7 @@ Map<String, dynamic> _bookingJson({
   required String status,
   required String paymentStatus,
   int? reportedAmountCents,
+  Map<String, dynamic>? customer,
 }) => {
   'id': 'b1',
   'hallId': 'hall-1',
@@ -34,6 +35,7 @@ Map<String, dynamic> _bookingJson({
   'paymentStatus': paymentStatus,
   'pricing': {'totalRentCents': 10000, 'requiredAdvanceCents': 3000},
   'payment': {'reportedAmountCents': reportedAmountCents},
+  if (customer != null) 'customer': customer,
 };
 
 Widget _wrap(ApiClient apiClient) {
@@ -76,6 +78,52 @@ void main() {
       expect(find.textContaining('30.00'), findsOneWidget);
       expect(find.text('Verify Payment'), findsOneWidget);
       expect(find.text('Reject Payment'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    "shows the Customer's real Full Name and Mobile Number (BDR-018)",
+    (tester) async {
+      final apiClient = ApiClient(
+        httpClient: MockClient(
+          (_) async => _paginatedEnvelope([
+            _bookingJson(
+              status: 'PENDING',
+              paymentStatus: 'UNPAID',
+              customer: {'id': 'cust-1', 'fullName': 'Amina Yusuf', 'mobileNumber': '+15551234567'},
+            ),
+          ]),
+        ),
+        baseUrl: 'http://test/api/v1',
+      );
+      await tester.pumpWidget(_wrap(apiClient));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Amina Yusuf'), findsOneWidget);
+      expect(find.textContaining('+15551234567'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'shows no customer line at all (never a fake name) when the Customer has none on file',
+    (tester) async {
+      final apiClient = ApiClient(
+        httpClient: MockClient(
+          (_) async => _paginatedEnvelope([
+            _bookingJson(
+              status: 'PENDING',
+              paymentStatus: 'UNPAID',
+              customer: {'id': 'cust-1', 'fullName': null, 'mobileNumber': '+15551234567'},
+            ),
+          ]),
+        ),
+        baseUrl: 'http://test/api/v1',
+      );
+      await tester.pumpWidget(_wrap(apiClient));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('null'), findsNothing);
+      expect(find.textContaining('+15551234567'), findsOneWidget);
     },
   );
 

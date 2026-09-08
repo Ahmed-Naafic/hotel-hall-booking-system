@@ -12,15 +12,20 @@ class AuthRepository {
 
   /// `POST /auth/register` — C2, H1, BR-AUTH-02/03. Only `CUSTOMER` and
   /// `HOTEL_MANAGER` are self-registerable (authentication.validation.js).
+  /// `fullName` is required by the backend when `accountType` is
+  /// `CUSTOMER` (BDR-018) and ignored otherwise — omitted from the request
+  /// body entirely when `null` rather than sent as an empty/absent field.
   Future<AppUser> register({
     required String mobileNumber,
     required String password,
     required String accountType,
+    String? fullName,
   }) async {
     final data = await _client.post('/auth/register', body: {
       'mobileNumber': mobileNumber,
       'password': password,
       'accountType': accountType,
+      if (fullName != null) 'fullName': fullName,
     });
     return AppUser.fromJson(data as Map<String, dynamic>);
   }

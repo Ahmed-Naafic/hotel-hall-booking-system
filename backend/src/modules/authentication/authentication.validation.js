@@ -35,6 +35,20 @@ function assertMobileNumber(value, field = 'mobileNumber') {
   }
 }
 
+const MAX_FULL_NAME_LENGTH = 200
+
+// BDR-018 (Required Customer Full Name at Registration) — shape-checked
+// here, the same layer mobileNumber/password already are, since this
+// endpoint (not Customer Management's) is where the value is collected.
+function assertFullName(value, field = 'fullName') {
+  assertString(value, field)
+  if (value.trim().length > MAX_FULL_NAME_LENGTH) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field, message: `${field} must be at most ${MAX_FULL_NAME_LENGTH} characters.` },
+    ])
+  }
+}
+
 function assertPassword(value, field = 'password') {
   assertString(value, field)
   // Provisional floor only — the actual policy is Business Specification
@@ -61,7 +75,7 @@ function assertVerificationCode(value, field = 'code') {
 }
 
 export function validateRegister(req, res, next) {
-  const { mobileNumber, password, accountType } = req.body ?? {}
+  const { mobileNumber, password, accountType, fullName } = req.body ?? {}
 
   assertMobileNumber(mobileNumber)
   assertPassword(password)
@@ -73,6 +87,11 @@ export function validateRegister(req, res, next) {
         message: `accountType must be one of: ${SELF_REGISTERABLE_ACCOUNT_TYPES.join(', ')}.`,
       },
     ])
+  }
+  // BDR-018 — required for a Customer registration only; Hotel registration
+  // is unaffected (out of scope for that decision).
+  if (accountType === 'CUSTOMER') {
+    assertFullName(fullName)
   }
 
   next()

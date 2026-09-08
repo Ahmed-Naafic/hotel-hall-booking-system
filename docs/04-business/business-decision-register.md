@@ -2,9 +2,9 @@
 title: "Business Decision Register"
 document_type: Business / Governance
 status: Approved
-version: 2.6
+version: 2.9
 owner: Ahmed (Product Governance Architect)
-last_updated: 2026-08-26
+last_updated: 2026-09-08
 ---
 
 # Business Decision Register
@@ -155,6 +155,7 @@ Every decision recorded in §5 uses this template:
 | BDR-015 | Required Hotel Business-Profile Content | Hotel Policies | Approved | Ahmed | 2026-08-26 | Hotel Management |
 | BDR-016 | Required Hall Information | Hotel Policies | Approved | Ahmed | 2026-08-26 | Hall Management |
 | BDR-017 | Hotel Geographic Location Capture | Hotel Policies | **Approved** | Ahmed | 2026-08-31 | Hotel Management |
+| BDR-018 | Required Customer Full Name at Registration | Customer Policies | **Approved** | Ahmed | 2026-09-08 | Authentication & Account Management, Customer Management, Booking Management |
 
 This table grows for the life of the project. Full records for each entry above follow in
 §9. New entries follow the same pattern: a row here, plus a full record using the §3
@@ -533,10 +534,29 @@ ordering rule (recorded here before any dependent Business Specification).
 | Risks | Provider usage limits and attribution must remain compliant as traffic grows. `ADR-0008` resolves the initial provider, persistence, and API architecture. No nearby-Hotel search is approved by this decision. |
 | Notes | Approved by Ahmed on 2026-08-31. Nearby-Hotel search remains separately scoped and is not authorized by this decision. |
 
+### BDR-018 — Required Customer Full Name at Registration
+
+| Field | Value |
+|---|---|
+| Category | Customer Policies |
+| Status | **Approved** |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-09-08 |
+| Business Problem | Customer registration (BR-AUTH-02) collects only a mobile number and password. A Hotel Manager reviewing a Booking has no way to know the Customer's identity beyond an opaque account id — Customer Management Business Specification's `BDR-CUST-01` (Required Customer Profile Information) has been `Pending` since that document's `Draft` v1.0, naming "Name" only as a candidate, never approved. |
+| Options Considered | (1) **Status quo** — no Customer profile field is required; a Hotel Manager sees only `customerUserId`. (2) **Full Name required at registration**, collected alongside mobile number and password, before the Customer's account is created. (3) **Full Name required, but deferred to profile completion** — collected only when the Customer later completes their profile (Customer Management Business Specification §11), not at registration itself. |
+| Selected Decision | **Option 2.** A Customer registration must include a Full Name, in addition to the already-required mobile number and password (BR-AUTH-02 updated accordingly). Mobile number verification remains required exactly as already defined; no other profile field (email, address, profile photo, or any other candidate under `BDR-CUST-01`/`BDR-CUST-02`) is made required by this decision — those remain genuinely pending. A Customer does not require Hotel Manager or Platform Administrator approval — `BDR-005`'s open-eligibility stance is unchanged. |
+| Business Rationale | Option 1 leaves the Hotel Manager unable to identify who they are transacting with — a real operational gap, not a cosmetic one, given the Platform already processes real payments (`BDR-002`, `BDR-004`). Option 3 (defer to later profile completion) would let a Customer complete an entire Booking while still anonymous to the Hotel Manager, since Booking creation does not itself require a complete profile (Customer Management Business Specification §11, Pending Decision `BDR-CUST-03`) — it does not actually solve the business problem, only delays whether it's solved. Option 2 is the minimum change that guarantees a Hotel Manager always has a Customer's name by the time any Booking exists, without inventing new required fields beyond the one need identified (`Project-Constitution.md` §3, Simplicity Over Complexity) and without touching `BDR-CUST-02`/other pending optional fields. |
+| Impacted Documents | Authentication & Account Management Business Specification (`BR-AUTH-02`, Journey C2); Customer Management Business Specification (§10, §19 `BR-CUST-11`, §21 `BDR-CUST-01`); Booking Management Business Specification (Manager-visible Booking information) |
+| Impacted Modules | Authentication & Account Management, Customer Management, Booking Management |
+| Risks | An account registered before this decision has no Full Name on file — existing accounts are not retroactively populated (no fabricated name), so a Hotel Manager may see no name for a pre-existing Customer until that Customer sets one via their own profile. Not a data-loss risk (Full Name was never collected before), but a visible gap in existing data the Hotel Manager will notice. |
+| Future Review Required | No — this resolves the one specific field identified as a real gap; the broader `BDR-CUST-01`/`BDR-CUST-02` question (email, address, profile photo, other candidates) remains separately pending and is not reopened by this decision. |
+| Notes | Partially resolves Customer Management Business Specification §21 `BDR-CUST-01` (Required Customer Profile Information) for Full Name only — every other candidate field there remains `Pending`, per `BDR-CUST-02` (Optional Customer Information). Does not touch `BDR-CUST-03` (Profile Completion Requirement), which governs whether an *incomplete* profile blocks a Booking — out of scope here. |
+
 ## Version History
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 2.9 | 2026-09-08 | Ahmed | Added BDR-018 (**Approved**): Required Customer Full Name at Registration — a Customer registration must now include a Full Name alongside mobile number and password. Partially resolves Customer Management Business Specification §21 `BDR-CUST-01` for this one field only; every other candidate profile field remains separately pending (`BDR-CUST-02`). Does not touch `BDR-CUST-03` (Profile Completion Requirement). |
 | 2.8 | 2026-08-31 | Ahmed | Approved `BDR-017`: structured Hotel coordinates and editable address, OpenStreetMap capture, best-effort reverse geocoding, and mandatory manual-address fallback. |
 | 2.6 | 2026-08-26 | Ahmed | Added BDR-016 (**Approved**): Required Hall Information — resolves Hall Management Business Specification §11 Pending Decision #2, the same hybrid model `BDR-015` established for Hotel (required: Hall Name, Capacity; optional: Description, Location/Area, Hall Photos; optional custom fields). Directed by Ahmed with the field list already specified. Does not resolve `BR-HALL-06`'s separate Amenity-list question, Pending Decision #7 (Hall Capacity Changes), or approve any Hall-media storage mechanism (no Hall equivalent of `ADR-0006` exists yet). |
 | 2.5 | 2026-08-26 | Ahmed | BDR-015's Risks/Notes fields updated: the separate Cloudinary-vs-Supabase media-storage question they flagged as open is now resolved by `ADR-0006` (Supabase selected) — an architecture decision, tracked in `docs/02-architecture/adr/`, not a change to BDR-015's own Selected Decision. No BDR content changed, only the surrounding cross-reference. |

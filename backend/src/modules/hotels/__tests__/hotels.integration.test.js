@@ -104,7 +104,8 @@ async function registerHotelToProfileComplete(token) {
 async function registerAndLoginCustomer() {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
-  await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER' })
+  // BDR-018: Full Name is required at registration for a CUSTOMER account.
+  await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
   const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
   return loginRes.body.data
 }

@@ -66,6 +66,10 @@ async function registerAndLogin(overrides = {}) {
     mobileNumber,
     password,
     accountType: 'CUSTOMER',
+    // BDR-018: Full Name is required at registration for a CUSTOMER
+    // account — overridable (e.g. to `undefined`) by a test that
+    // specifically exercises that requirement.
+    fullName: 'Test Customer',
     ...overrides,
   })
   const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
@@ -86,12 +90,13 @@ after(async () => {
 })
 
 describe('Authentication — registration (C2, H1, BR-AUTH-02)', () => {
-  test('registers a new Customer account', async () => {
+  test('registers a new Customer account with a Full Name (BDR-018)', async () => {
     const mobileNumber = uniqueMobileNumber()
     const { status, body } = await post('/api/v1/auth/register', {
       mobileNumber,
       password: 'correct-horse-battery-staple',
       accountType: 'CUSTOMER',
+      fullName: 'Amina Yusuf',
     })
 
     assert.equal(status, 201)
@@ -100,11 +105,61 @@ describe('Authentication — registration (C2, H1, BR-AUTH-02)', () => {
     assert.equal(body.data.accountType, 'CUSTOMER')
     assert.equal(body.data.isVerified, false)
     assert.equal(body.data.passwordHash, undefined, 'password hash must never appear in a response')
+    // fullName lives on the CustomerProfile (Customer Management), not the
+    // Authentication response itself — module boundary preserved.
+    assert.equal(body.data.fullName, undefined)
+  })
+
+  test('registration creates a CustomerProfile with the given Full Name, atomically (BDR-018)', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    await post('/api/v1/auth/register', {
+      mobileNumber,
+      password: 'correct-horse-battery-staple',
+      accountType: 'CUSTOMER',
+      fullName: '  Amina Yusuf  ',
+    })
+    const user = await prisma.user.findUnique({ where: { mobileNumber } })
+    const profile = await prisma.customerProfile.findUnique({ where: { userId: user.id } })
+    assert.ok(profile, 'registration must create a CustomerProfile in the same request')
+    assert.equal(profile.profileData.fullName, 'Amina Yusuf', 'fullName must be trimmed')
+  })
+
+  test('rejects a Customer registration with no Full Name (BDR-018)', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const { status, body } = await post('/api/v1/auth/register', {
+      mobileNumber,
+      password: 'correct-horse-battery-staple',
+      accountType: 'CUSTOMER',
+    })
+    assert.equal(status, 400)
+    assert.equal(body.error, 'VALIDATION_ERROR')
+    assert.equal(await prisma.user.findUnique({ where: { mobileNumber } }), null, 'no User must be created when validation fails')
+  })
+
+  test('rejects a Customer registration with a blank Full Name (BDR-018)', async () => {
+    const { status, body } = await post('/api/v1/auth/register', {
+      mobileNumber: uniqueMobileNumber(),
+      password: 'correct-horse-battery-staple',
+      accountType: 'CUSTOMER',
+      fullName: '   ',
+    })
+    assert.equal(status, 400)
+    assert.equal(body.error, 'VALIDATION_ERROR')
+  })
+
+  test('a Hotel Manager registration does not require a Full Name (BDR-018 is Customer-only)', async () => {
+    const { status, body } = await post('/api/v1/auth/register', {
+      mobileNumber: uniqueMobileNumber(),
+      password: 'correct-horse-battery-staple',
+      accountType: 'HOTEL_MANAGER',
+    })
+    assert.equal(status, 201)
+    assert.equal(body.data.accountType, 'HOTEL_MANAGER')
   })
 
   test('rejects a duplicate mobile number with 422 (business rule, not request shape)', async () => {
     const mobileNumber = uniqueMobileNumber()
-    const payload = { mobileNumber, password: 'correct-horse-battery-staple', accountType: 'CUSTOMER' }
+    const payload = { mobileNumber, password: 'correct-horse-battery-staple', accountType: 'CUSTOMER', fullName: 'Test Customer' }
     await post('/api/v1/auth/register', payload)
 
     const { status, body } = await post('/api/v1/auth/register', payload)
@@ -133,7 +188,7 @@ describe('Authentication — login (C4, H7, A1)', () => {
   test('logs in with correct credentials and receives access + refresh tokens', async () => {
     const mobileNumber = uniqueMobileNumber()
     const password = 'correct-horse-battery-staple'
-    await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER' })
+    await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
 
     const { status, body } = await post('/api/v1/auth/login', { mobileNumber, password })
 
@@ -154,6 +209,7 @@ describe('Authentication — login (C4, H7, A1)', () => {
       mobileNumber,
       password: 'correct-horse-battery-staple',
       accountType: 'CUSTOMER',
+      fullName: 'Test Customer',
     })
     const wrongPassword = await post('/api/v1/auth/login', { mobileNumber, password: 'wrong-password' })
 
@@ -169,6 +225,7 @@ describe('Authentication — login (C4, H7, A1)', () => {
       mobileNumber,
       password,
       accountType: 'CUSTOMER',
+      fullName: 'Test Customer',
     })
     await prisma.user.update({
       where: { id: registerRes.body.data.id },

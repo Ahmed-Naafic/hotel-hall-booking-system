@@ -33,12 +33,14 @@ class RegisterScreen extends StatelessWidget {
               RegisterForm(
                 isBusy: auth.isBusy,
                 errorMessage: auth.errorMessage,
-                onSubmit: ({required mobileNumber, required password}) async {
+                requireFullName: true,
+                onSubmit: ({required mobileNumber, required password, fullName}) async {
                   auth.clearError();
                   final ok = await auth.registerAndRequestVerification(
                     mobileNumber: mobileNumber,
                     password: password,
                     accountType: 'CUSTOMER',
+                    fullName: fullName,
                   );
                   // On success the app becomes authenticated-but-unverified;
                   // pop back to the root so AuthGate can show VerifyScreen —

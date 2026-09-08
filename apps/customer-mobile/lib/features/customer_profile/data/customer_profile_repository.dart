@@ -25,8 +25,17 @@ class CustomerProfileRepository {
     );
   }
 
-  Future<void> createEmptyProfile() =>
-      apiClient.post('/customers/me/profile', body: {'profileData': {}});
-  Future<void> updateEmptyProfile() =>
-      apiClient.patch('/customers/me/profile', body: {'profileData': {}});
+  /// Creates the Customer's profile with their Full Name (BDR-018) — the
+  /// only approved profile field. Only reachable for an account that
+  /// somehow has no profile yet (registered before this decision was
+  /// approved); every new registration creates one automatically.
+  Future<void> createProfile({required String fullName}) => apiClient.post(
+    '/customers/me/profile',
+    body: {'profileData': {'fullName': fullName}},
+  );
+
+  Future<void> updateFullName(String fullName) => apiClient.patch(
+    '/customers/me/profile',
+    body: {'profileData': {'fullName': fullName}},
+  );
 }

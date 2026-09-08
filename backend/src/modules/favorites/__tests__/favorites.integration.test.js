@@ -65,7 +65,9 @@ function authHeader(token) {
 async function registerAndLogin(accountType) {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
-  await post('/api/v1/auth/register', { mobileNumber, password, accountType })
+  // BDR-018: Full Name is required at registration for a CUSTOMER account only.
+  const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : undefined
+  await post('/api/v1/auth/register', { mobileNumber, password, accountType, fullName })
   const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
   return loginRes.body.data
 }

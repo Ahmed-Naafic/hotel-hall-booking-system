@@ -26,14 +26,17 @@ AuthController _controller({
 
 void main() {
   testWidgets(
-    'successful registration sends accountType CUSTOMER and reaches an authenticated state',
+    'successful registration sends Full Name, accountType CUSTOMER, and reaches an authenticated state',
     (tester) async {
       final calls = <String>[];
+      String? capturedRegisterBody;
       final controller = _controller(
         handler: (r) async {
           calls.add(r.url.path);
-          if (r.url.path.endsWith('/auth/register'))
+          if (r.url.path.endsWith('/auth/register')) {
+            capturedRegisterBody = r.body;
             return successResponse(testUser(isVerified: false), status: 201);
+          }
           if (r.url.path.endsWith('/auth/login')) {
             return successResponse({
               'accessToken': 'a',
@@ -54,14 +57,37 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.byType(TextFormField).at(0), '+15551234567');
-      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+      await tester.enterText(find.byType(TextFormField).at(0), 'Amina Yusuf');
+      await tester.enterText(find.byType(TextFormField).at(1), '+15551234567');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
       await tester.tap(find.text('Create account'));
       await tester.pumpAndSettle();
 
       expect(calls, contains('/api/v1/auth/register'));
+      expect(capturedRegisterBody, contains('"fullName":"Amina Yusuf"'));
       expect(controller.status, AuthStatus.authenticated);
       expect(controller.currentUser?.isVerified, false);
+    },
+  );
+
+  testWidgets(
+    'the Full Name field is required and rejects empty submission',
+    (tester) async {
+      final controller = _controller();
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthController>.value(
+          value: controller,
+          child: const MaterialApp(home: RegisterScreen()),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextFormField).at(1), '+15551234567');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+      await tester.tap(find.text('Create account'));
+      await tester.pump();
+
+      expect(find.text('Full name is required.'), findsOneWidget);
     },
   );
 
@@ -83,8 +109,9 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.byType(TextFormField).at(0), '+15551234567');
-      await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+      await tester.enterText(find.byType(TextFormField).at(0), 'Amina Yusuf');
+      await tester.enterText(find.byType(TextFormField).at(1), '+15551234567');
+      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
       await tester.tap(find.text('Create account'));
       await tester.pumpAndSettle();
 

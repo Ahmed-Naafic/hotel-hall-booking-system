@@ -22,14 +22,27 @@ class CustomerProfileController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> createProfile() async {
+  Future<void> createProfile(String fullName) async {
     isLoading = true;
     notifyListeners();
     try {
-      await repository.createEmptyProfile();
+      await repository.createProfile(fullName: fullName);
       await load();
     } catch (_) {
       errorMessage = 'Could not create your profile.';
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateFullName(String fullName) async {
+    isLoading = true;
+    notifyListeners();
+    try {
+      await repository.updateFullName(fullName);
+      await load();
+    } catch (_) {
+      errorMessage = 'Could not update your name.';
       isLoading = false;
       notifyListeners();
     }

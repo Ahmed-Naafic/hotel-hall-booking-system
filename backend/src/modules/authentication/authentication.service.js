@@ -3,6 +3,8 @@ import * as credentialService from './credential.service.js'
 import * as tokenService from './token.service.js'
 import * as sessionService from './session.service.js'
 import * as authorizationService from './authorization.service.js'
+import * as customerService from '../customers/customer.service.js'
+import { prisma } from '../../shared/prismaClient.js'
 import { AuthenticationError, BusinessRuleError } from '../../shared/errors/errorTypes.js'
 
 /**
@@ -11,9 +13,36 @@ import { AuthenticationError, BusinessRuleError } from '../../shared/errors/erro
  * every read/write goes through the component that owns it.
  */
 
-/** Registration (C2, H1, BR-AUTH-02) — creates the User Account. Mobile-number verification (C3) is a later increment. */
-export async function register({ mobileNumber, password, accountType }) {
+/**
+ * Registration (C2, H1, BR-AUTH-02) — creates the User Account.
+ * Mobile-number verification (C3) is a later increment.
+ *
+ * A Customer registration also creates its CustomerProfile with the
+ * required Full Name (BDR-018) in the same transaction — the identity
+ * (this module's own concern) and the business profile (Customer
+ * Management's concern, `identity.service.js`'s own doc comment) are two
+ * writes, but one atomic registration: neither should exist without the
+ * other having also succeeded.
+ */
+export async function register({ mobileNumber, password, accountType, fullName }) {
   const passwordHash = await credentialService.hashPassword(password)
+  if (accountType === 'CUSTOMER') {
+    return prisma.$transaction(
+      async (client) => {
+        const user = await identityService.registerIdentity({ mobileNumber, passwordHash, accountType }, client)
+        await customerService.createProfile(user.id, { fullName: fullName.trim() }, client)
+        return user
+      },
+      // Registration is often the very first database call of a freshly
+      // started process (a cold serverless Postgres connection can itself
+      // take several seconds) — Prisma's 2s default `maxWait` to acquire a
+      // connection is tighter than that, and would spuriously fail an
+      // otherwise-healthy registration. A plain (non-transactional) query
+      // has no such ceiling, which is why only this transactional path
+      // needs it widened.
+      { maxWait: 10000, timeout: 10000 },
+    )
+  }
   return identityService.registerIdentity({ mobileNumber, passwordHash, accountType })
 }
 

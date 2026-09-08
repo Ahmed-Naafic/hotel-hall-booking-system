@@ -4,6 +4,14 @@ export function toBooking(booking) {
   return {
     id: booking.id,
     customerUserId: booking.customerUserId,
+    // Lets a Hotel Manager identify who a Booking belongs to (BDR-018) —
+    // the Customer's own view of their own Booking already knows this
+    // about themselves, so the same shape is safe for both roles.
+    customer: booking.customer ? {
+      id: booking.customer.id,
+      fullName: booking.customer.customerProfile?.profileData?.fullName ?? null,
+      mobileNumber: booking.customer.mobileNumber,
+    } : undefined,
     hotelId: booking.hotelId,
     hallId: booking.hallId,
     hotel: booking.hotel ? { id: booking.hotel.id, name: booking.hotel.profileData?.name ?? null } : undefined,

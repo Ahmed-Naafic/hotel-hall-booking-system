@@ -69,11 +69,13 @@ class AuthController extends ChangeNotifier {
     required String mobileNumber,
     required String password,
     required String accountType,
+    String? fullName,
   }) => _run(() async {
     await repository.register(
       mobileNumber: mobileNumber,
       password: password,
       accountType: accountType,
+      fullName: fullName,
     );
     await _authenticate(mobileNumber: mobileNumber, password: password);
     await repository.requestVerification();

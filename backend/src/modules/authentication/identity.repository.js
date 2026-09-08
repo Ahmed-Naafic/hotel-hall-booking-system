@@ -6,6 +6,8 @@ import { prisma } from '../../shared/prismaClient.js'
  * query, returns data.
  */
 
+const db = (client) => client ?? prisma
+
 export function findByMobileNumber(mobileNumber) {
   return prisma.user.findUnique({ where: { mobileNumber } })
 }
@@ -14,8 +16,11 @@ export function findById(id) {
   return prisma.user.findUnique({ where: { id } })
 }
 
-export function create({ mobileNumber, passwordHash, accountType }) {
-  return prisma.user.create({
+// `client` (a `prisma.$transaction` callback's client) lets a Customer
+// registration create the User and its CustomerProfile (BDR-018) as one
+// atomic unit — see authentication.service.js#register.
+export function create({ mobileNumber, passwordHash, accountType }, client) {
+  return db(client).user.create({
     data: { mobileNumber, passwordHash, accountType },
   })
 }

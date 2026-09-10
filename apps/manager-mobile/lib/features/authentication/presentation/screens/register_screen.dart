@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 
 /// H1 — Hotel account creation. `accountType` is fixed to `HOTEL_MANAGER`
 /// (BR-AUTH-03) — never user-chosen. Delegates to the shared `RegisterForm`
-/// (FE-06). Hotel business-profile completion (Hotel Management, Module 3)
-/// is out of this screen's scope (Business Specification §2.2) — this
-/// screen only creates the account/credentials.
+/// (FE-06), with `requireFullName: true` (BDR-019) — the Manager's own
+/// personal identity, not the Hotel's business profile. Hotel
+/// business-profile completion (Hotel Management, Module 3) is out of this
+/// screen's scope (Business Specification §2.2) — this screen only creates
+/// the account/credentials.
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
 
@@ -32,12 +34,14 @@ class RegisterScreen extends StatelessWidget {
               RegisterForm(
                 isBusy: auth.isBusy,
                 errorMessage: auth.errorMessage,
+                requireFullName: true,
                 onSubmit: ({required mobileNumber, required password, fullName}) async {
                   auth.clearError();
                   final ok = await auth.registerAndRequestVerification(
                     mobileNumber: mobileNumber,
                     password: password,
                     accountType: 'HOTEL_MANAGER',
+                    fullName: fullName,
                   );
                   if (ok && context.mounted) {
                     Navigator.of(context).popUntil((route) => route.isFirst);

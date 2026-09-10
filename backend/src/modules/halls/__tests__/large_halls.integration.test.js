@@ -54,7 +54,8 @@ function authHeader(token) {
 async function registerAndLoginHotelManager() {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
-  await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'HOTEL_MANAGER' })
+  // BDR-019: Full Name is required at registration for a HOTEL_MANAGER account.
+  await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'HOTEL_MANAGER', fullName: 'Test Manager' })
   const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
   return loginRes.body.data
 }

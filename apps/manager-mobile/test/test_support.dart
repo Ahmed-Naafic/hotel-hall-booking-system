@@ -26,10 +26,11 @@ http.Response errorResponse(String error, String message, int status) => http.Re
       status,
     );
 
-Map<String, dynamic> testUser({bool isVerified = true, String accountType = 'HOTEL_MANAGER'}) => {
+Map<String, dynamic> testUser({bool isVerified = true, String accountType = 'HOTEL_MANAGER', String? fullName}) => {
       'id': 'u1',
       'mobileNumber': '+15559876543',
       'accountType': accountType,
       'isVerified': isVerified,
       'isActive': true,
+      if (fullName != null) 'fullName': fullName,
     };

@@ -147,14 +147,33 @@ describe('Authentication — registration (C2, H1, BR-AUTH-02)', () => {
     assert.equal(body.error, 'VALIDATION_ERROR')
   })
 
-  test('a Hotel Manager registration does not require a Full Name (BDR-018 is Customer-only)', async () => {
+  test('registers a new Hotel Manager account with a Full Name (BDR-019)', async () => {
+    const mobileNumber = uniqueMobileNumber()
     const { status, body } = await post('/api/v1/auth/register', {
-      mobileNumber: uniqueMobileNumber(),
+      mobileNumber,
       password: 'correct-horse-battery-staple',
       accountType: 'HOTEL_MANAGER',
+      fullName: '  Amina Yusuf  ',
     })
     assert.equal(status, 201)
     assert.equal(body.data.accountType, 'HOTEL_MANAGER')
+    // Unlike a Customer (whose fullName lives on CustomerProfile, BDR-018),
+    // a Hotel Manager's fullName is a real column on User (BDR-019) and is
+    // returned directly on the registration response, trimmed.
+    assert.equal(body.data.fullName, 'Amina Yusuf')
+    assert.equal(body.data.passwordHash, undefined, 'password hash must never appear in a response')
+  })
+
+  test('rejects a Hotel Manager registration with no Full Name (BDR-019)', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const { status, body } = await post('/api/v1/auth/register', {
+      mobileNumber,
+      password: 'correct-horse-battery-staple',
+      accountType: 'HOTEL_MANAGER',
+    })
+    assert.equal(status, 400)
+    assert.equal(body.error, 'VALIDATION_ERROR')
+    assert.equal(await prisma.user.findUnique({ where: { mobileNumber } }), null, 'no User must be created when validation fails')
   })
 
   test('rejects a duplicate mobile number with 422 (business rule, not request shape)', async () => {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
+import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/profile_screen.dart';
@@ -15,6 +16,7 @@ import '../../test_support.dart';
 Widget _wrap({
   Future<http.Response> Function(http.Request)? handler,
   String accountType = 'HOTEL_MANAGER',
+  String? fullName,
 }) {
   final sessionStore = SessionStore(storage: InMemoryTokenStorage());
   final apiClient = ApiClient(
@@ -26,7 +28,7 @@ Widget _wrap({
     repository: AuthRepository(apiClient),
     sessionStore: sessionStore,
   )
-    ..currentUser = AppUser.fromJson(testUser(accountType: accountType))
+    ..currentUser = AppUser.fromJson(testUser(accountType: accountType, fullName: fullName))
     ..status = AuthStatus.authenticated;
   final hotelContext = HotelContextController(
     repository: HotelRepository(apiClient),
@@ -53,6 +55,22 @@ void main() {
     // itself is still exactly what the backend returned.
     expect(find.text('Hotel Manager'), findsOneWidget);
     expect(find.text('Log out'), findsOneWidget);
+  });
+
+  testWidgets("shows the Manager's real Full Name as the heading, with mobile number below it (BDR-019)", (tester) async {
+    await tester.pumpWidget(_wrap(fullName: 'Amina Yusuf'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Amina Yusuf'), findsOneWidget);
+    expect(find.text('+15559876543'), findsOneWidget);
+  });
+
+  testWidgets('falls back to the mobile number as the heading for a pre-BDR-019 account with no Full Name', (tester) async {
+    await tester.pumpWidget(_wrap());
+    await tester.pumpAndSettle();
+
+    final heading = tester.widget<Text>(find.text('+15559876543').first);
+    expect(heading.style, HHTypography.serifLg);
   });
 
   testWidgets('tapping "Log out" clears the session and the Hotel context', (tester) async {

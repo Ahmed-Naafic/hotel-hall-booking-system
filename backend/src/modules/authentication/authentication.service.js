@@ -14,7 +14,7 @@ import { AuthenticationError, BusinessRuleError } from '../../shared/errors/erro
  */
 
 /**
- * Registration (C2, H1, BR-AUTH-02) — creates the User Account.
+ * Registration (C2, H1, BR-AUTH-02/03) — creates the User Account.
  * Mobile-number verification (C3) is a later increment.
  *
  * A Customer registration also creates its CustomerProfile with the
@@ -22,7 +22,9 @@ import { AuthenticationError, BusinessRuleError } from '../../shared/errors/erro
  * (this module's own concern) and the business profile (Customer
  * Management's concern, `identity.service.js`'s own doc comment) are two
  * writes, but one atomic registration: neither should exist without the
- * other having also succeeded.
+ * other having also succeeded. A Hotel Manager registration (BDR-019)
+ * stores `fullName` directly on the same User row — a single write, no
+ * transaction needed.
  */
 export async function register({ mobileNumber, password, accountType, fullName }) {
   const passwordHash = await credentialService.hashPassword(password)
@@ -42,6 +44,9 @@ export async function register({ mobileNumber, password, accountType, fullName }
       // needs it widened.
       { maxWait: 10000, timeout: 10000 },
     )
+  }
+  if (accountType === 'HOTEL_MANAGER') {
+    return identityService.registerIdentity({ mobileNumber, passwordHash, accountType, fullName: fullName.trim() })
   }
   return identityService.registerIdentity({ mobileNumber, passwordHash, accountType })
 }

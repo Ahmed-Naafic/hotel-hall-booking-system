@@ -18,10 +18,13 @@ export function findById(id) {
 
 // `client` (a `prisma.$transaction` callback's client) lets a Customer
 // registration create the User and its CustomerProfile (BDR-018) as one
-// atomic unit — see authentication.service.js#register.
-export function create({ mobileNumber, passwordHash, accountType }, client) {
+// atomic unit — see authentication.service.js#register. `fullName` is
+// stored directly on this row only for a Hotel Manager registration
+// (BDR-019) — a Customer's `fullName` argument here is always `undefined`,
+// since BDR-018 stores theirs on CustomerProfile instead (never revisited).
+export function create({ mobileNumber, passwordHash, accountType, fullName }, client) {
   return db(client).user.create({
-    data: { mobileNumber, passwordHash, accountType },
+    data: { mobileNumber, passwordHash, accountType, fullName },
   })
 }
 

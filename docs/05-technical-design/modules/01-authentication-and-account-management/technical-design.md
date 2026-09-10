@@ -6,7 +6,7 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4; confirmed complete by Ahmed 2026-08-03)
 depends_on: ["docs/04-business/modules/01-authentication-and-account-management/business-specification.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/02-architecture/mobile-application-architecture.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md"]
-version: 1.11
+version: 1.12
 last_updated: 2026-09-08
 ---
 
@@ -469,27 +469,32 @@ resolved.
 #### `POST /api/v1/auth/register`
 - **Purpose** — create a new User Account (Customer or Hotel) — `C2`, `H1`.
 - **Request** — `accountType` (`CUSTOMER` \| `HOTEL_MANAGER`), primary identifier (mobile
-  number), password, and — `accountType: CUSTOMER` only — `fullName` (`BDR-018`). `fullName`
-  is not accepted/required for a Hotel registration.
+  number), password, and `fullName` — required for both account types (`BDR-018` for
+  `CUSTOMER`, `BDR-019` for `HOTEL_MANAGER`).
 - **Response** — `201 Created`; the created identity's identifier and account status. Never
-  the password or any credential material (`data-architecture.md` §13). `fullName` is not
-  echoed here — it lives on the Customer's profile (Customer Management), retrievable via
-  `GET /api/v1/customers/me`, not the Authentication identity response (module boundary,
-  `identity.service.js`'s own doc comment: never stores or reasons about a business profile).
+  the password or any credential material (`data-architecture.md` §13). For `HOTEL_MANAGER`,
+  `fullName` is echoed directly on this response — it is a real column on the User Account
+  (`BDR-019`, no separate Manager profile table exists). For `CUSTOMER`, `fullName` is NOT
+  echoed here — it lives on the Customer's profile (Customer Management) instead, retrievable
+  via `GET /api/v1/customers/me` (`BDR-018`, module boundary preserved,
+  `identity.service.js`'s own doc comment: never stores or reasons about a business profile
+  for a Customer).
 - **Authentication** — Public (`api-standards.md` §12, secure-by-default exception
   explicitly documented here).
 - **Authorization** — N/A.
 - **Validation** — `400` for malformed identifier/missing fields, including a missing or
-  blank `fullName` when `accountType` is `CUSTOMER` (`BDR-018`); `422` if the identifier is
-  already registered (`BR-AUTH-02`) or the password fails the strength policy (§17, Item 5,
-  Pending Business Decision #1).
+  blank `fullName` for either `CUSTOMER` (`BDR-018`) or `HOTEL_MANAGER` (`BDR-019`); `422` if
+  the identifier is already registered (`BR-AUTH-02`/`BR-AUTH-03`) or the password fails the
+  strength policy (§17, Item 5, Pending Business Decision #1).
 - **Implementation note** — a `CUSTOMER` registration creates the User Account and its
   CustomerProfile (with `fullName`) in one database transaction
   (`authentication.service.js#register`) — neither exists without the other having also
   succeeded, even though the Authentication and Customer Management components own them
   separately. A cold database connection can take several seconds to establish; this
   transaction's `maxWait`/`timeout` are widened beyond Prisma's default specifically because
-  registration is often the first database call of a freshly started process.
+  registration is often the first database call of a freshly started process. A
+  `HOTEL_MANAGER` registration is a single write (`fullName` stored directly on the User
+  row, `BDR-019`) — no transaction is needed since only one table is written.
 
 #### `POST /api/v1/auth/verifications`
 - **Purpose** — request a mobile-verification code for the authenticated-but-unverified
@@ -937,7 +942,7 @@ endpoint already built in §10 — nothing here introduces new business behavior
 | Customer Mobile | Forgot password (confirm) | `C6` | `PATCH /password-resets` | `Input` (code), `Input` (new password), `Button` |
 | Customer Mobile | Change password | `C7`, `BR-AUTH-08` | `PATCH /password` | `Input` ×2, `Button` — from account settings |
 | Customer Mobile | Deactivated-account state | `C9`, `BR-AUTH-06` | `POST /login` (401) | `Toast` (tone `danger`) |
-| Hotel Manager Mobile | Create account | `H1`, `BR-AUTH-03` | `POST /register` (`accountType=HOTEL_MANAGER`) | `Input` ×2 (mobile, password), `Button` (primary) — no Full Name field; `BDR-018` is Customer-only |
+| Hotel Manager Mobile | Create account | `H1`, `BR-AUTH-03`, `BDR-019` | `POST /register` (`accountType=HOTEL_MANAGER`) | `Input` ×3 (Full Name, mobile, password), `Button` (primary) |
 | Hotel Manager Mobile | Login | `H7`, `A1`-equivalent | `POST /login` | Same as Customer Login |
 | Hotel Manager Mobile | Access blocked before approval | `H8`, `BR-AUTH-04`/`07` | `POST /login` + `GET /me` | Persistent blocked-state screen, **not** a toast — see §18.5 gap |
 | Admin Web | Login | `A1` | `POST /login` | `Input` ×2, `Button` — direct reuse |
@@ -991,6 +996,7 @@ addition to this feature has gone through.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.12 | 2026-09-08 | Ahmed | §10 `POST /api/v1/auth/register` updated per `BDR-019`: a `HOTEL_MANAGER` registration now also requires `fullName`, stored directly on the User row (no CustomerProfile-style separate table exists for a Manager) and echoed on the registration response (unlike `CUSTOMER`'s, which stays on CustomerProfile). §18.3's UI mapping table updated (Hotel Manager Create account now `Input` ×3). |
 | 1.11 | 2026-09-08 | Ahmed | §10 `POST /api/v1/auth/register` updated per `BDR-018`: a `CUSTOMER` registration now requires `fullName`, created together with the User Account and CustomerProfile in one transaction (implementation note added). §18.3's UI mapping table updated (Customer Register now `Input` ×3; Hotel Manager Create account clarified as unaffected, `Input` ×2). |
 | 1.10 | 2026-08-25 | Ahmed | §18.5 Item 2 (FE-00 gap) marked Resolved — the shared Flutter design-token package (`shared/flutter_design_tokens/`) is built and consumed by both mobile apps; see `implementation-plan.md` §3.1/§5 v1.9. No architecture changed by this entry; it records that a previously-flagged gap closed. |
 | 1.9 | 2026-08-25 | Ahmed | Corrected a second, smaller staleness in §3.2's "Does Not Own" table: the row attributing "Hall inventory, operations" to Hotel Management (Module 3) is corrected to Hall Management (Module 4), matching `data-architecture.md` §9 v1.2 (corrected in the same pass, per Hotel Management's own Technical Design §18 Item 5) and the `Approved` Hall Management Business Specification §2–§3. No business decision changed; this is an architecture-layer correction only, and does not affect this module's own design (§3.1's Owns list, API, or component architecture are all unaffected — this module never had a relationship to Hall data beyond the row corrected here). |

@@ -23,7 +23,7 @@ AuthController _controller({Future<http.Response> Function(http.Request)? handle
 }
 
 void main() {
-  testWidgets('successful registration sends accountType HOTEL_MANAGER (BR-AUTH-03)', (tester) async {
+  testWidgets('successful registration sends Full Name, accountType HOTEL_MANAGER (BR-AUTH-03, BDR-019)', (tester) async {
     final calls = <Map<String, dynamic>>[];
     final controller = _controller(handler: (r) async {
       calls.add({'path': r.url.path, 'body': r.body});
@@ -40,14 +40,32 @@ void main() {
       child: const MaterialApp(home: RegisterScreen()),
     ));
 
-    await tester.enterText(find.byType(TextFormField).at(0), '+15559876543');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(0), 'Amina Yusuf');
+    await tester.enterText(find.byType(TextFormField).at(1), '+15559876543');
+    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
 
     final registerCall = calls.firstWhere((c) => (c['path'] as String).endsWith('/auth/register'));
     expect(registerCall['body'], contains('"accountType":"HOTEL_MANAGER"'));
+    expect(registerCall['body'], contains('"fullName":"Amina Yusuf"'));
     expect(controller.status, AuthStatus.authenticated);
+  });
+
+  testWidgets('the Full Name field is required and rejects empty submission (BDR-019)', (tester) async {
+    final controller = _controller();
+
+    await tester.pumpWidget(ChangeNotifierProvider<AuthController>.value(
+      value: controller,
+      child: const MaterialApp(home: RegisterScreen()),
+    ));
+
+    await tester.enterText(find.byType(TextFormField).at(1), '+15559876543');
+    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+
+    expect(find.text('Full name is required.'), findsOneWidget);
   });
 
   testWidgets('an already-registered mobile number shows the server error message', (tester) async {
@@ -60,8 +78,9 @@ void main() {
       child: const MaterialApp(home: RegisterScreen()),
     ));
 
-    await tester.enterText(find.byType(TextFormField).at(0), '+15559876543');
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(0), 'Amina Yusuf');
+    await tester.enterText(find.byType(TextFormField).at(1), '+15559876543');
+    await tester.enterText(find.byType(TextFormField).at(2), 'password123');
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
 

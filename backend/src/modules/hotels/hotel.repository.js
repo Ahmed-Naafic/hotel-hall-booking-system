@@ -6,20 +6,32 @@ import { prisma } from '../../shared/prismaClient.js'
  * query, returns data.
  */
 
+// The registering Hotel Manager's own identity (BDR-019) — never
+// `passwordHash` or any other credential field. Included on every query
+// that feeds `hotel.mapper.js#toPublicHotel` (the Manager's own view and
+// the Platform Administrator's review view; never the Customer-facing
+// mappers, which use the separate `publicInclude` below and never join
+// this relation at all).
+const managerInclude = { registeredBy: { select: { id: true, fullName: true, mobileNumber: true } } }
+
 export function create({ registeredByUserId, profileData }) {
   return prisma.hotel.create({
     data: { registeredByUserId, profileData },
+    include: managerInclude,
   })
 }
 
 export function findById(id) {
-  return prisma.hotel.findUnique({ where: { id, deletedAt: null }, include: { media: { orderBy: { createdAt: 'asc' } } } })
+  return prisma.hotel.findUnique({
+    where: { id, deletedAt: null },
+    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
+  })
 }
 
 export function findByIdForOwner(id, registeredByUserId) {
   return prisma.hotel.findFirst({
     where: { id, registeredByUserId, deletedAt: null },
-    include: { media: { orderBy: { createdAt: 'asc' } } },
+    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
   })
 }
 
@@ -27,16 +39,27 @@ export function findLatestByOwner(registeredByUserId) {
   return prisma.hotel.findFirst({
     where: { registeredByUserId, deletedAt: null },
     orderBy: { createdAt: 'desc' },
-    include: { media: { orderBy: { createdAt: 'asc' } } },
+    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
   })
 }
 
 export function updateProfileData(id, profileData, client = prisma) {
-  return client.hotel.update({ where: { id }, data: { profileData } })
+  return client.hotel.update({ where: { id }, data: { profileData }, include: managerInclude })
 }
 
+// `application.service.js` calls this from inside `prisma.$transaction`
+// blocks (its own default, tight timeout) and always discards the return
+// value there — only the non-transactional (default `prisma`) callers
+// (profile.service.js, suspension.service.js) actually consume the
+// `registeredBy` field via `toPublicHotel`. Skip the extra join whenever a
+// transactional `client` is passed, so it never adds latency to those
+// already latency-sensitive transactions.
 export function updateStatus(id, status, client = prisma) {
-  return client.hotel.update({ where: { id }, data: { status } })
+  return client.hotel.update({
+    where: { id },
+    data: { status },
+    ...(client === prisma ? { include: managerInclude } : {}),
+  })
 }
 
 export function list({ status, skip, take }) {
@@ -45,7 +68,7 @@ export function list({ status, skip, take }) {
     skip,
     take,
     orderBy: { createdAt: 'desc' },
-    include: { media: { orderBy: { createdAt: 'asc' } } },
+    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
   })
 }
 

@@ -156,6 +156,7 @@ Every decision recorded in §5 uses this template:
 | BDR-016 | Required Hall Information | Hotel Policies | Approved | Ahmed | 2026-08-26 | Hall Management |
 | BDR-017 | Hotel Geographic Location Capture | Hotel Policies | **Approved** | Ahmed | 2026-08-31 | Hotel Management |
 | BDR-018 | Required Customer Full Name at Registration | Customer Policies | **Approved** | Ahmed | 2026-09-08 | Authentication & Account Management, Customer Management, Booking Management |
+| BDR-019 | Required Hotel Manager Full Name at Registration | Hotel Policies | **Approved** | Ahmed | 2026-09-08 | Authentication & Account Management, Hotel Management, Administration & Platform Management |
 
 This table grows for the life of the project. Full records for each entry above follow in
 §9. New entries follow the same pattern: a row here, plus a full record using the §3
@@ -551,6 +552,24 @@ ordering rule (recorded here before any dependent Business Specification).
 | Risks | An account registered before this decision has no Full Name on file — existing accounts are not retroactively populated (no fabricated name), so a Hotel Manager may see no name for a pre-existing Customer until that Customer sets one via their own profile. Not a data-loss risk (Full Name was never collected before), but a visible gap in existing data the Hotel Manager will notice. |
 | Future Review Required | No — this resolves the one specific field identified as a real gap; the broader `BDR-CUST-01`/`BDR-CUST-02` question (email, address, profile photo, other candidates) remains separately pending and is not reopened by this decision. |
 | Notes | Partially resolves Customer Management Business Specification §21 `BDR-CUST-01` (Required Customer Profile Information) for Full Name only — every other candidate field there remains `Pending`, per `BDR-CUST-02` (Optional Customer Information). Does not touch `BDR-CUST-03` (Profile Completion Requirement), which governs whether an *incomplete* profile blocks a Booking — out of scope here. |
+
+### BDR-019 — Required Hotel Manager Full Name at Registration
+
+| Field | Value |
+|---|---|
+| Category | Hotel Policies |
+| Status | **Approved** |
+| Decision Owner | Ahmed |
+| Decision Date | 2026-09-08 |
+| Business Problem | `BDR-018` resolved this same gap for a Customer identity (a Hotel Manager could not identify who they were transacting with), but the identical gap exists in reverse: Hotel Manager registration (`BR-AUTH-03`) also collects only a mobile number and password, so a Platform Administrator reviewing a Hotel's onboarding application has no way to identify the actual person behind the account beyond an opaque `registeredByUserId` (Admin Web's Hotel Detail page currently displays this raw id verbatim, with no better information available to show). |
+| Options Considered | (1) **Status quo** — Hotel Manager registration remains mobile number and password only; Platform Administrator review continues to identify a Hotel only by its business profile, never the individual Manager. (2) **Full Name required at Hotel Manager registration**, collected alongside mobile number and password, before the account is created — the same shape `BDR-018` already established for Customer. (3) **Full Name required, but deferred to Hotel profile completion** — collected only when the Manager completes the Hotel's own business profile (Hotel Management Business Specification §7, `BR-HOTEL-02`), not at registration itself. |
+| Selected Decision | **Option 2.** A Hotel Manager registration must include a Full Name, in addition to the already-required mobile number and password (`BR-AUTH-03` updated accordingly). This is the Manager's own personal identity, stored on their User account — it is not a Hotel business-profile field, must never be duplicated onto the Hotel record itself, and must never be confused with the Hotel's own name (`BDR-015`'s required "Hotel Name" field, a completely separate concept). Adding this field does not alter the Hotel onboarding lifecycle (register → verify → complete Hotel profile → submit application → Platform Administrator review) in any way — it is additional data captured at the existing registration step, not a new step or a new gate. |
+| Business Rationale | Option 1 leaves the Platform Administrator's review (`BDR-003`'s manual approval gate) without the most basic fact about who they are approving — a real gap given the Platform already processes real payments through approved Hotels (`BDR-002`, `BDR-004`). Option 3 would let a Hotel Manager account exist, and even reach `PROFILE_COMPLETE`, while the Administrator still cannot identify the individual — Hotel profile completion describes the *business*, not the person operating it, so deferring to that step does not actually solve the identification problem. Option 2 mirrors `BDR-018`'s already-approved reasoning and shape exactly, for symmetry and consistency across the Platform's two self-registering account types, and is the minimal change that closes the real gap identified. |
+| Impacted Documents | Authentication & Account Management Business Specification (`BR-AUTH-03`, Journey H1); Hotel Management Business Specification (clarifying the Manager's personal identity is out of Hotel Management's own scope, distinct from the Hotel's business profile); Administration & Platform Management (Hotel application review now has the Manager's real identity to review) |
+| Impacted Modules | Authentication & Account Management, Hotel Management, Administration & Platform Management |
+| Risks | A Hotel Manager account registered before this decision has no Full Name on file — not retroactively populated (no fabricated name); the Admin Web Hotel Detail page falls back to the existing raw-id display for such an account until the Manager sets one. Same category of risk `BDR-018` already accepted for Customer. |
+| Future Review Required | No — this resolves the one specific field identified as a real gap, the same posture `BDR-018` took for the analogous Customer decision. |
+| Notes | Directly parallels `BDR-018` (Required Customer Full Name at Registration) — same business problem, same resolution shape, applied to the Platform's other self-registering account type. Does not reopen or alter `BDR-015` (Required Hotel Business-Profile Content) — the Hotel's own required profile fields (Hotel Name, Description, Location, Contact Phone) are unchanged and remain conceptually distinct from the Manager's personal Full Name added here. |
 
 ## Version History
 

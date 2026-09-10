@@ -179,6 +179,11 @@ export function HotelDetailPage({ hotelId, onBack }) {
           <Section title="Registration">
             <DefinitionList
               items={[
+                // BDR-019 — the registering Hotel Manager's real identity,
+                // when on file; `null` only for an account registered
+                // before that decision, never a fabricated name.
+                { term: 'Hotel Manager', value: hotel.registeredBy?.fullName ?? 'Not set' },
+                { term: 'Manager Mobile Number', value: hotel.registeredBy?.mobileNumber ?? '—' },
                 { term: 'Registered by (User ID)', value: <code style={{ fontSize: 'var(--text-xs)' }}>{hotel.registeredByUserId}</code> },
                 { term: 'Hotel ID', value: <code style={{ fontSize: 'var(--text-xs)' }}>{hotel.id}</code> },
                 { term: 'Registered on', value: new Date(hotel.createdAt).toLocaleString() },

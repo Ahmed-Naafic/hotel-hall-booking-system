@@ -8,6 +8,17 @@ export function toPublicHotel(hotel) {
   return {
     id: hotel.id,
     registeredByUserId: hotel.registeredByUserId,
+    // The registering Hotel Manager's own identity (BDR-019) — visible here
+    // to both the Manager themselves (their own data) and a Platform
+    // Administrator reviewing the Hotel; never to a Customer (this mapper
+    // is never used for a Customer-facing response — see
+    // toCustomerVisibleHotel below, which has no such field). `null` only
+    // for a Hotel registered before BDR-019, never a fabricated name.
+    registeredBy: hotel.registeredBy ? {
+      id: hotel.registeredBy.id,
+      fullName: hotel.registeredBy.fullName ?? null,
+      mobileNumber: hotel.registeredBy.mobileNumber,
+    } : undefined,
     status: hotel.status,
     profileData: hotel.profileData,
     createdAt: hotel.createdAt,

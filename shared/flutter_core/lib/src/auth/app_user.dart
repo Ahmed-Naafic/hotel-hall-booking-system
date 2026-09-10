@@ -7,6 +7,7 @@ class AppUser {
     required this.accountType,
     required this.isVerified,
     required this.isActive,
+    this.fullName,
   });
 
   final String id;
@@ -14,6 +15,10 @@ class AppUser {
   final String accountType;
   final bool isVerified;
   final bool isActive;
+  // Populated for a Hotel Manager (BDR-019). A Customer's own display name
+  // lives on CustomerProfile instead (BDR-018, fetched separately via
+  // `GET /customers/me`) — always `null` here for that account type.
+  final String? fullName;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         id: json['id'] as String,
@@ -21,5 +26,6 @@ class AppUser {
         accountType: json['accountType'] as String,
         isVerified: json['isVerified'] as bool,
         isActive: json['isActive'] as bool,
+        fullName: json['fullName'] as String?,
       );
 }

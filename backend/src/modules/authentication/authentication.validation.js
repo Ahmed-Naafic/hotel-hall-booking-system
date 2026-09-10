@@ -37,9 +37,10 @@ function assertMobileNumber(value, field = 'mobileNumber') {
 
 const MAX_FULL_NAME_LENGTH = 200
 
-// BDR-018 (Required Customer Full Name at Registration) — shape-checked
-// here, the same layer mobileNumber/password already are, since this
-// endpoint (not Customer Management's) is where the value is collected.
+// BDR-018 (Customer) / BDR-019 (Hotel Manager) — shape-checked here, the
+// same layer mobileNumber/password already are, since this endpoint (not
+// Customer/Hotel Management's own) is where the value is collected for
+// either account type.
 function assertFullName(value, field = 'fullName') {
   assertString(value, field)
   if (value.trim().length > MAX_FULL_NAME_LENGTH) {
@@ -88,9 +89,9 @@ export function validateRegister(req, res, next) {
       },
     ])
   }
-  // BDR-018 — required for a Customer registration only; Hotel registration
-  // is unaffected (out of scope for that decision).
-  if (accountType === 'CUSTOMER') {
+  // BDR-018/BDR-019 — required for both self-registerable account types;
+  // each was approved separately, but both need the same shape check here.
+  if (accountType === 'CUSTOMER' || accountType === 'HOTEL_MANAGER') {
     assertFullName(fullName)
   }
 

@@ -11,8 +11,9 @@ import '../../../notifications/application/notification_controller.dart';
 /// Manager → Account — a standalone pushed screen (never a bottom-nav tab;
 /// this app has no bottom navigation, `folder-structure.md`'s approved nav
 /// tree stays a plain push stack). Shows only the real, already-available
-/// `AppUser` fields — no field invented beyond mobile number and account
-/// type, and no account editing (not an approved capability).
+/// `AppUser` fields — Full Name (BDR-019, `null` only for an account
+/// registered before that decision), mobile number, and account type — no
+/// field invented, and no account editing (not an approved capability).
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -49,10 +50,18 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: HHSpacing.space5),
             Text(
-              user?.mobileNumber ?? '',
+              user?.fullName ?? user?.mobileNumber ?? '',
               textAlign: TextAlign.center,
               style: HHTypography.serifLg,
             ),
+            if (user?.fullName != null) ...[
+              const SizedBox(height: HHSpacing.space2),
+              Text(
+                user!.mobileNumber,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: HHColors.textMuted),
+              ),
+            ],
             const SizedBox(height: HHSpacing.space2),
             Text(
               ManagerFormatters.status(user?.accountType ?? ''),

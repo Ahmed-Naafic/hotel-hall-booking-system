@@ -15,6 +15,14 @@ model User {
   /// The only contact channel this module establishes (BDR-009, BR-AUTH-02).
   mobileNumber                             String                             @unique @map("mobile_number")
   passwordHash                             String                             @map("password_hash")
+  /// Required at registration for CUSTOMER (BDR-018) and HOTEL_MANAGER
+  /// (BDR-019) accounts — collected directly here since Hotel Manager has
+  /// no separate profile table (unlike Customer, whose own display name
+  /// lives in CustomerProfile.profileData.fullName instead; BDR-018 is not
+  /// revisited by this column). Nullable because a PLATFORM_ADMINISTRATOR
+  /// account is provisioned internally, never through this field, and a
+  /// User row registered before either decision has none.
+  fullName                                 String?                            @map("full_name")
   /// Doubles as the source of the role claim (BR-AUTH-14) — production only,
   /// not permission policy (owned by Security & Access Control, Module 14).
   accountType                              UserAccountType                    @map("account_type")

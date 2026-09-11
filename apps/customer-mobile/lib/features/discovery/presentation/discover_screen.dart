@@ -48,6 +48,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   final ScrollController _scrollController = ScrollController();
 
   String _search = '';
+  // BDR-020 — debounced so every keystroke doesn't fire a request; a new
+  // keystroke cancels whichever search request is still pending.
+  Timer? _searchDebounce;
+  static const _searchDebounceDuration = Duration(milliseconds: 400);
   // "All Hotels" (index 4) is the default landing content — it's what this
   // screen always showed before these became in-place filters, so keeping
   // it default here also fixes the previous inconsistency where "Near You"
@@ -78,13 +82,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   // screen has triggered its first load yet.
   bool _popularEverLoaded = false;
 
-  NearbyHotelsController get _nearby => _nearbyController ??=
-      NearbyHotelsController(
+  NearbyHotelsController get _nearby =>
+      _nearbyController ??= NearbyHotelsController(
         repository: _repository,
         locationService: const LocationService(),
       )..load();
 
-  PopularHotelsController get _popular => context.read<PopularHotelsController>();
+  PopularHotelsController get _popular =>
+      context.read<PopularHotelsController>();
 
   // Deliberately not inside the `_popular` getter above: that getter is
   // also read during build (via `ListenableBuilder(listenable: _popular,
@@ -125,11 +130,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               _scrollController.position.maxScrollExtent - 400) {
         _allHalls.loadMore();
       }
+      if (_selectedFilter == 4 &&
+          _scrollController.position.pixels >
+              _scrollController.position.maxScrollExtent - 400) {
+        context.read<DiscoveryController>().loadMoreSearchResults();
+      }
     });
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     _nearbyController?.dispose();
@@ -162,11 +173,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         pending.hall != null) {
       final hall = pending.takeHall()!;
 
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => HallDetailScreen(hall: hall),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => HallDetailScreen(hall: hall)));
     }
   }
 
@@ -212,6 +221,20 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     controller: _searchController,
                     onChanged: (value) {
                       setState(() => _search = value);
+                      _searchDebounce?.cancel();
+                      _searchDebounce = Timer(_searchDebounceDuration, () {
+                        // If the customer switched away from "All Hotels"
+                        // while typing, the search still runs (so results
+                        // are ready when they switch back) but never forces
+                        // a tab switch.
+                        context.read<DiscoveryController>().search(value);
+                      });
+                    },
+                    onClear: () {
+                      _searchDebounce?.cancel();
+                      _searchController.clear();
+                      setState(() => _search = '');
+                      context.read<DiscoveryController>().loadHotels();
                     },
                   ),
                 ),
@@ -227,7 +250,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     ),
                     scrollDirection: Axis.horizontal,
                     itemCount: _filters.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
                     itemBuilder: (context, index) {
                       return _FilterChip(
                         label: _filters[index],
@@ -347,10 +370,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ),
                 sliver: SliverList.separated(
                   itemCount: controller.hotels.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) => _NearbyHotelTile(
-                    nearbyHotel: controller.hotels[index],
-                  ),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) =>
+                      _NearbyHotelTile(nearbyHotel: controller.hotels[index]),
                 ),
               );
           }
@@ -401,10 +423,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ),
                 sliver: SliverList.separated(
                   itemCount: controller.hotels.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) => _PopularHotelTile(
-                    popularHotel: controller.hotels[index],
-                  ),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) =>
+                      _PopularHotelTile(popularHotel: controller.hotels[index]),
                 ),
               );
           }
@@ -455,10 +476,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ),
                 sliver: SliverList.separated(
                   itemCount: controller.halls.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) => _LargeHallTile(
-                    largeHall: controller.halls[index],
-                  ),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) =>
+                      _LargeHallTile(largeHall: controller.halls[index]),
                 ),
               );
           }
@@ -509,7 +529,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ),
                 sliver: SliverList.separated(
                   itemCount: controller.halls.length + 1,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     if (index == controller.halls.length) {
                       return _AllHallsFooter(controller: controller);
@@ -550,17 +570,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ];
     }
 
-    final hotels = discovery.hotels.where((hotel) {
-      if (_search.trim().isEmpty) return true;
-
-      final query = _search.toLowerCase();
-
-      return hotel.name.toLowerCase().contains(query) ||
-          hotel.location.toLowerCase().contains(query);
-    }).toList();
+    // BDR-020 — `discovery.hotels` is already the right content: either the
+    // plain unsearched browse, or the current search's own results. Never
+    // filtered again here — the backend is authoritative for both.
+    final hotels = discovery.hotels;
+    final isSearching = discovery.isSearchActive;
 
     return [
-      if (hotels.isNotEmpty) ...[
+      // The curated "Featured hotels" carousel only makes sense for the
+      // plain browse — a search result set is shown as one plain list.
+      if (!isSearching && hotels.isNotEmpty) ...[
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -580,21 +599,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ),
 
         SliverToBoxAdapter(
-          child: SizedBox(
-            height: 255,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(
-                horizontal: HHSpacing.space5,
-              ),
-              scrollDirection: Axis.horizontal,
-              itemCount: hotels.length > 5 ? 5 : hotels.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                return _FeaturedHotelCard(
-                  hotel: hotels[index],
-                );
-              },
-            ),
+          child: _FeaturedHotelsCarousel(
+            hotels: hotels.length > 5 ? hotels.sublist(0, 5) : hotels,
           ),
         ),
       ],
@@ -607,17 +613,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             HHSpacing.space5,
             14,
           ),
-          child: const _SectionHeader(
-            title: 'Hotels for you',
+          child: _SectionHeader(
+            title: isSearching ? 'Search results' : 'Hotels for you',
           ),
         ),
       ),
 
       if (hotels.isEmpty)
-        const SliverFillRemaining(
+        SliverFillRemaining(
           hasScrollBody: false,
           child: Center(
-            child: Text('No hotels found.'),
+            child: Text(
+              isSearching ? 'No Hotels match "$_search".' : 'No hotels found.',
+            ),
           ),
         )
       else
@@ -629,12 +637,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             HHSpacing.space7,
           ),
           sliver: SliverList.separated(
-            itemCount: hotels.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemCount:
+                hotels.length +
+                (isSearching && discovery.hasMoreSearchResults ? 1 : 0),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              return _HotelListTile(
-                hotel: hotels[index],
-              );
+              if (index == hotels.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              return _HotelListTile(hotel: hotels[index]);
             },
           ),
         ),
@@ -643,9 +657,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 }
 
 class _TopHeader extends StatelessWidget {
-  const _TopHeader({
-    required this.auth,
-  });
+  const _TopHeader({required this.auth});
 
   final AuthController auth;
 
@@ -692,7 +704,9 @@ class _TopHeader extends StatelessWidget {
         if (auth.status == AuthStatus.authenticated) ...[
           _NotificationHeaderButton(
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+              MaterialPageRoute(
+                builder: (_) => const NotificationCenterScreen(),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -723,11 +737,9 @@ class _TopHeader extends StatelessWidget {
                 ),
               );
             } else {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const LoginScreen(),
-                ),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
             }
           },
         ),
@@ -747,7 +759,9 @@ class _NotificationHeaderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final unreadCount = context.select<NotificationController, int>((c) => c.unreadCount);
+    final unreadCount = context.select<NotificationController, int>(
+      (c) => c.unreadCount,
+    );
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -766,7 +780,11 @@ class _NotificationHeaderButton extends StatelessWidget {
               child: Text(
                 unreadCount > 99 ? '99+' : '$unreadCount',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -776,10 +794,7 @@ class _NotificationHeaderButton extends StatelessWidget {
 }
 
 class _HeaderButton extends StatelessWidget {
-  const _HeaderButton({
-    required this.icon,
-    required this.onTap,
-  });
+  const _HeaderButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
@@ -797,10 +812,7 @@ class _HeaderButton extends StatelessWidget {
         child: SizedBox(
           width: 48,
           height: 48,
-          child: Icon(
-            icon,
-            color: scheme.onSurface,
-          ),
+          child: Icon(icon, color: scheme.onSurface),
         ),
       ),
     );
@@ -811,10 +823,12 @@ class _SearchField extends StatelessWidget {
   const _SearchField({
     required this.controller,
     required this.onChanged,
+    required this.onClear,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -829,19 +843,31 @@ class _SearchField extends StatelessWidget {
               color: scheme.surfaceContainerHighest.withValues(alpha: .55),
               borderRadius: BorderRadius.circular(17),
             ),
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: scheme.onSurfaceVariant,
-                ),
-                hintText: 'Search hotel or location...',
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 17,
+            child: ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) => TextField(
+                controller: controller,
+                onChanged: onChanged,
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  suffixIcon: controller.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          onPressed: onClear,
+                        ),
+                  hintText: 'Search hotel or location...',
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 17,
+                  ),
                 ),
               ),
             ),
@@ -855,10 +881,7 @@ class _SearchField extends StatelessWidget {
             color: scheme.primary,
             borderRadius: BorderRadius.circular(17),
           ),
-          child: Icon(
-            Icons.tune_rounded,
-            color: scheme.onPrimary,
-          ),
+          child: Icon(Icons.tune_rounded, color: scheme.onPrimary),
         ),
       ],
     );
@@ -902,14 +925,143 @@ class _SectionStatus extends StatelessWidget {
             FilledButton(onPressed: onAction, child: Text(actionLabel)),
             if (secondaryLabel != null) ...[
               const SizedBox(height: 8),
-              TextButton(
-                onPressed: onSecondary,
-                child: Text(secondaryLabel!),
-              ),
+              TextButton(onPressed: onSecondary, child: Text(secondaryLabel!)),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Card shell shared by the Hotel list rows (Near You / Popular / All
+/// Hotels) — a 1px border plus a soft shadow so the card reads on the
+/// ivory page background instead of the previous plain white-on-white
+/// [Material]. [featured] swaps the border to a gold tint for rows that
+/// carry the "Popular" badge.
+class _HotelCard extends StatelessWidget {
+  const _HotelCard({
+    required this.onTap,
+    required this.child,
+    this.featured = false,
+  });
+
+  final VoidCallback onTap;
+  final Widget child;
+  final bool featured;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: HHColors.surfaceCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: featured ? HHColors.gold300 : HHColors.navy100,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: HHColors.navy900.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(onTap: onTap, child: child),
+      ),
+    );
+  }
+}
+
+/// The filled teal circular "view" affordance that replaces the previous
+/// plain chevron glyph — the one place these cards spend the teal accent.
+class _HotelCardChevron extends StatelessWidget {
+  const _HotelCardChevron();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: const BoxDecoration(
+        color: HHColors.actionAccent,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.chevron_right_rounded,
+        size: 18,
+        color: Colors.white,
+      ),
+    );
+  }
+}
+
+/// Save/unsave toggle overlaid on a Hotel card's thumbnail corner.
+class _BookmarkToggle extends StatelessWidget {
+  const _BookmarkToggle({required this.hotelId});
+
+  final String hotelId;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSaved = context.select<FavoritesController, bool>(
+      (favorites) => favorites.isSaved(hotelId),
+    );
+
+    return Positioned(
+      top: 6,
+      right: 6,
+      child: GestureDetector(
+        onTap: () => context.read<FavoritesController>().toggle(hotelId),
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: const BoxDecoration(
+            color: HHColors.navy050,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+            size: 14,
+            color: isSaved ? HHColors.actionAccent : HHColors.textBody,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Muted pin + location line shared by the Hotel card rows.
+class _HotelCardLocation extends StatelessWidget {
+  const _HotelCardLocation({required this.location});
+
+  final String location;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(
+          Icons.location_on_outlined,
+          size: 15,
+          color: HHColors.textMuted,
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            location,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: HHColors.textMuted),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -921,94 +1073,88 @@ class _NearbyHotelTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final hotel = nearbyHotel.hotel;
 
-    return Material(
-      color: scheme.surface,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => HotelDetailScreen(hotelId: hotel.id),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: hotel.logo?.url == null
-                      ? Container(
-                          color: scheme.surfaceContainerHighest,
-                          alignment: Alignment.center,
-                          child: Icon(
-                            Icons.apartment_rounded,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        )
-                      : Image.network(hotel.logo!.url, fit: BoxFit.cover),
+    return _HotelCard(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HotelDetailScreen(hotelId: hotel.id),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: _NetworkImage(url: hotel.logo?.url),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      hotel.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                _BookmarkToggle(hotelId: hotel.id),
+              ],
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hotel.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: HHColors.textHeading,
                     ),
-                    if (hotel.location.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        hotel.location,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
+                  ),
+                  if (hotel.location.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Row(
+                    _HotelCardLocation(location: hotel.location),
+                  ],
+                  const SizedBox(height: 7),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: HHColors.navy050,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.near_me_outlined,
-                          size: 15,
-                          color: scheme.primary,
+                          size: 13,
+                          color: HHColors.textHeading,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 5),
                         Text(
                           '${nearbyHotel.distanceKm.toStringAsFixed(1)} km away',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: scheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: HHColors.textHeading,
+                          ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            const _HotelCardChevron(),
+          ],
         ),
       ),
     );
@@ -1022,95 +1168,100 @@ class _PopularHotelTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final hotel = popularHotel.hotel;
 
-    return Material(
-      color: scheme.surface,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => HotelDetailScreen(hotelId: hotel.id),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: hotel.logo?.url == null
-                      ? Container(
-                          color: scheme.surfaceContainerHighest,
-                          alignment: Alignment.center,
-                          child: Icon(
-                            Icons.apartment_rounded,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        )
-                      : Image.network(hotel.logo!.url, fit: BoxFit.cover),
+    return _HotelCard(
+      featured: true,
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HotelDetailScreen(hotelId: hotel.id),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: _NetworkImage(url: hotel.logo?.url),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      hotel.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
                     ),
-                    if (hotel.location.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        hotel.location,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
-                    const SizedBox(height: 6),
-                    Row(
+                    decoration: BoxDecoration(
+                      color: HHColors.actionGold,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.local_fire_department_outlined,
-                          size: 15,
-                          color: HHColors.textGold,
+                          Icons.local_fire_department_rounded,
+                          size: 11,
+                          color: Colors.white,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
-                          '${popularHotel.bookingCount} '
-                          '${popularHotel.bookingCount == 1 ? 'booking' : 'bookings'}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: HHColors.textGold,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          'Popular',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
+                _BookmarkToggle(hotelId: hotel.id),
+              ],
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hotel.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: HHColors.textHeading,
+                    ),
+                  ),
+                  if (hotel.location.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    _HotelCardLocation(location: hotel.location),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    '${popularHotel.bookingCount} '
+                    '${popularHotel.bookingCount == 1 ? 'booking' : 'bookings'} this month',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: HHColors.textMuted),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            const _HotelCardChevron(),
+          ],
         ),
       ),
     );
@@ -1163,9 +1314,7 @@ class _LargeHallTile extends StatelessWidget {
                       hall.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1175,8 +1324,9 @@ class _LargeHallTile extends StatelessWidget {
                         largeHall.hotelName!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 6),
@@ -1284,9 +1434,7 @@ class _BrowsableHallTile extends StatelessWidget {
                       hall.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1296,8 +1444,9 @@ class _BrowsableHallTile extends StatelessWidget {
                         browsableHall.hotelName!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 6),
@@ -1380,10 +1529,7 @@ class _FilterChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(13),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 10,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           child: Text(
             label,
             style: TextStyle(
@@ -1398,11 +1544,7 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    this.action,
-    this.onTap,
-  });
+  const _SectionHeader({required this.title, this.action, this.onTap});
 
   final String title;
   final String? action;
@@ -1415,25 +1557,148 @@ class _SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ),
+        if (action != null) TextButton(onPressed: onTap, child: Text(action!)),
+      ],
+    );
+  }
+}
+
+/// Auto-advancing, one-hotel-at-a-time carousel for the "Featured hotels"
+/// section — a [PageView] (rather than the previous multi-card horizontal
+/// [ListView]) with a slight neighbor peek, scale/fade emphasis on the
+/// focused card, and dot indicators. Autoplay pauses for a few seconds
+/// whenever the customer swipes manually, then resumes.
+class _FeaturedHotelsCarousel extends StatefulWidget {
+  const _FeaturedHotelsCarousel({required this.hotels});
+
+  final List<HotelSummary> hotels;
+
+  @override
+  State<_FeaturedHotelsCarousel> createState() =>
+      _FeaturedHotelsCarouselState();
+}
+
+class _FeaturedHotelsCarouselState extends State<_FeaturedHotelsCarousel> {
+  static const _autoplayInterval = Duration(seconds: 5);
+  static const _resumeDelay = Duration(seconds: 6);
+  static const _transitionDuration = Duration(milliseconds: 650);
+
+  late final PageController _controller = PageController(
+    viewportFraction: 0.86,
+  );
+  Timer? _autoplayTimer;
+  double _page = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      final page = _controller.page;
+      if (page != null) setState(() => _page = page);
+    });
+    if (widget.hotels.length > 1) _startAutoplay();
+  }
+
+  void _startAutoplay() {
+    _autoplayTimer?.cancel();
+    _autoplayTimer = Timer.periodic(_autoplayInterval, (_) {
+      if (!_controller.hasClients) return;
+      final next = (_controller.page ?? 0).round() + 1;
+      _controller.animateToPage(
+        next % widget.hotels.length,
+        duration: _transitionDuration,
+        curve: Curves.easeInOutCubic,
+      );
+    });
+  }
+
+  void _pauseThenResumeAutoplay() {
+    _autoplayTimer?.cancel();
+    Future.delayed(_resumeDelay, () {
+      if (mounted && widget.hotels.length > 1) _startAutoplay();
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoplayTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.hotels.length;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 258,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification is ScrollStartNotification &&
+                  notification.dragDetails != null) {
+                _pauseThenResumeAutoplay();
+              }
+              return false;
+            },
+            child: PageView.builder(
+              controller: _controller,
+              padEnds: false,
+              itemCount: count,
+              itemBuilder: (context, index) {
+                final distance = (_page - index).abs();
+                final scale = (1 - distance * 0.12).clamp(0.88, 1.0);
+                final opacity = (1 - distance * 0.55).clamp(0.45, 1.0);
+                return Padding(
+                  padding: EdgeInsets.only(
+                    left: index == 0 ? HHSpacing.space5 : 8,
+                    right: index == count - 1 ? HHSpacing.space5 : 8,
+                  ),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Opacity(
+                      opacity: opacity,
+                      child: _FeaturedHotelCard(hotel: widget.hotels[index]),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
-        if (action != null)
-          TextButton(
-            onPressed: onTap,
-            child: Text(action!),
+        if (count > 1) ...[
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(count, (index) {
+              final active = _page.round() == index;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: active ? 20 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: active ? HHColors.actionAccent : HHColors.gray300,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              );
+            }),
           ),
+        ],
       ],
     );
   }
 }
 
 class _FeaturedHotelCard extends StatelessWidget {
-  const _FeaturedHotelCard({
-    required this.hotel,
-  });
+  const _FeaturedHotelCard({required this.hotel});
 
   final HotelSummary hotel;
 
@@ -1444,111 +1709,105 @@ class _FeaturedHotelCard extends StatelessWidget {
       (favorites) => favorites.isSaved(hotel.id),
     );
 
-    return SizedBox(
-      width: 220,
-      child: Material(
-        borderRadius: BorderRadius.circular(24),
-        clipBehavior: Clip.antiAlias,
-        color: scheme.surface,
-        child: InkWell(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => HotelDetailScreen(
-                  hotelId: hotel.id,
+    return Material(
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      color: scheme.surface,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => HotelDetailScreen(hotelId: hotel.id),
+            ),
+          );
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _NetworkImage(url: hotel.logo?.url),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: .12),
+                    Colors.black.withValues(alpha: .80),
+                  ],
+                  stops: const [0.30, 0.55, 1],
                 ),
               ),
-            );
-          },
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _NetworkImage(
-                url: hotel.logo?.url,
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: .12),
-                      Colors.black.withValues(alpha: .80),
-                    ],
-                    stops: const [0.30, 0.55, 1],
+            ),
+            Positioned(
+              top: 14,
+              right: 14,
+              child: GestureDetector(
+                onTap: () =>
+                    context.read<FavoritesController>().toggle(hotel.id),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .88),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isSaved
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    size: 20,
+                    color: isSaved ? scheme.primary : scheme.onSurface,
                   ),
                 ),
               ),
-              Positioned(
-                top: 14,
-                right: 14,
-                child: GestureDetector(
-                  onTap: () => context.read<FavoritesController>().toggle(hotel.id),
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .88),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isSaved
-                          ? Icons.bookmark_rounded
-                          : Icons.bookmark_border_rounded,
-                      size: 20,
-                      color: isSaved ? scheme.primary : scheme.onSurface,
+            ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hotel.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      height: 1.15,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 16,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      hotel.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        height: 1.15,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (hotel.location.isNotEmpty) ...[
-                      const SizedBox(height: 7),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 15,
-                            color: Colors.white70,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              hotel.location,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
+                  if (hotel.location.isNotEmpty) ...[
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 15,
+                          color: Colors.white70,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            hotel.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1556,105 +1815,73 @@ class _FeaturedHotelCard extends StatelessWidget {
 }
 
 class _HotelListTile extends StatelessWidget {
-  const _HotelListTile({
-    required this.hotel,
-  });
+  const _HotelListTile({required this.hotel});
 
   final HotelSummary hotel;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Material(
-      color: scheme.surface,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => HotelDetailScreen(
-                hotelId: hotel.id,
-              ),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 92,
-                  height: 92,
-                  child: _NetworkImage(
-                    url: hotel.logo?.url,
+    return _HotelCard(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HotelDetailScreen(hotelId: hotel.id),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    width: 92,
+                    height: 92,
+                    child: _NetworkImage(url: hotel.logo?.url),
                   ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                _BookmarkToggle(hotelId: hotel.id),
+              ],
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hotel.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: HHColors.textHeading,
+                    ),
+                  ),
+                  if (hotel.location.isNotEmpty) ...[
+                    const SizedBox(height: 7),
+                    _HotelCardLocation(location: hotel.location),
+                  ],
+                  if (hotel.description.isNotEmpty) ...[
+                    const SizedBox(height: 6),
                     Text(
-                      hotel.name,
+                      hotel.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: HHColors.textMuted,
                       ),
                     ),
-                    if (hotel.location.isNotEmpty) ...[
-                      const SizedBox(height: 7),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on_outlined,
-                            size: 16,
-                            color: scheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              hotel.location,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (hotel.description.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        hotel.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: scheme.onSurfaceVariant,
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            const _HotelCardChevron(),
+          ],
         ),
       ),
     );
@@ -1662,10 +1889,7 @@ class _HotelListTile extends StatelessWidget {
 }
 
 class HotelDetailScreen extends StatefulWidget {
-  const HotelDetailScreen({
-    required this.hotelId,
-    super.key,
-  });
+  const HotelDetailScreen({required this.hotelId, super.key});
 
   final String hotelId;
 
@@ -1694,9 +1918,7 @@ class _HotelDetailScreenState extends State<HotelDetailScreen> {
   }
 
   Future<(HotelSummary, List<HallSummary>)> _load() async {
-    final repository = DiscoveryRepository(
-      context.read<ApiClient>(),
-    );
+    final repository = DiscoveryRepository(context.read<ApiClient>());
 
     return (
       await repository.getHotel(widget.hotelId),
@@ -1712,9 +1934,7 @@ class _HotelDetailScreenState extends State<HotelDetailScreen> {
         future: future,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
@@ -1767,6 +1987,15 @@ class _HotelDetailContent extends StatelessWidget {
   // whatever was true when this screen was first opened.
   final VoidCallback onHallReturned;
 
+  // The Customer-facing gallery: logo first (it's a real photo of the
+  // Hotel too, not just an icon) followed by the Hotel's own photos —
+  // previously only the logo was ever shown anywhere on this screen, with
+  // no way to see the rest of `hotel.photos` at all.
+  List<MediaItem> get _galleryPhotos => [
+    if (hotel.logo != null) hotel.logo!,
+    ...hotel.photos,
+  ];
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -1781,8 +2010,10 @@ class _HotelDetailContent extends StatelessWidget {
             children: [
               AspectRatio(
                 aspectRatio: 1.22,
-                child: _NetworkImage(
-                  url: hotel.logo?.url,
+                child: _HeroCarousel(
+                  photos: _galleryPhotos,
+                  onTap: (index) =>
+                      _openPhotoViewer(context, _galleryPhotos, index),
                 ),
               ),
               Positioned(
@@ -1851,9 +2082,7 @@ class _HotelDetailContent extends StatelessWidget {
                           Expanded(
                             child: Text(
                               hotel.location,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                              ),
+                              style: const TextStyle(color: Colors.white70),
                             ),
                           ),
                         ],
@@ -1874,138 +2103,130 @@ class _HotelDetailContent extends StatelessWidget {
             HHSpacing.space7,
           ),
           sliver: SliverList(
-            delegate: SliverChildListDelegate(
-              [
-                if (hotel.reviewSummary != null) ...[
-                  Row(
-                    children: [
-                      if (hotel.reviewSummary!.count > 0) ...[
-                        StarRatingDisplay(
-                          rating: hotel.reviewSummary!.average!.round(),
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          hotel.reviewSummary!.average!.toStringAsFixed(1),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '(${hotel.reviewSummary!.count} ${hotel.reviewSummary!.count == 1 ? 'review' : 'reviews'})',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ] else
-                        Text(
-                          'No reviews yet',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                if (hotel.description.isNotEmpty) ...[
-                  Text(
-                    'Description',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    hotel.description,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      height: 1.55,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                ],
-
-                if (hotel.latitude != null && hotel.longitude != null) ...[
-                  Text(
-                    'Location',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _HotelLocationMap(
-                    latitude: hotel.latitude!,
-                    longitude: hotel.longitude!,
-                    hotelName: hotel.name,
-                  ),
-                  const SizedBox(height: 28),
-                ],
-
+            delegate: SliverChildListDelegate([
+              if (hotel.reviewSummary != null) ...[
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Available halls',
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                    if (hotel.reviewSummary!.count > 0) ...[
+                      StarRatingDisplay(
+                        rating: hotel.reviewSummary!.average!.round(),
+                        size: 18,
                       ),
-                    ),
-                    if (halls.isNotEmpty)
+                      const SizedBox(width: 8),
                       Text(
-                        '${halls.length} halls',
-                        style: TextStyle(
-                          color: scheme.primary,
-                          fontWeight: FontWeight.w700,
+                        hotel.reviewSummary!.average!.toStringAsFixed(1),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '(${hotel.reviewSummary!.count} ${hotel.reviewSummary!.count == 1 ? 'review' : 'reviews'})',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ] else
+                      Text(
+                        'No reviews yet',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
                         ),
                       ),
                   ],
                 ),
-
-                const SizedBox(height: 14),
-
-                if (halls.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: scheme.surface,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'No visible halls are available.',
-                      ),
-                    ),
-                  )
-                else
-                  ...halls.map(
-                    (hall) => Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: _HallCard(
-                        hall: hall,
-                        onReturned: onHallReturned,
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 28),
-                Text(
-                  'Reviews',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ListenableBuilder(
-                  listenable: reviewsController,
-                  builder: (context, _) => _ReviewsSection(controller: reviewsController),
-                ),
+                const SizedBox(height: 20),
               ],
-            ),
+
+              if (hotel.description.isNotEmpty) ...[
+                Text(
+                  'Description',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  hotel.description,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    height: 1.55,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 28),
+              ],
+
+              if (hotel.latitude != null && hotel.longitude != null) ...[
+                Text(
+                  'Location',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                _HotelLocationMap(
+                  latitude: hotel.latitude!,
+                  longitude: hotel.longitude!,
+                  hotelName: hotel.name,
+                ),
+                const SizedBox(height: 28),
+              ],
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Available halls',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (halls.isNotEmpty)
+                    Text(
+                      '${halls.length} halls',
+                      style: TextStyle(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              if (halls.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Center(
+                    child: Text('No visible halls are available.'),
+                  ),
+                )
+              else
+                ...halls.map(
+                  (hall) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _HallCard(hall: hall, onReturned: onHallReturned),
+                  ),
+                ),
+
+              const SizedBox(height: 28),
+              Text(
+                'Reviews',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 14),
+              ListenableBuilder(
+                listenable: reviewsController,
+                builder: (context, _) =>
+                    _ReviewsSection(controller: reviewsController),
+              ),
+            ]),
           ),
         ),
       ],
@@ -2057,7 +2278,11 @@ class _ReviewsSection extends StatelessWidget {
 }
 
 class _ReviewsMessage extends StatelessWidget {
-  const _ReviewsMessage({required this.message, this.actionLabel, this.onAction});
+  const _ReviewsMessage({
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String message;
   final String? actionLabel;
@@ -2108,9 +2333,9 @@ class _ReviewTile extends StatelessWidget {
               const Spacer(),
               Text(
                 _formatDate(review.createdAt),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -2262,7 +2487,8 @@ class _FullMapScreen extends StatelessWidget {
           initialCenter: point,
           initialZoom: 15,
           interactionOptions: const InteractionOptions(
-            flags: InteractiveFlag.pinchZoom |
+            flags:
+                InteractiveFlag.pinchZoom |
                 InteractiveFlag.drag |
                 InteractiveFlag.doubleTapZoom |
                 InteractiveFlag.flingAnimation,
@@ -2299,10 +2525,7 @@ class _FullMapScreen extends StatelessWidget {
 }
 
 class _HallCard extends StatelessWidget {
-  const _HallCard({
-    required this.hall,
-    this.onReturned,
-  });
+  const _HallCard({required this.hall, this.onReturned});
 
   final HallSummary hall;
   // Called after popping back from Hall Detail (e.g. having booked the
@@ -2322,9 +2545,7 @@ class _HallCard extends StatelessWidget {
       child: InkWell(
         onTap: () async {
           await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => HallDetailScreen(hall: hall),
-            ),
+            MaterialPageRoute(builder: (_) => HallDetailScreen(hall: hall)),
           );
           onReturned?.call();
         },
@@ -2334,9 +2555,7 @@ class _HallCard extends StatelessWidget {
               width: 125,
               height: 125,
               child: _NetworkImage(
-                url: hall.photos.isNotEmpty
-                    ? hall.photos.first.url
-                    : null,
+                url: hall.photos.isNotEmpty ? hall.photos.first.url : null,
               ),
             ),
             Expanded(
@@ -2349,12 +2568,9 @@ class _HallCard extends StatelessWidget {
                       hall.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     if (hall.location.isNotEmpty) ...[
                       const SizedBox(height: 7),
@@ -2371,8 +2587,7 @@ class _HallCard extends StatelessWidget {
                               hall.location,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style:
-                                  Theme.of(context).textTheme.bodySmall,
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ),
                         ],
@@ -2398,9 +2613,7 @@ class _HallCard extends StatelessWidget {
                                 const SizedBox(width: 5),
                                 Text(
                                   'Capacity ${hall.capacity}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall,
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
                             ),
@@ -2417,9 +2630,7 @@ class _HallCard extends StatelessWidget {
                                 Text(
                                   '${formatMoneyCents(hall.rentAmountCents)} / '
                                   '${hall.rentDurationHours}h',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w700,
                                         color: HHColors.textGold,
@@ -2450,24 +2661,9 @@ class _HallCard extends StatelessWidget {
 }
 
 class HallDetailScreen extends StatelessWidget {
-  const HallDetailScreen({
-    required this.hall,
-    super.key,
-  });
+  const HallDetailScreen({required this.hall, super.key});
 
   final HallSummary hall;
-
-  void _openPhotoViewer(BuildContext context, int initialIndex) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _HallPhotoViewer(
-          photos: hall.photos,
-          initialIndex: initialIndex,
-        ),
-        fullscreenDialog: true,
-      ),
-    );
-  }
 
   Future<void> _book(BuildContext context) async {
     final auth = context.read<AuthController>();
@@ -2475,21 +2671,16 @@ class HallDetailScreen extends StatelessWidget {
     context.read<PendingActionController>().preserveBookingHall(hall);
 
     if (auth.status != AuthStatus.authenticated) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const LoginScreen(),
-        ),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
     } else if (auth.currentUser?.isVerified != true) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const VerifyScreen(),
-        ),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const VerifyScreen()));
     }
 
-    if (context.mounted &&
-        auth.currentUser?.isVerified == true) {
+    if (context.mounted && auth.currentUser?.isVerified == true) {
       final booked = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => BookHallScreen(hall: hall)),
       );
@@ -2523,9 +2714,10 @@ class HallDetailScreen extends StatelessWidget {
               children: [
                 AspectRatio(
                   aspectRatio: 1.15,
-                  child: _HallHeroCarousel(
+                  child: _HeroCarousel(
                     photos: hall.photos,
-                    onTap: (index) => _openPhotoViewer(context, index),
+                    onTap: (index) =>
+                        _openPhotoViewer(context, hall.photos, index),
                   ),
                 ),
                 Positioned(
@@ -2548,124 +2740,114 @@ class HallDetailScreen extends StatelessWidget {
               120,
             ),
             sliver: SliverList(
-              delegate: SliverChildListDelegate(
-                [
-                  Text(
-                    hall.name,
-                    style:
-                        Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+              delegate: SliverChildListDelegate([
+                Text(
+                  hall.name,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
+                ),
 
-                  if (hall.location.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          color: scheme.primary,
-                          size: 18,
+                if (hall.location.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        color: scheme.primary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          hall.location,
+                          style: TextStyle(color: scheme.onSurfaceVariant),
                         ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            hall.location,
-                            style: TextStyle(
-                              color: scheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ],
+
+                if (hall.capacity.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _InfoBox(
+                    icon: Icons.groups_2_outlined,
+                    label: 'Capacity',
+                    value: hall.capacity,
+                  ),
+                ],
+
+                if (hall.rentAmountCents != null) ...[
+                  const SizedBox(height: 24),
+                  PaymentTermsCard(
+                    rentAmountCents: hall.rentAmountCents,
+                    rentDurationHours: hall.rentDurationHours,
+                    advancePaymentPercent: hall.advancePaymentPercent,
+                    requiredAdvanceCents: hall.advancePaymentPercent == null
+                        ? null
+                        : calculateBookingPricingPreview(
+                            startsAt: DateTime(2000),
+                            endsAt: DateTime(
+                              2000,
+                            ).add(Duration(hours: hall.rentDurationHours)),
+                            rentAmountCents: hall.rentAmountCents!,
+                            advancePercent: hall.advancePaymentPercent!,
+                          ).requiredAdvanceCents,
+                    paymentReceivingNumber: hall.paymentReceivingNumber,
+                    customerServiceNumber: hall.customerServiceNumber,
+                  ),
+                ],
+
+                if (hall.description.isNotEmpty) ...[
+                  const SizedBox(height: 28),
+                  Text(
+                    'Description',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    hall.description,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      height: 1.55,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+
+                if (hall.photos.length > 1) ...[
+                  const SizedBox(height: 30),
+                  Text(
+                    'Gallery',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: hall.photos.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        return GestureDetector(
+                          onTap: () =>
+                              _openPhotoViewer(context, hall.photos, index),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: SizedBox(
+                              width: 130,
+                              child: _NetworkImage(url: hall.photos[index].url),
                             ),
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  ],
-
-                  if (hall.capacity.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _InfoBox(
-                      icon: Icons.groups_2_outlined,
-                      label: 'Capacity',
-                      value: hall.capacity,
-                    ),
-                  ],
-
-                  if (hall.rentAmountCents != null) ...[
-                    const SizedBox(height: 24),
-                    PaymentTermsCard(
-                      rentAmountCents: hall.rentAmountCents,
-                      rentDurationHours: hall.rentDurationHours,
-                      advancePaymentPercent: hall.advancePaymentPercent,
-                      requiredAdvanceCents: hall.advancePaymentPercent == null
-                          ? null
-                          : calculateBookingPricingPreview(
-                              startsAt: DateTime(2000),
-                              endsAt: DateTime(
-                                2000,
-                              ).add(Duration(hours: hall.rentDurationHours)),
-                              rentAmountCents: hall.rentAmountCents!,
-                              advancePercent: hall.advancePaymentPercent!,
-                            ).requiredAdvanceCents,
-                      paymentReceivingNumber: hall.paymentReceivingNumber,
-                      customerServiceNumber: hall.customerServiceNumber,
-                    ),
-                  ],
-
-                  if (hall.description.isNotEmpty) ...[
-                    const SizedBox(height: 28),
-                    Text(
-                      'Description',
-                      style:
-                          Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      hall.description,
-                      style:
-                          Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                height: 1.55,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                    ),
-                  ],
-
-                  if (hall.photos.length > 1) ...[
-                    const SizedBox(height: 30),
-                    Text(
-                      'Gallery',
-                      style:
-                          Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      height: 100,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: hall.photos.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(width: 10),
-                        itemBuilder: (context, index) {
-                          return GestureDetector(
-                            onTap: () => _openPhotoViewer(context, index),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: SizedBox(
-                                width: 130,
-                                child: _NetworkImage(
-                                  url: hall.photos[index].url,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
-              ),
+              ]),
             ),
           ),
         ],
@@ -2689,10 +2871,7 @@ class HallDetailScreen extends StatelessWidget {
                 SizedBox(width: 9),
                 Text(
                   'Book Hall',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
               ],
             ),
@@ -2703,22 +2882,23 @@ class HallDetailScreen extends StatelessWidget {
   }
 }
 
-/// The Hall Detail screen's hero image — auto-advances through the Hall's
-/// photos with a smooth slide transition (falling back to the single/no-photo
-/// static image when there's nothing to cycle through), still swipeable by
-/// hand, and taps through to [_HallPhotoViewer] at whichever photo is
-/// currently showing.
-class _HallHeroCarousel extends StatefulWidget {
-  const _HallHeroCarousel({required this.photos, required this.onTap});
+/// A Hotel or Hall Detail screen's hero image — auto-advances through the
+/// gallery (a Hotel's logo plus its photos, or a Hall's photos) with a
+/// smooth slide transition (falling back to the single/no-photo static
+/// image when there's nothing to cycle through), still swipeable by hand,
+/// and taps through to [_PhotoViewer] at whichever photo is currently
+/// showing.
+class _HeroCarousel extends StatefulWidget {
+  const _HeroCarousel({required this.photos, required this.onTap});
 
   final List<MediaItem> photos;
   final ValueChanged<int> onTap;
 
   @override
-  State<_HallHeroCarousel> createState() => _HallHeroCarouselState();
+  State<_HeroCarousel> createState() => _HeroCarouselState();
 }
 
-class _HallHeroCarouselState extends State<_HallHeroCarousel> {
+class _HeroCarouselState extends State<_HeroCarousel> {
   final _pageController = PageController();
   Timer? _timer;
   int _currentIndex = 0;
@@ -2748,10 +2928,7 @@ class _HallHeroCarouselState extends State<_HallHeroCarousel> {
   @override
   Widget build(BuildContext context) {
     if (widget.photos.isEmpty) {
-      return GestureDetector(
-        onTap: null,
-        child: const _NetworkImage(),
-      );
+      return GestureDetector(onTap: null, child: const _NetworkImage());
     }
 
     return Stack(
@@ -2794,23 +2971,40 @@ class _HallHeroCarouselState extends State<_HallHeroCarousel> {
   }
 }
 
-/// A full-screen, swipeable, pinch-to-zoomable viewer for a Hall's photos —
-/// reached by tapping the hero image or any gallery thumbnail on
-/// [HallDetailScreen]. Being its own screen (not nested inside the detail
-/// screen's `CustomScrollView`), it can safely give each photo an
-/// [InteractiveViewer] without fighting a parent scrollable for drag
-/// gestures — the same pattern used for the Hotel location map.
-class _HallPhotoViewer extends StatefulWidget {
-  const _HallPhotoViewer({required this.photos, required this.initialIndex});
+/// Pushes [_PhotoViewer] over the given gallery — shared by
+/// [HotelDetailScreen] and [HallDetailScreen] so neither has to carry its
+/// own copy of the same three-line push.
+void _openPhotoViewer(
+  BuildContext context,
+  List<MediaItem> photos,
+  int initialIndex,
+) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => _PhotoViewer(photos: photos, initialIndex: initialIndex),
+      fullscreenDialog: true,
+    ),
+  );
+}
+
+/// A full-screen, swipeable, pinch-to-zoomable viewer for a Hotel's or
+/// Hall's photo gallery — reached by tapping the hero image or any gallery
+/// thumbnail on [HotelDetailScreen] or [HallDetailScreen]. Being its own
+/// screen (not nested inside the detail screen's `CustomScrollView`), it
+/// can safely give each photo an [InteractiveViewer] without fighting a
+/// parent scrollable for drag gestures — the same pattern used for the
+/// Hotel location map.
+class _PhotoViewer extends StatefulWidget {
+  const _PhotoViewer({required this.photos, required this.initialIndex});
 
   final List<MediaItem> photos;
   final int initialIndex;
 
   @override
-  State<_HallPhotoViewer> createState() => _HallPhotoViewerState();
+  State<_PhotoViewer> createState() => _PhotoViewerState();
 }
 
-class _HallPhotoViewerState extends State<_HallPhotoViewer> {
+class _PhotoViewerState extends State<_PhotoViewer> {
   late final PageController _pageController = PageController(
     initialPage: widget.initialIndex,
   );
@@ -2839,7 +3033,7 @@ class _HallPhotoViewerState extends State<_HallPhotoViewer> {
                 child: Image.network(
                   widget.photos[index].url,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
+                  errorBuilder: (_, _, _) => const Icon(
                     Icons.broken_image_outlined,
                     color: Colors.white54,
                     size: 48,
@@ -2885,24 +3079,28 @@ class _HallPhotoViewerState extends State<_HallPhotoViewer> {
 }
 
 class _NetworkImage extends StatelessWidget {
-  const _NetworkImage({
-    this.url,
-  });
+  const _NetworkImage({this.url});
 
   final String? url;
 
+  static const _placeholderDecoration = BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [HHColors.navy050, HHColors.navy100],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     if (url == null || url!.trim().isEmpty) {
       return Container(
-        color: scheme.surfaceContainerHighest,
+        decoration: _placeholderDecoration,
         alignment: Alignment.center,
-        child: Icon(
+        child: const Icon(
           Icons.apartment_rounded,
           size: 42,
-          color: scheme.onSurfaceVariant,
+          color: HHColors.navy400,
         ),
       );
     }
@@ -2912,13 +3110,13 @@ class _NetworkImage extends StatelessWidget {
       width: double.infinity,
       height: double.infinity,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) {
+      errorBuilder: (_, _, _) {
         return Container(
-          color: scheme.surfaceContainerHighest,
+          decoration: _placeholderDecoration,
           alignment: Alignment.center,
-          child: Icon(
+          child: const Icon(
             Icons.broken_image_outlined,
-            color: scheme.onSurfaceVariant,
+            color: HHColors.navy400,
           ),
         );
       },
@@ -2949,11 +3147,7 @@ class _FloatingCircleButton extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Icon(
-            icon,
-            size: 19,
-            color: iconColor,
-          ),
+          child: Icon(icon, size: 19, color: iconColor),
         ),
       ),
     );
@@ -2990,10 +3184,7 @@ class _InfoBox extends StatelessWidget {
               color: scheme.primary.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(
-              icon,
-              color: scheme.primary,
-            ),
+            child: Icon(icon, color: scheme.primary),
           ),
           const SizedBox(width: 14),
           Column(
@@ -3001,16 +3192,16 @@ class _InfoBox extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 3),
               Text(
                 value,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),
@@ -3019,4 +3210,3 @@ class _InfoBox extends StatelessWidget {
     );
   }
 }
-

@@ -124,14 +124,15 @@
       },
       "CustomerProfile": {
         "type": "object",
-        "description": "Customer business profile. No profile fields are approved yet, so profileData currently accepts only an empty object.",
+        "description": "Customer business profile. No profile fields are approved yet, so profileData currently accepts only an empty object. avatarUrl is a stable, non-expiring public URL derived from the stored avatar at read time (mirrors Hotel Media's own PublicHotelMedia.url convention) — null until the Customer uploads one.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "profileData": { "type": "object", "additionalProperties": false },
+          "avatarUrl": { "type": "string", "format": "uri", "nullable": true },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["id", "profileData", "createdAt", "updatedAt"]
+        "required": ["id", "profileData", "avatarUrl", "createdAt", "updatedAt"]
       },
       "CustomerReadiness": {
         "type": "object",
@@ -159,12 +160,22 @@
       },
       "MyHotelSnapshot": {
         "type": "object",
-        "description": "Server-backed Hotel Manager context for Manager Mobile: the latest Hotel owned by the caller, plus its latest application when one exists.",
+        "description": "Server-backed Hotel Manager context for Manager Mobile: the latest Hotel owned by the caller, its latest application when one exists, and its real review aggregate.",
         "properties": {
           "hotel": { "$ref": "#/components/schemas/PublicHotel", "nullable": true },
-          "latestApplication": { "$ref": "#/components/schemas/PublicHotelApplication", "nullable": true }
+          "latestApplication": { "$ref": "#/components/schemas/PublicHotelApplication", "nullable": true },
+          "reviewSummary": { "$ref": "#/components/schemas/ReviewSummary", "nullable": true }
         },
-        "required": ["hotel", "latestApplication"]
+        "required": ["hotel", "latestApplication", "reviewSummary"]
+      },
+      "ReviewSummary": {
+        "type": "object",
+        "description": "A Hotel's real average rating and review count — the same aggregate the public Hotel Detail endpoint already exposes to Customers. `average` is `null` (not `0`) when the Hotel has zero reviews.",
+        "properties": {
+          "average": { "type": "number", "nullable": true, "example": 4.6 },
+          "count": { "type": "integer", "example": 128 }
+        },
+        "required": ["average", "count"]
       },
       "PublicHotelMedia": {
         "type": "object",
@@ -202,11 +213,12 @@
       },
       "PublicHall": {
         "type": "object",
-        "description": "The Hall entity (Technical Design §4). profileData's required/optional/custom structure is defined by BDR-016 (name, capacity required; description, location optional; any other key is a custom field) — the object itself remains unstructured JSON, no per-field schema properties. No visibility/status field is returned — visibility (Hidden/Visible) is computed live, never persisted (Technical Design §6), and its only observable effect is whether a request for a given Hall succeeds at all.",
+        "description": "The Hall entity (Technical Design §4). profileData's required/optional/custom structure is defined by BDR-016 (name, capacity required; description, location optional; any other key is a custom field) — the object itself remains unstructured JSON, no per-field schema properties. `isActive` is the owning Hotel Manager's own Active/Inactive toggle — a non-owner never sees an inactive Hall at all (a request for one behaves exactly as if it didn't exist), so this field is only ever meaningful to the owning Manager's own view.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "hotelId": { "type": "string", "format": "uuid" },
           "profileData": { "type": "object", "nullable": true },
+          "isActive": { "type": "boolean" },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" },
           "bookingTerms": { "type": "object", "properties": { "currency": { "type": "string", "enum": ["USD"] }, "rentAmountCents": { "type": "integer", "nullable": true }, "rentDurationHours": { "type": "integer", "enum": [24], "nullable": true }, "advancePaymentPercent": { "type": "number", "enum": [30], "nullable": true }, "customerServiceNumber": { "type": "string", "nullable": true }, "paymentReceivingNumber": { "type": "string", "nullable": true } } }
@@ -271,6 +283,32 @@
         }
       }
     },
+    "/customers/me/avatar": {
+      "post": {
+        "tags": ["Customers"],
+        "summary": "Upload (or replace) the authenticated Customer's own avatar",
+        "description": "At most one avatar at a time — mirrors Hotel Media's Logo replace-not-append semantics. multipart/form-data, field name 'file'. JPEG/PNG/WebP, 5 MB max (shared/media/imageValidation.js).",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "multipart/form-data": { "schema": { "type": "object", "properties": { "file": { "type": "string", "format": "binary" } }, "required": ["file"] } } }
+        },
+        "responses": {
+          "201": { "description": "Avatar uploaded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "400": { "description": "Missing file, unsupported type, or file too large", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Customer profile not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Customers"],
+        "summary": "Remove the authenticated Customer's own avatar",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Avatar removed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } },
+          "404": { "description": "Customer profile not found, or no avatar to delete", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
     "/hotels/public": {
       "get": {
         "tags": ["Hotels"],
@@ -278,7 +316,8 @@
         "security": [],
         "parameters": [
           { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
-          { "name": "cursor", "in": "query", "schema": { "type": "string", "format": "uuid" } }
+          { "name": "cursor", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "search", "in": "query", "description": "Case-insensitive partial match against Hotel Name and address (BDR-020).", "schema": { "type": "string", "maxLength": 200 } }
         ],
         "responses": { "200": { "description": "Approved/active Hotels", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } } } } }
       }
@@ -780,6 +819,60 @@
         }
       }
     },
+    "/admin/hotels/{hotelId}/suspension": {
+      "post": {
+        "tags": ["Administration"],
+        "summary": "Suspend an approved Hotel",
+        "description": "BDR-012, BR-HOTEL-09, HM11 — transitions an APPROVED_ACTIVE Hotel to SUSPENDED. No reactivation path exists out of SUSPENDED.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Hotel suspended.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotel" } } }] } } }
+          },
+          "403": { "description": "Not a Platform Administrator.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "Hotel is not in a status that can be suspended (must be APPROVED_ACTIVE).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/admin/hotels/{hotelId}/deactivation": {
+      "post": {
+        "tags": ["Administration"],
+        "summary": "Deactivate an approved Hotel",
+        "description": "BDR-012, BR-HOTEL-09 — transitions an APPROVED_ACTIVE Hotel to DEACTIVATED. No reactivation path exists out of DEACTIVATED.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Hotel deactivated.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotel" } } }] } } }
+          },
+          "403": { "description": "Not a Platform Administrator.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "Hotel is not in a status that can be deactivated (must be APPROVED_ACTIVE).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/admin/hotels/{hotelId}/reactivation": {
+      "post": {
+        "tags": ["Administration"],
+        "summary": "Reactivate a suspended or deactivated Hotel",
+        "description": "BDR-022, BR-HOTEL-16 — transitions a SUSPENDED or DEACTIVATED Hotel back to APPROVED_ACTIVE.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Hotel reactivated.",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "$ref": "#/components/schemas/PublicHotel" } } }] } } }
+          },
+          "403": { "description": "Not a Platform Administrator.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "404": { "description": "Hotel not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "409": { "description": "Hotel is not in a status that can be reactivated (must be SUSPENDED or DEACTIVATED).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
     "/hotels/{hotelId}/media/logo": {
       "post": {
         "tags": ["Hotels"],
@@ -898,12 +991,14 @@
       "get": {
         "tags": ["Halls"],
         "summary": "List one Hotel's Halls",
-        "description": "Technical Design §11. Public, with conditional behavior: the owning Hotel Manager sees every Hall regardless of visibility; anyone else sees the full page only while the Hotel is eligible (BR-HOTEL-04/05), or an empty page otherwise — every Hall under one Hotel shares the identical eligibility outcome (Technical Design §6). Offset pagination (coding-standards.md §6 — a bounded, per-Hotel list), distinct from the platform-wide GET /halls' cursor pagination.",
+        "description": "Technical Design §11. Public, with conditional behavior: the owning Hotel Manager sees every Hall regardless of visibility, optionally narrowed by `status`; anyone else always sees Active Halls only, while the Hotel is eligible (BR-HOTEL-04/05), or an empty page otherwise. `search` matches `profileData.name` (case-insensitive substring), the same convention Hotel Management's own Hotel-name search already uses. Offset pagination (coding-standards.md §6 — a bounded, per-Hotel list), distinct from the platform-wide GET /halls' cursor pagination.",
         "security": [{ "bearerAuth": [] }, {}],
         "parameters": [
           { "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
           { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" }, "description": "Case-insensitive substring match against profileData.name." },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "inactive"] }, "description": "Owning Hotel Manager only — narrows their own \"All\" view. Ignored (Active is already forced) for anyone else." }
         ],
         "responses": {
           "200": {
@@ -977,7 +1072,8 @@
                   "name": { "type": "string", "description": "Optional on update; if present, must be non-empty (BDR-016)." },
                   "capacity": { "type": "integer", "minimum": 1, "description": "Optional on update; if present, must be a valid positive integer (BDR-016)." },
                   "description": { "type": "string" },
-                  "location": { "type": "string" }
+                  "location": { "type": "string" },
+                  "isActive": { "type": "boolean", "description": "The owning Manager's Active/Inactive toggle. false hides this Hall from Customer browsing/booking; the owning Manager still sees and can re-activate it." }
                 }
               }
             }
@@ -1085,6 +1181,9 @@
     },
     "/hotels/{hotelId}/bookings": {
       "get": { "tags": ["Bookings"], "summary": "List own-Hotel bookings", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Booking page" }, "404": { "description": "Hotel not found" } } }
+    },
+    "/hotels/{hotelId}/bookings/summary": {
+      "get": { "tags": ["Bookings"], "summary": "Manager Dashboard Overview — total bookings, total revenue, pending count", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Booking summary", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "object", "properties": { "totalBookings": { "type": "integer" }, "totalRevenueCents": { "type": "integer" }, "pendingCount": { "type": "integer" } } } } }] } } } }, "404": { "description": "Hotel not found" } } }
     },
     "/hotels/{hotelId}/bookings/{bookingId}": {
       "get": { "tags": ["Bookings"], "summary": "Get an own-Hotel booking", "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "hotelId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }, { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Booking" }, "404": { "description": "Booking not found" } } }

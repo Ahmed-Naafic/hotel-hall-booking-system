@@ -67,6 +67,12 @@ dependencies:
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0
 
+  # Profile-photo picking (Customer avatar). Same package/version already
+  # shipping in apps/manager-mobile for Hotel/Hall photo picking; isolated
+  # behind lib/features/customer_profile/application/image_picker_service.dart
+  # so the rest of the app never imports this package directly.
+  image_picker: ^1.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

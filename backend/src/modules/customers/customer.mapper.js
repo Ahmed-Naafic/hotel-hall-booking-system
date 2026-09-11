@@ -1,3 +1,5 @@
+import { storageProvider } from '../../shared/providers/storageProvider.js'
+
 export function toCustomerIdentity(user) {
   return {
     id: user.id,
@@ -13,6 +15,9 @@ export function toCustomerProfile(profile) {
   return {
     id: profile.id,
     profileData: profile.profileData,
+    avatarUrl: profile.avatarStoragePath
+      ? storageProvider.getPublicUrl({ path: profile.avatarStoragePath })
+      : null,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   }

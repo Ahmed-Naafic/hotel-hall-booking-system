@@ -47,4 +47,40 @@ class CustomerProfileController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  // A distinct flag from `isLoading` — uploading/removing the avatar
+  // shouldn't block or be blocked by the name editor's own loading state.
+  bool isUploadingAvatar = false;
+  String? avatarErrorMessage;
+
+  Future<void> uploadAvatar({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    isUploadingAvatar = true;
+    avatarErrorMessage = null;
+    notifyListeners();
+    try {
+      await repository.uploadAvatar(bytes: bytes, filename: filename);
+      await load();
+    } catch (_) {
+      avatarErrorMessage = 'Could not upload your photo.';
+    }
+    isUploadingAvatar = false;
+    notifyListeners();
+  }
+
+  Future<void> deleteAvatar() async {
+    isUploadingAvatar = true;
+    avatarErrorMessage = null;
+    notifyListeners();
+    try {
+      await repository.deleteAvatar();
+      await load();
+    } catch (_) {
+      avatarErrorMessage = 'Could not remove your photo.';
+    }
+    isUploadingAvatar = false;
+    notifyListeners();
+  }
 }

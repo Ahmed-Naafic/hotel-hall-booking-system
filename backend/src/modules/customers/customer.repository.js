@@ -20,3 +20,7 @@ export function createProfile({ userId, profileData }, client) {
 export function updateProfile({ userId, profileData }) {
   return prisma.customerProfile.update({ where: { userId }, data: { profileData } })
 }
+
+export function updateAvatar({ userId, avatarStoragePath }) {
+  return prisma.customerProfile.update({ where: { userId }, data: { avatarStoragePath } })
+}

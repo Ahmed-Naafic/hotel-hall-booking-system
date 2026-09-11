@@ -57,6 +57,13 @@ model CustomerProfile {
   id          String    @id @default(uuid()) @db.Uuid
   userId      String    @unique @map("user_id") @db.Uuid
   profileData Json      @default("{}") @map("profile_data")
+  /// The Customer's own profile photo — object-storage path (Storage
+  /// Provider abstraction, mirroring Hotel/Hall Media's own `storagePath`
+  /// convention), never the public URL itself. `null` until the Customer
+  /// uploads one; at most one at a time, replaced (not appended) on
+  /// re-upload — a single avatar, not a gallery, so this stays a plain
+  /// column rather than a second Media table for one image.
+  avatarStoragePath String?   @map("avatar_storage_path")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -273,10 +280,12 @@ model CriticalInformationChangeRequest {
 }
 
 /// The Hall business entity — the Platform's bookable inventory (Technical
-/// Design §4). Deliberately has no status/visibility column: a Hall's
-/// visibility is computed live from its owning Hotel's operational-
-/// eligibility status (Technical Design §6), never persisted or
-/// synchronized here, so there is nothing to keep in sync or invalidate.
+/// Design §4). Visibility to a non-owner is still computed live from the
+/// owning Hotel's operational-eligibility status (Technical Design §6) —
+/// `isActive` below doesn't replace that, it's a second, independent gate:
+/// the Hotel Manager's own manual on/off switch for one Hall, layered on
+/// top of (never instead of) the existing eligibility computation in
+/// `visibility.service.js#computeVisibility`.
 model Hall {
   id                     String                  @id @default(uuid()) @db.Uuid
   hotelId                String                  @map("hotel_id") @db.Uuid
@@ -286,6 +295,11 @@ model Hall {
   /// decision resolves, mirroring Hotel's own profileData design exactly
   /// (Technical Design §4, §8).
   profileData            Json?                   @map("profile_data")
+  /// The Hotel Manager's own Active/Inactive toggle (`PATCH
+  /// /hotels/:hotelId/halls/:id`) — an inactive Hall is hidden from
+  /// Customer-facing browsing/booking (`visibility.service.js`) but always
+  /// visible to, and re-activatable by, the owning Manager.
+  isActive               Boolean                 @default(true) @map("is_active")
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
   deletedAt              DateTime?               @map("deleted_at")
@@ -515,6 +529,16 @@ enum NotificationType {
   NEW_HOTEL_APPLICATION
   HOTEL_APPLICATION_WITHDRAWN
   HOTEL_APPLICATION_RESUBMITTED
+  /// Hotel Manager — M4 (`BDR-021`)
+  HOTEL_APPLICATION_APPROVED
+  /// Hotel Manager — M5 (`BDR-021`)
+  HOTEL_APPLICATION_REJECTED
+  /// Hotel Manager — HM11, BR-HOTEL-09
+  HOTEL_SUSPENDED
+  /// Hotel Manager — BR-HOTEL-09
+  HOTEL_DEACTIVATED
+  /// Hotel Manager — reactivation out of SUSPENDED/DEACTIVATED
+  HOTEL_REACTIVATED
 
   @@map("notification_type")
 }

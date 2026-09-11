@@ -28,3 +28,23 @@ export const updateProfile = asyncHandler(async (req, res) => {
     data: { profile: toCustomerProfile(profile), readiness: getReadiness(profile) },
   })
 })
+
+export const uploadAvatar = asyncHandler(async (req, res) => {
+  const profile = await customerService.uploadAvatar(req.identity.userId, {
+    buffer: req.file.buffer,
+    mimeType: req.detectedMimeType,
+  })
+  sendSuccess(res, {
+    statusCode: 201,
+    message: 'Avatar uploaded successfully.',
+    data: { profile: toCustomerProfile(profile) },
+  })
+})
+
+export const deleteAvatar = asyncHandler(async (req, res) => {
+  const profile = await customerService.deleteAvatar(req.identity.userId)
+  sendSuccess(res, {
+    message: 'Avatar removed successfully.',
+    data: { profile: toCustomerProfile(profile) },
+  })
+})

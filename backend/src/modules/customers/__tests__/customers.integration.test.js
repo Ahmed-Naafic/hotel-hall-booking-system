@@ -24,6 +24,20 @@ async function request(method, path, { body, token } = {}) {
   return { status: response.status, body: text ? JSON.parse(text) : undefined }
 }
 
+async function postFile(path, { filename, bytes, token }) {
+  const form = new FormData()
+  form.append('file', new Blob([bytes]), filename)
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
+  const text = await res.text()
+  return { status: res.status, body: text ? JSON.parse(text) : undefined }
+}
+
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00])
+
 async function registerAndLogin(accountType = 'CUSTOMER') {
   const mobileNumber = uniqueMobileNumber()
   const password = 'correct-horse-battery-staple'
@@ -120,6 +134,90 @@ describe('Customer self-service profile', () => {
   })
 })
 
+describe('Customer avatar (own profile photo)', () => {
+  test('a fresh Customer has no avatar until they upload one', async () => {
+    const { accessToken } = await registerAndLogin()
+    const response = await request('GET', '/api/v1/customers/me', { token: accessToken })
+    assert.equal(response.body.data.profile.avatarUrl, null)
+  })
+
+  test('uploading an avatar sets a real, stable avatarUrl (never a signed/temporary one)', async () => {
+    const { accessToken } = await registerAndLogin()
+    const uploaded = await postFile('/api/v1/customers/me/avatar', {
+      filename: 'me.png',
+      bytes: PNG_BYTES,
+      token: accessToken,
+    })
+    assert.equal(uploaded.status, 201)
+    assert.ok(uploaded.body.data.profile.avatarUrl)
+
+    const read = await request('GET', '/api/v1/customers/me', { token: accessToken })
+    assert.equal(read.body.data.profile.avatarUrl, uploaded.body.data.profile.avatarUrl)
+  })
+
+  test('re-uploading replaces the previous avatar, never leaving two', async () => {
+    const { accessToken } = await registerAndLogin()
+    const first = await postFile('/api/v1/customers/me/avatar', {
+      filename: 'first.png',
+      bytes: PNG_BYTES,
+      token: accessToken,
+    })
+    const second = await postFile('/api/v1/customers/me/avatar', {
+      filename: 'second.png',
+      bytes: PNG_BYTES,
+      token: accessToken,
+    })
+    assert.equal(second.status, 201)
+    assert.notEqual(second.body.data.profile.avatarUrl, first.body.data.profile.avatarUrl)
+
+    const read = await request('GET', '/api/v1/customers/me', { token: accessToken })
+    assert.equal(read.body.data.profile.avatarUrl, second.body.data.profile.avatarUrl)
+  })
+
+  test('deleting the avatar clears it back to null', async () => {
+    const { accessToken } = await registerAndLogin()
+    await postFile('/api/v1/customers/me/avatar', { filename: 'me.png', bytes: PNG_BYTES, token: accessToken })
+
+    const deleted = await request('DELETE', '/api/v1/customers/me/avatar', { token: accessToken })
+    assert.equal(deleted.status, 200)
+    assert.equal(deleted.body.data.profile.avatarUrl, null)
+
+    const read = await request('GET', '/api/v1/customers/me', { token: accessToken })
+    assert.equal(read.body.data.profile.avatarUrl, null)
+  })
+
+  test('deleting with no avatar on file is a 404, not a silent no-op', async () => {
+    const { accessToken } = await registerAndLogin()
+    const response = await request('DELETE', '/api/v1/customers/me/avatar', { token: accessToken })
+    assert.equal(response.status, 404)
+  })
+
+  test('rejects an unsupported file type (400)', async () => {
+    const { accessToken } = await registerAndLogin()
+    const response = await postFile('/api/v1/customers/me/avatar', {
+      filename: 'me.txt',
+      bytes: Buffer.from('not an image'),
+      token: accessToken,
+    })
+    assert.equal(response.status, 400)
+  })
+
+  test('rejects an unauthenticated upload (401)', async () => {
+    const response = await postFile('/api/v1/customers/me/avatar', { filename: 'me.png', bytes: PNG_BYTES })
+    assert.equal(response.status, 401)
+  })
+
+  test('a HOTEL_MANAGER cannot use the Customer avatar endpoint (403)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const response = await postFile('/api/v1/customers/me/avatar', {
+      filename: 'me.png',
+      bytes: PNG_BYTES,
+      token: manager.accessToken,
+    })
+    assert.equal(response.status, 403)
+  })
+})
+
 describe('Anonymous Hotel and Hall discovery', () => {
   test('only approved active Hotels are listed and private fields are excluded', async () => {
     const manager = await registerAndLogin('HOTEL_MANAGER')
@@ -140,6 +238,137 @@ describe('Anonymous Hotel and Hall discovery', () => {
 
     assert.equal((await request('GET', `/api/v1/hotels/public/${visible.id}`)).status, 200)
     assert.equal((await request('GET', `/api/v1/hotels/public/${hidden.id}`)).status, 404)
+  })
+
+  test('search matches the full Hotel Name (BDR-020)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const hotel = await prisma.hotel.create({
+      data: { registeredByUserId: manager.user.id, status: 'APPROVED_ACTIVE', profileData: { name: `Hotel Guuleed ${suffix}` } },
+    })
+
+    const res = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`Hotel Guuleed ${suffix}`)}`)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((h) => h.id === hotel.id))
+  })
+
+  test('search matches a partial Hotel Name (BDR-020)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const hotel = await prisma.hotel.create({
+      data: { registeredByUserId: manager.user.id, status: 'APPROVED_ACTIVE', profileData: { name: `Hotel Guuleed ${suffix}` } },
+    })
+
+    const res = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`Guuleed ${suffix}`)}`)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((h) => h.id === hotel.id))
+  })
+
+  test('search is case-insensitive (BDR-020)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const hotel = await prisma.hotel.create({
+      data: { registeredByUserId: manager.user.id, status: 'APPROVED_ACTIVE', profileData: { name: `Hotel Guuleed ${suffix}` } },
+    })
+
+    const res = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`HOTEL GUULEED ${suffix}`)}`)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((h) => h.id === hotel.id))
+  })
+
+  test('search matches the customer-facing address (BDR-020)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const hotel = await prisma.hotel.create({
+      data: {
+        registeredByUserId: manager.user.id,
+        status: 'APPROVED_ACTIVE',
+        profileData: { name: 'Unrelated Hotel Name', location: { latitude: 2.05, longitude: 45.32, address: `Lido Beach ${suffix}, Mogadishu` } },
+      },
+    })
+
+    const res = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`lido beach ${suffix}`)}`)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((h) => h.id === hotel.id))
+  })
+
+  test('a Hotel outside the default first page is still found by search (the reported bug)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const hotel = await prisma.hotel.create({
+      data: {
+        registeredByUserId: manager.user.id,
+        status: 'APPROVED_ACTIVE',
+        profileData: { name: `Hotel Guuleed ${suffix}` },
+        createdAt: new Date('2020-01-01T00:00:00.000Z'),
+      },
+    })
+
+    const unsearched = await request('GET', '/api/v1/hotels/public?limit=1')
+    assert.ok(!unsearched.body.data.some((h) => h.id === hotel.id), 'expected the old Hotel to be off the default first page')
+
+    const searched = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`Guuleed ${suffix}`)}&limit=1`)
+    assert.equal(searched.status, 200)
+    assert.ok(searched.body.data.some((h) => h.id === hotel.id), 'expected search to find it regardless of page/creation order')
+  })
+
+  test('a search with no matches returns an empty list, not an error (BDR-020)', async () => {
+    const res = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`NoSuchHotel-${uniqueMobileNumber()}`)}`)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
+
+  test('search still respects the existing cursor pagination contract (BDR-020)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const first = await prisma.hotel.create({
+      data: { registeredByUserId: manager.user.id, status: 'APPROVED_ACTIVE', profileData: { name: `SearchPage ${suffix} A` } },
+    })
+    const second = await prisma.hotel.create({
+      data: { registeredByUserId: manager.user.id, status: 'APPROVED_ACTIVE', profileData: { name: `SearchPage ${suffix} B` } },
+    })
+
+    const page1 = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`SearchPage ${suffix}`)}&limit=1`)
+    assert.equal(page1.status, 200)
+    assert.equal(page1.body.data.length, 1)
+    assert.equal(page1.body.pagination.hasNext, true)
+    assert.ok(page1.body.pagination.nextCursor)
+
+    const page2 = await request(
+      'GET',
+      `/api/v1/hotels/public?search=${encodeURIComponent(`SearchPage ${suffix}`)}&limit=1&cursor=${page1.body.pagination.nextCursor}`,
+    )
+    assert.equal(page2.status, 200)
+    assert.equal(page2.body.data.length, 1)
+    assert.notEqual(page1.body.data[0].id, page2.body.data[0].id)
+    assert.deepEqual(
+      [page1.body.data[0].id, page2.body.data[0].id].sort(),
+      [first.id, second.id].sort(),
+    )
+  })
+
+  test('search never returns a non-Approved/Active Hotel, even on a name match (BDR-020)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const hidden = await prisma.hotel.create({
+      data: { registeredByUserId: manager.user.id, status: 'REJECTED', profileData: { name: `Hidden Guuleed ${suffix}` } },
+    })
+
+    const res = await request('GET', `/api/v1/hotels/public?search=${encodeURIComponent(`Guuleed ${suffix}`)}`)
+    assert.equal(res.status, 200)
+    assert.ok(!res.body.data.some((h) => h.id === hidden.id))
+  })
+
+  test('an overlong search value is rejected with 400 (BDR-020)', async () => {
+    const res = await request('GET', `/api/v1/hotels/public?search=${'a'.repeat(201)}`)
+    assert.equal(res.status, 400)
+  })
+
+  test('omitting search leaves GET /hotels/public unchanged (BDR-020)', async () => {
+    const res = await request('GET', '/api/v1/hotels/public')
+    assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
+    assert.ok(res.body.pagination)
   })
 
   test('public Hall discovery returns authoritative photos and hides Halls of ineligible Hotels', async () => {

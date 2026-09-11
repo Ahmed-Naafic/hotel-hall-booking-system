@@ -38,4 +38,18 @@ class CustomerProfileRepository {
     '/customers/me/profile',
     body: {'profileData': {'fullName': fullName}},
   );
+
+  /// Uploads (or replaces) the Customer's own avatar — at most one at a
+  /// time; the backend deletes the previous file once the new one is
+  /// fully persisted (`customer.service.js#uploadAvatar`).
+  Future<void> uploadAvatar({
+    required List<int> bytes,
+    required String filename,
+  }) => apiClient.postMultipart(
+    '/customers/me/avatar',
+    bytes: bytes,
+    filename: filename,
+  );
+
+  Future<void> deleteAvatar() => apiClient.delete('/customers/me/avatar');
 }

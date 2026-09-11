@@ -26,20 +26,44 @@ export function getHotelDisplayName(hotel) {
   return { text: 'Unnamed Hotel', variant: 'unnamed' }
 }
 
-// Best-effort read of a location-ish field. No field name is standardized
-// yet (same Pending Decision #7 as above) — this checks the handful of
-// plausible keys a Hotel Manager's client might use, and returns null
-// (never a placeholder string) when none are present.
-const LOCATION_KEYS = ['location', 'city', 'address']
+// Best-effort read of a location-ish field. `location` itself is a
+// structured value (ADR-0008 — `{ latitude, longitude, address }`,
+// `Hotel.profileData.location`) written by the Hotel Manager's location
+// picker; a couple of older/plainer keys are checked as string fallbacks
+// for profiles that predate that structure. Returns null (never a
+// placeholder string) when nothing usable is present.
+const LOCATION_FALLBACK_KEYS = ['city', 'address']
 
 export function getHotelLocation(hotel) {
   const profileData = hotel?.profileData
   if (!profileData || typeof profileData !== 'object') return null
-  for (const key of LOCATION_KEYS) {
+  const location = profileData.location
+  if (
+    location &&
+    typeof location === 'object' &&
+    typeof location.address === 'string' &&
+    location.address.trim().length > 0
+  ) {
+    return location.address.trim()
+  }
+  if (typeof location === 'string' && location.trim().length > 0) return location.trim()
+  for (const key of LOCATION_FALLBACK_KEYS) {
     const value = profileData[key]
     if (typeof value === 'string' && value.trim().length > 0) return value.trim()
   }
   return null
+}
+
+// The Hotel's exact coordinates (ADR-0008), when the profile has completed
+// the structured location step — null for a profile that hasn't (or that
+// predates the structure and only has a plain-string address/city).
+export function getHotelCoordinates(hotel) {
+  const location = hotel?.profileData?.location
+  if (!location || typeof location !== 'object') return null
+  const { latitude, longitude } = location
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') return null
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  return { latitude, longitude }
 }
 
 export function shortHotelId(id) {

@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../shared/auth/useAuth.js'
-import { approveHotelApplication, getHotel, listHotelApplications, rejectHotelApplication } from '../../shared/api/hotelsApi.js'
+import {
+  approveHotelApplication,
+  deactivateHotel,
+  getHotel,
+  listHotelApplications,
+  reactivateHotel,
+  rejectHotelApplication,
+  suspendHotel,
+} from '../../shared/api/hotelsApi.js'
 import { ApiError } from '../../shared/api/apiClient.js'
 import { Button } from '../../shared/components/Button.jsx'
 import { StateMessage } from '../../shared/components/StateMessage.jsx'
@@ -8,7 +16,9 @@ import { Skeleton } from '../../shared/components/Skeleton.jsx'
 import { IconArrowLeft, IconMapPin } from '../../shared/components/Icon.jsx'
 import { StatusBadge } from './StatusBadge.jsx'
 import { describeStatus, describeApplicationStatus } from './hotelStatus.js'
-import { getHotelDisplayName, getHotelLocation } from './hotelProfile.js'
+import { getHotelDisplayName, getHotelLocation, getHotelCoordinates } from './hotelProfile.js'
+import { ImageLightbox } from './ImageLightbox.jsx'
+import { HotelLocationMap } from './HotelLocationMap.jsx'
 
 /**
  * Platform Administrator's Hotel Details / Application Review view
@@ -22,8 +32,11 @@ import { getHotelDisplayName, getHotelLocation } from './hotelProfile.js'
  *
  * The page reads the Hotel plus its application history through the
  * Administration API and wires Approve/Reject only when the Hotel has an
- * open application under review. Suspension/deactivation remain outside this
- * implementation slice.
+ * open application under review, Suspend/Deactivate only when the Hotel is
+ * APPROVED_ACTIVE (BDR-012, BR-HOTEL-09), and Reactivate only when it is
+ * SUSPENDED or DEACTIVATED (BDR-022, BR-HOTEL-16) — every one of these asks
+ * for confirmation before calling, since none can be undone from this page
+ * without a separate action.
  */
 export function HotelDetailPage({ hotelId, onBack }) {
   const { accessToken } = useAuth()
@@ -34,6 +47,9 @@ export function HotelDetailPage({ hotelId, onBack }) {
   const [decisionState, setDecisionState] = useState('idle')
   const [decisionError, setDecisionError] = useState('')
   const [rejectReason, setRejectReason] = useState('')
+  const [hotelActionState, setHotelActionState] = useState('idle')
+  const [hotelActionError, setHotelActionError] = useState('')
+  const [lightboxIndex, setLightboxIndex] = useState(null)
 
   const load = useCallback(async () => {
     setLoadState('loading')
@@ -57,19 +73,48 @@ export function HotelDetailPage({ hotelId, onBack }) {
   }, [load])
 
   const isUnderReview = hotel?.status === 'UNDER_REVIEW'
+  const isApprovedActive = hotel?.status === 'APPROVED_ACTIVE'
+  const isReactivatable = hotel?.status === 'SUSPENDED' || hotel?.status === 'DEACTIVATED'
   const openApplication = applications.find((application) => application.status === 'OPEN')
-  const { text: displayName, variant: nameVariant } = hotel ? getHotelDisplayName(hotel) : { text: '', variant: 'named' }
+  const { text: displayName, variant: nameVariant } = hotel
+    ? getHotelDisplayName(hotel)
+    : { text: '', variant: 'named' }
   const location = hotel ? getHotelLocation(hotel) : null
-  const profileEntries = hotel?.profileData ? Object.entries(hotel.profileData) : []
+  const coordinates = hotel ? getHotelCoordinates(hotel) : null
+  // 'location' is rendered specially above (address text + map) — leaving
+  // it in this generic dump would otherwise show its raw structured value
+  // (`{ latitude, longitude, address }`) as JSON text.
+  const profileEntries = hotel?.profileData
+    ? Object.entries(hotel.profileData).filter(([field]) => field !== 'location')
+    : []
+  const mediaImages = hotel
+    ? [
+        ...(hotel.logo?.url ? [{ url: hotel.logo.url, alt: `${displayName} logo` }] : []),
+        ...(hotel.photos ?? [])
+          .filter((photo) => photo.url)
+          .map((photo, index) => ({ url: photo.url, alt: `${displayName} photo ${index + 1}` })),
+      ]
+    : []
 
   return (
     <div>
-      <Button variant="ghost" size="sm" onClick={onBack} iconLeft={<IconArrowLeft size={15} />} style={{ marginBottom: 'var(--space-5)' }}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onBack}
+        iconLeft={<IconArrowLeft size={15} />}
+        style={{ marginBottom: 'var(--space-5)' }}
+      >
         Back
       </Button>
 
       {loadState === 'error' ? (
-        <StateMessage tone="error" title="Couldn’t load this Hotel" message={error} onRetry={load} />
+        <StateMessage
+          tone="error"
+          title="Couldn’t load this Hotel"
+          message={error}
+          onRetry={load}
+        />
       ) : loadState === 'loading' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
           <Skeleton height={28} width="40%" />
@@ -78,7 +123,14 @@ export function HotelDetailPage({ hotelId, onBack }) {
         </div>
       ) : (
         <>
-          <p style={{ margin: '0 0 var(--space-1)', fontSize: 'var(--text-xs)', letterSpacing: 'var(--tracking-wide)', color: 'var(--text-muted)' }}>
+          <p
+            style={{
+              margin: '0 0 var(--space-1)',
+              fontSize: 'var(--text-xs)',
+              letterSpacing: 'var(--tracking-wide)',
+              color: 'var(--text-muted)',
+            }}
+          >
             {isUnderReview ? 'Application Review' : 'Hotel Details'}
           </p>
           <div
@@ -91,15 +143,40 @@ export function HotelDetailPage({ hotelId, onBack }) {
               marginBottom: 'var(--space-1)',
             }}
           >
-            <h2 style={{ margin: 0, fontSize: 'var(--text-xl)', fontStyle: nameVariant === 'incomplete' ? 'italic' : 'normal' }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 'var(--text-xl)',
+                fontStyle: nameVariant === 'incomplete' ? 'italic' : 'normal',
+              }}
+            >
               {displayName}
             </h2>
             <StatusBadge status={hotel.status} />
           </div>
           {location ? (
-            <p style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '0 0 var(--space-2)', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+            <p
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                margin: '0 0 var(--space-2)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--text-muted)',
+              }}
+            >
               <IconMapPin size={14} /> {location}
             </p>
+          ) : null}
+
+          {coordinates ? (
+            <div style={{ margin: '0 0 var(--space-2)' }}>
+              <HotelLocationMap
+                latitude={coordinates.latitude}
+                longitude={coordinates.longitude}
+                label={location ?? displayName}
+              />
+            </div>
           ) : null}
 
           {isUnderReview ? (
@@ -112,11 +189,23 @@ export function HotelDetailPage({ hotelId, onBack }) {
                 background: 'var(--gold-100)',
               }}
             >
-              <p style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--text-sm)', color: 'var(--navy-800)' }}>
+              <p
+                style={{
+                  margin: '0 0 var(--space-3)',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--navy-800)',
+                }}
+              >
                 This application is awaiting a decision.
               </p>
               {decisionError ? (
-                <p style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--text-sm)', color: 'var(--danger-700)' }}>
+                <p
+                  style={{
+                    margin: '0 0 var(--space-3)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--danger-700)',
+                  }}
+                >
                   {decisionError}
                 </p>
               ) : null}
@@ -155,12 +244,115 @@ export function HotelDetailPage({ hotelId, onBack }) {
             </div>
           ) : null}
 
-          {hotel.logo?.url || hotel.photos?.length ? (
+          {isApprovedActive ? (
+            <div
+              style={{
+                marginTop: 'var(--space-4)',
+                padding: 'var(--space-4)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--surface-raised)',
+              }}
+            >
+              <p
+                style={{
+                  margin: '0 0 var(--space-3)',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--navy-800)',
+                }}
+              >
+                This Hotel is approved and active. It can be reactivated later from this same page.
+              </p>
+              {hotelActionError ? (
+                <p
+                  style={{
+                    margin: '0 0 var(--space-3)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--danger-700)',
+                  }}
+                >
+                  {hotelActionError}
+                </p>
+              ) : null}
+              <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={hotelActionState !== 'idle'}
+                  onClick={() => performHotelAction('suspend')}
+                >
+                  Suspend Hotel
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={hotelActionState !== 'idle'}
+                  onClick={() => performHotelAction('deactivate')}
+                >
+                  Deactivate Hotel
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {isReactivatable ? (
+            <div
+              style={{
+                marginTop: 'var(--space-4)',
+                padding: 'var(--space-4)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--surface-raised)',
+              }}
+            >
+              <p
+                style={{
+                  margin: '0 0 var(--space-3)',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--navy-800)',
+                }}
+              >
+                This Hotel is {hotel.status === 'SUSPENDED' ? 'suspended' : 'deactivated'} and not
+                operationally eligible. Reactivating restores full operational eligibility
+                immediately.
+              </p>
+              {hotelActionError ? (
+                <p
+                  style={{
+                    margin: '0 0 var(--space-3)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--danger-700)',
+                  }}
+                >
+                  {hotelActionError}
+                </p>
+              ) : null}
+              <Button
+                variant="accent"
+                size="sm"
+                disabled={hotelActionState !== 'idle'}
+                onClick={() => performHotelAction('reactivate')}
+              >
+                Reactivate Hotel
+              </Button>
+            </div>
+          ) : null}
+
+          {mediaImages.length > 0 ? (
             <Section title="Hotel Media">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 'var(--space-3)' }}>
-                {hotel.logo?.url ? <HotelImage media={hotel.logo} alt={`${displayName} logo`} /> : null}
-                {(hotel.photos ?? []).map((photo, index) => (
-                  <HotelImage key={photo.id} media={photo} alt={`${displayName} photo ${index + 1}`} />
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                  gap: 'var(--space-3)',
+                }}
+              >
+                {mediaImages.map((image, index) => (
+                  <HotelImage
+                    key={image.url}
+                    image={image}
+                    onClick={() => setLightboxIndex(index)}
+                  />
                 ))}
               </div>
             </Section>
@@ -173,7 +365,9 @@ export function HotelDetailPage({ hotelId, onBack }) {
           </Section>
 
           <Section title="Lifecycle Status">
-            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-body)' }}>{describeStatus(hotel.status)}</p>
+            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-body)' }}>
+              {describeStatus(hotel.status)}
+            </p>
           </Section>
 
           <Section title="Registration">
@@ -184,8 +378,16 @@ export function HotelDetailPage({ hotelId, onBack }) {
                 // before that decision, never a fabricated name.
                 { term: 'Hotel Manager', value: hotel.registeredBy?.fullName ?? 'Not set' },
                 { term: 'Manager Mobile Number', value: hotel.registeredBy?.mobileNumber ?? '—' },
-                { term: 'Registered by (User ID)', value: <code style={{ fontSize: 'var(--text-xs)' }}>{hotel.registeredByUserId}</code> },
-                { term: 'Hotel ID', value: <code style={{ fontSize: 'var(--text-xs)' }}>{hotel.id}</code> },
+                {
+                  term: 'Registered by (User ID)',
+                  value: (
+                    <code style={{ fontSize: 'var(--text-xs)' }}>{hotel.registeredByUserId}</code>
+                  ),
+                },
+                {
+                  term: 'Hotel ID',
+                  value: <code style={{ fontSize: 'var(--text-xs)' }}>{hotel.id}</code>,
+                },
                 { term: 'Registered on', value: new Date(hotel.createdAt).toLocaleString() },
                 { term: 'Last updated', value: new Date(hotel.updatedAt).toLocaleString() },
               ]}
@@ -199,14 +401,19 @@ export function HotelDetailPage({ hotelId, onBack }) {
               </p>
             ) : (
               <DefinitionList
-                items={profileEntries.map(([field, value]) => ({ term: formatFieldName(field), value: formatFieldValue(value) }))}
+                items={profileEntries.map(([field, value]) => ({
+                  term: formatFieldName(field),
+                  value: formatFieldValue(value),
+                }))}
               />
             )}
           </Section>
 
           <Section title="Review Information">
             {applications.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>No application has been submitted yet.</p>
+              <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                No application has been submitted yet.
+              </p>
             ) : (
               <DefinitionList
                 items={applications.map((application) => ({
@@ -220,6 +427,14 @@ export function HotelDetailPage({ hotelId, onBack }) {
           </Section>
         </>
       )}
+
+      {lightboxIndex !== null ? (
+        <ImageLightbox
+          images={mediaImages}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      ) : null}
     </div>
   )
 
@@ -236,9 +451,39 @@ export function HotelDetailPage({ hotelId, onBack }) {
       setRejectReason('')
       await load()
     } catch (err) {
-      setDecisionError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+      setDecisionError(
+        err instanceof ApiError ? err.message : 'Something went wrong. Please try again.',
+      )
     } finally {
       setDecisionState('idle')
+    }
+  }
+
+  async function performHotelAction(action) {
+    const confirmMessage = {
+      suspend: 'Suspend this Hotel? It will no longer be operationally eligible.',
+      deactivate: 'Deactivate this Hotel? It will no longer be operationally eligible.',
+      reactivate: 'Reactivate this Hotel? It will immediately regain full operational eligibility.',
+    }[action]
+    if (!window.confirm(confirmMessage)) return
+
+    setHotelActionState(action)
+    setHotelActionError('')
+    try {
+      if (action === 'suspend') {
+        await suspendHotel(accessToken, hotel.id)
+      } else if (action === 'deactivate') {
+        await deactivateHotel(accessToken, hotel.id)
+      } else {
+        await reactivateHotel(accessToken, hotel.id)
+      }
+      await load()
+    } catch (err) {
+      setHotelActionError(
+        err instanceof ApiError ? err.message : 'Something went wrong. Please try again.',
+      )
+    } finally {
+      setHotelActionState('idle')
     }
   }
 }
@@ -264,26 +509,71 @@ function Section({ title, children }) {
   )
 }
 
-function HotelImage({ media, alt }) {
+function HotelImage({ image, onClick }) {
   return (
-    <img
-      src={media.url}
-      alt={alt}
-      loading="lazy"
-      style={{ width: '100%', height: 150, display: 'block', objectFit: 'cover', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}
-    />
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`View ${image.alt} full size`}
+      style={{
+        padding: 0,
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-md)',
+        background: 'none',
+        cursor: 'zoom-in',
+        display: 'block',
+        width: '100%',
+      }}
+    >
+      <img
+        src={image.url}
+        alt={image.alt}
+        loading="lazy"
+        style={{
+          width: '100%',
+          height: 150,
+          display: 'block',
+          objectFit: 'cover',
+          borderRadius: 'var(--radius-md)',
+        }}
+      />
+    </button>
   )
 }
 
 function DefinitionList({ items }) {
   return (
-    <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 'var(--space-4) var(--space-6)' }}>
+    <dl
+      style={{
+        margin: 0,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+        gap: 'var(--space-4) var(--space-6)',
+      }}
+    >
       {items.map(({ term, value }) => (
         <div key={term} style={{ minWidth: 0 }}>
-          <dt style={{ fontSize: 'var(--text-xs)', letterSpacing: 'var(--tracking-wide)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>
+          <dt
+            style={{
+              fontSize: 'var(--text-xs)',
+              letterSpacing: 'var(--tracking-wide)',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              marginBottom: 4,
+            }}
+          >
             {term}
           </dt>
-          <dd style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-body)', wordBreak: 'break-word' }}>{value}</dd>
+          <dd
+            style={{
+              margin: 0,
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-body)',
+              wordBreak: 'break-word',
+            }}
+          >
+            {value}
+          </dd>
         </div>
       ))}
     </dl>

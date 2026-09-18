@@ -39,13 +39,32 @@ export async function getHallForHotel(id, hotelId) {
   return hall
 }
 
-/** Every Hall for one Hotel, regardless of visibility — the Hotel Manager's own management view. */
-export function listHallsForHotel({ hotelId, page = 1, limit = 20 }) {
+/** Every Hall for one Hotel matching `activeFilter`/`search`, regardless of visibility — the Hotel Manager's own management view. */
+export function listHallsForHotel({ hotelId, page = 1, limit = 20, activeFilter, search }) {
   const skip = (page - 1) * limit
   return Promise.all([
-    hallRepository.listByHotelId({ hotelId, skip, take: limit }),
-    hallRepository.countByHotelId(hotelId),
+    hallRepository.listByHotelId({ hotelId, skip, take: limit, activeFilter, search }),
+    hallRepository.countByHotelId(hotelId, { activeFilter, search }),
   ])
+}
+
+/**
+ * Resolves the `isActive` filter to actually apply, per caller:
+ * - A non-owner (Customer browsing) only ever sees Active Halls — this is
+ *   the same gate `visibility.service.js#computeVisibility` applies
+ *   per-Hall elsewhere, pushed down to the query here so this offset-
+ *   paginated single-Hotel list's own `total`/`hasNext` stay correct
+ *   (Technical Design §11) rather than reporting a page/total that
+ *   includes Halls the response then silently drops.
+ * - The owning Manager sees everything by default ("All"), or can narrow
+ *   to `status=active`/`status=inactive` — their own filter chips, never
+ *   forced.
+ */
+function resolveActiveFilter({ isOwner, status }) {
+  if (!isOwner) return true
+  if (status === 'active') return true
+  if (status === 'inactive') return false
+  return undefined
 }
 
 /**
@@ -105,7 +124,7 @@ export async function getHallScoped({ id, hotelId, userId }) {
  * `:hotelId` doesn't exist at all, offset pagination (`coding-standards.md`
  * §6 — a bounded, per-Hotel list).
  */
-export async function listHallsForHotelScoped({ hotelId, userId, page = 1, limit = 20 }) {
+export async function listHallsForHotelScoped({ hotelId, userId, page = 1, limit = 20, search, status }) {
   const isOwner = userId ? await isOwnHotel(hotelId, userId) : false
 
   if (!isOwner) {
@@ -118,6 +137,7 @@ export async function listHallsForHotelScoped({ hotelId, userId, page = 1, limit
     }
   }
 
-  const [halls, total] = await listHallsForHotel({ hotelId, page, limit })
+  const activeFilter = resolveActiveFilter({ isOwner, status })
+  const [halls, total] = await listHallsForHotel({ hotelId, page, limit, activeFilter, search })
   return { halls, total }
 }

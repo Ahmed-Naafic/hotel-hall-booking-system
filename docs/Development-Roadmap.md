@@ -2,9 +2,9 @@
 title: "Development Roadmap"
 document_type: Governance / Planning
 status: Approved
-version: 1.0
+version: 1.2
 owner: Ahmed (Project Planning Architect)
-last_updated: 2026-08-02
+last_updated: 2026-09-13
 ---
 
 # Development Roadmap
@@ -258,17 +258,17 @@ status is never entered independently here.
 | Authentication & Account Management | 1 | Critical | Ready (no dependencies) | Not Started | Not Started | Not Started |
 | Security & Access Control (baseline) | 1 | Critical | Ready (depends on Authentication, in progress alongside it) | Not Started | Not Started | Not Started |
 | Hotel Management | 1 | Critical | Blocked (Authentication) | Not Started | Not Started | Not Started |
-| Customer Management | 2 | High | Blocked (Authentication) | Not Started | Not Started | Not Started |
+| Customer Management | 2 | High | Ready (Authentication accepted) | Approved (V1 slice; core scope pending BDR-CUST-01/02/03) | Partial — profile existence + Favorites only | Not Started |
 | Hall Management | 2 | Critical | Blocked (Hotel Management) | Not Started | Not Started | Not Started |
-| Booking Management | 3 | Critical | Blocked (Customer Mgmt, Hall Mgmt) | Not Started | Not Started | Not Started |
-| Calendar & Scheduling Management | 3 | Critical | Blocked (Booking Management) | Not Started | Not Started | Not Started |
-| Payment Management | 4 | Critical | Blocked (Booking Management) | Not Started | Not Started | Not Started |
+| Booking Management | 3 | Critical | Ready (Customer Mgmt, Hall Mgmt delivered) | Approved | Implemented | Not Started |
+| Calendar & Scheduling Management | 3 | Critical | Ready (Booking Management delivered) | Approved | Implemented | Not Started |
+| Payment Management | 4 | Critical | Ready (Booking Management delivered) | Approved (V1 embedded-in-Booking scope) | Implemented | Not Started |
 | Event Management | 5 | Medium–High | Blocked (Booking Management) | Not Started | Not Started | Not Started |
 | Staff Management | 5 | Medium | Blocked (Hotel Management) | Not Started | Not Started | Not Started |
-| Communication & Notification Management | 6 | Medium–High | Blocked (Booking, Staff Mgmt) | Not Started | Not Started | Not Started |
-| Reviews & Ratings Management | 6 | Low–Medium | Blocked (Booking Management) | Not Started | Not Started | Not Started |
+| Communication & Notification Management | 6 | Medium–High | Ready (Booking Mgmt, Customer Mgmt delivered; V1 is Notification-only, so its Staff Mgmt dependency does not apply yet — see §9) | Approved (V1 Notification-only scope; Communication/chat deferred) | Implemented (Android push; iOS pending) | Not Started |
+| Reviews & Ratings Management | 6 | Low–Medium | Ready (Booking Mgmt delivered; built ahead of Staff/Event Mgmt — §9) | Approved | Implemented | Not Started |
 | Reports & Analytics | 6 | Medium | Blocked (Booking, Payment, Staff, Reviews) | Not Started | Not Started | Not Started |
-| Administration & Platform Management | 7 | High | Blocked (Hotel Mgmt, Security) | Not Started | Not Started | Not Started |
+| Administration & Platform Management | 7 | High | Ready (Hotel Mgmt delivered; V1 scoped to application review only) | Approved (V1 narrow scope) | Implemented | Not Started |
 
 `Documentation Status` rolls up a module's Business Specification / Technical Design /
 Implementation Plan phases; `Implementation Status` and `Validation Status` roll up the
@@ -309,6 +309,24 @@ All changes to this roadmap require **Ahmed's approval**, per `Project-Constitut
 - **Delaying implementation.** Recorded as `On Hold` in `Team-Management.md` §7 with a
   reason; does not require renumbering waves — only a note that a wave's completion is
   blocked pending that module.
+- **Building out of wave order (recorded reason, per the override rule above).** Reviews &
+  Ratings Management (Wave 6) was implemented on 2026-09-06, ahead of Event Management and
+  Staff Management (Wave 5), which remain `Not Started`. Reason: Reviews & Ratings' only real
+  dependencies — Booking Management and Customer identity — were already stable, while
+  Event/Staff Management had no immediate product need driving them yet. This does not change
+  either module's wave placement in §3/§4; it is a workload-sequencing choice, not a
+  dependency change, and Wave 5 still gates Wave 6's *completion* milestone (§6) even though
+  one Wave 6 module shipped first.
+- Communication & Notification Management (Wave 6) was implemented starting 2026-09-07, also
+  ahead of Event Management and Staff Management (Wave 5), the same category of call as
+  Reviews & Ratings' above. Reason: its approved V1 scope is Notification-only (see the
+  module's own Business Specification "Naming Note") and explicitly excludes any
+  Staff-account notification — so the one dependency (Staff Management) that would otherwise
+  block it does not apply to what V1 actually delivers. Communication (chat/messaging) is
+  deferred to a future, separately-scoped feature request, at which point the Staff
+  Management dependency will apply for real. This does not change Communication &
+  Notification Management's wave placement in §3/§4; Wave 5 still gates Wave 6's
+  *completion* milestone (§6).
 
 ---
 
@@ -352,4 +370,6 @@ progress, which belongs in `Team-Management.md` §7.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.2 | 2026-09-13 | Ahmed | §7 refreshed against `Team-Management.md` §7 (v1.26): Communication & Notification Management moved from `Not Started` to its actual delivered state (V1 Notification-only, Android push). §9 records the reason it was built ahead of Event/Staff Management (Wave 5), the same category of call already recorded there for Reviews & Ratings. |
+| 1.1 | 2026-09-07 | Ahmed | §7 refreshed against `Team-Management.md` §7 (v1.25): Customer Management, Booking Management, Calendar & Scheduling Management, Payment Management, Reviews & Ratings Management, and Administration & Platform Management moved from `Not Started` to their actual delivered state, all documented retroactively this date. §9 records the reason Reviews & Ratings (Wave 6) was built ahead of Event/Staff Management (Wave 5). |
 | 1.0 | 2026-08-02 | Ahmed | Initial approved Development Roadmap |

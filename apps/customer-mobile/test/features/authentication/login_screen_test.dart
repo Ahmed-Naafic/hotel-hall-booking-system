@@ -32,7 +32,7 @@ Widget _wrap(AuthController controller, Widget child) =>
 
 void main() {
   testWidgets(
-    'successful login navigates to HomeScreen via AuthController state',
+    'a successful login leaves the AuthController authenticated',
     (tester) async {
       final controller = _controller(
         handler: (r) async {

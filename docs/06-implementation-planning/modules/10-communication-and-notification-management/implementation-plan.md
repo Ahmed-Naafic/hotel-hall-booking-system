@@ -1,12 +1,12 @@
 ---
-title: "Notification Management — Implementation Plan (Notification V1)"
+title: "Notification & Communication Management — Implementation Plan (Notification V1, Communication V1)"
 document_type: Implementation Planning
 module: 10-communication-and-notification-management
-status: Done — FCM configured end-to-end (backend + Customer Mobile Android + Manager Mobile Android); see "FCM Configuration Required Later" for what remains (iOS)
+status: "Notification V1: Done — FCM configured end-to-end (backend + Customer Mobile Android + Manager Mobile Android); see 'FCM Configuration Required Later' for what remains (iOS). Communication V1: In Progress — see 'Communication V1' section below."
 owner: Engineering
 reviewer: Approved by stakeholder
 depends_on: ["docs/05-technical-design/modules/10-communication-and-notification-management/technical-design.md"]
-last_updated: 2026-09-07
+last_updated: 2026-09-14
 ---
 
 ## Backend
@@ -60,9 +60,23 @@ last_updated: 2026-09-07
 
 ## Admin Web
 
-Only if Phase 7 finds the existing Admin Web shell supports a notification bell/list without
-inventing new frontend infrastructure beyond this feature's own scope — otherwise deferred,
-per the Business Specification's "Out of Scope for V1."
+**Built 2026-09-11**, after the Platform Administrator reported never seeing a Notification
+for a submitted Hotel application despite the backend already creating one correctly. The
+existing shell (`NotificationsMenu.jsx`'s bell/dropdown, already in the header) supported a
+notification list cheaply — no new frontend infrastructure invented:
+
+1. `shared/api/notificationsApi.js` — `GET /notifications`, `GET /notifications/unread-count`,
+   `POST /notifications/:id/read`, `POST /notifications/read-all`. No device-token endpoints
+   (browser push remains out of scope).
+2. `features/notifications/useNotifications.js` — unread count on mount, list fetched when
+   the menu opens, mark read / mark all read.
+3. `NotificationsMenu.jsx` rewritten from its hardcoded "no notifications yet" placeholder to
+   the real list; tapping a Notification navigates via `DashboardShell`'s existing
+   `openHotel(hotelId)`.
+
+Verified with `npm run lint` and `npm run build` (both clean) — this app has no automated
+test framework configured (no Vitest/Jest), so no test-file coverage was added for it,
+consistent with the rest of this codebase's Admin Web surface today.
 
 ## FCM Configuration Required Later (Developer Action)
 
@@ -166,3 +180,54 @@ event catalog, which was already complete at 14/14):
 New tables only — no existing data requires migration. Every Notification Catalog event is
 newly created going forward; there is no historical backfill (no past event has enough
 retained context to reconstruct a faithful Notification, and V1 does not require one).
+
+---
+
+## Communication V1
+
+### Backend
+
+1. Add `ChatMessage` to `prisma/schema.prisma`; add `NEW_CHAT_MESSAGE` to the existing
+   `NotificationType` enum; migrate.
+2. Add `backend/src/modules/chat/` (routes, controller, service, repository, validation,
+   mapper) — send, list (oldest-first, cursor-paginated), mark-conversation-read,
+   unread-count. `chat.service.js#assertParticipant` is the shared authorization choke point
+   (Technical Design "Authorization & Tenant Isolation").
+3. Add `notification.events.js#onChatMessageSent(message, booking)` — one function, routes to
+   whichever participant did *not* send it; call it from `chat.service.js#sendMessage` only
+   (no other call site — Communication V1 has exactly one triggering transition).
+4. ~~Add the `ChatMessage` and updated `Notification` contracts to OpenAPI.~~ **Deferred:**
+   `openapi.json` has no Notification V1 coverage either — a pre-existing gap this task does
+   not introduce and is out of scope to backfill alone (Project Rule 9, no unrelated work).
+
+### Customer Mobile
+
+1. `ChatRepository` + per-screen `ChatController` (list, send, mark-read), following
+   `NotificationRepository`/`NotificationController`'s existing shape.
+2. `ChatScreen(bookingId)` — message list (oldest-first), compose box, empty/loading/
+   error+retry states; marks the conversation read on open.
+3. Entry point from `BookingDetailScreen` (a new button/action opening `ChatScreen` with that
+   Booking's id).
+4. A second, independent unread-message-count badge (Business Rule 8) alongside the existing
+   Notification bell, sourced from `GET /messages/unread-count`.
+5. `NEW_CHAT_MESSAGE` added to the existing Navigation Targets handling so tapping that
+   Notification opens `ChatScreen(bookingId)` directly (same push/tap-to-navigate plumbing
+   Notification V1 already built — no new Firebase wiring needed).
+
+### Manager Mobile
+
+1. Same `ChatRepository`/`ChatController`/`ChatScreen` shape as Customer Mobile.
+2. Entry point from the Booking detail sheet (`bookings_coming_soon_screen.dart`'s
+   `_BookingDetailSheet`).
+3. Same second unread-message-count badge and `NEW_CHAT_MESSAGE` navigation-target wiring as
+   Customer Mobile.
+
+### Admin Web
+
+Out of scope for V1 (Business Specification "Out of Scope for V1" — Platform Administrator
+participation) — no changes.
+
+### Rollout Note (Communication V1)
+
+New table only — no existing data requires migration. No historical backfill (no
+conversation existed before this feature).

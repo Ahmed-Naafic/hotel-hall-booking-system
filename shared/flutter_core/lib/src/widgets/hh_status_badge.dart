@@ -16,24 +16,24 @@ class HHStatusBadge extends StatelessWidget {
   final String label;
   final HHBadgeTone tone;
 
-  (Color, Color) _colors() {
+  (Color, Color) _colors(BuildContext context) {
     switch (tone) {
       case HHBadgeTone.success:
-        return (HHColors.success100, HHColors.success700);
+        return (context.hh.success100, context.hh.success700);
       case HHBadgeTone.warning:
-        return (HHColors.warning100, HHColors.warning700);
+        return (context.hh.warning100, context.hh.warning700);
       case HHBadgeTone.danger:
-        return (HHColors.danger100, HHColors.danger700);
+        return (context.hh.danger100, context.hh.danger700);
       case HHBadgeTone.info:
-        return (HHColors.info100, HHColors.info700);
+        return (context.hh.info100, context.hh.info700);
       case HHBadgeTone.neutral:
-        return (HHColors.surfaceSunken, HHColors.textMuted);
+        return (context.hh.surfaceSunken, context.hh.textMuted);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final (background, foreground) = _colors();
+    final (background, foreground) = _colors(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: HHSpacing.space4, vertical: HHSpacing.space2),
       decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(HHRadii.pill)),

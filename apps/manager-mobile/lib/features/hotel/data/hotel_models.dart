@@ -62,10 +62,11 @@ class HotelApplication {
 }
 
 class MyHotelSnapshot {
-  const MyHotelSnapshot({required this.hotel, required this.latestApplication});
+  const MyHotelSnapshot({required this.hotel, required this.latestApplication, required this.reviewSummary});
 
   final Hotel? hotel;
   final HotelApplication? latestApplication;
+  final ReviewSummary? reviewSummary;
 
   factory MyHotelSnapshot.fromJson(Map<String, dynamic> json) =>
       MyHotelSnapshot(
@@ -77,7 +78,26 @@ class MyHotelSnapshot {
             : HotelApplication.fromJson(
                 (json['latestApplication'] as Map).cast<String, dynamic>(),
               ),
+        reviewSummary: json['reviewSummary'] == null
+            ? null
+            : ReviewSummary.fromJson((json['reviewSummary'] as Map).cast<String, dynamic>()),
       );
+}
+
+/// A Hotel's real average rating and review count (`GET /hotels/me`'s
+/// `reviewSummary`) — the same aggregate the public Hotel Detail endpoint
+/// already exposes to Customers. `average` is `null` (not `0`) when the
+/// Hotel has zero reviews.
+class ReviewSummary {
+  const ReviewSummary({required this.average, required this.count});
+
+  final double? average;
+  final int count;
+
+  factory ReviewSummary.fromJson(Map<String, dynamic> json) => ReviewSummary(
+    average: (json['average'] as num?)?.toDouble(),
+    count: json['count'] as int,
+  );
 }
 
 /// Mirrors `openapi.json#/components/schemas/PublicHotelMedia` exactly

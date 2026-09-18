@@ -27,3 +27,24 @@ administrationRouter.post(
   administrationValidation.validateRejectHotelApplication,
   administrationController.rejectHotelApplication,
 )
+
+administrationRouter.post(
+  '/hotels/:hotelId/suspension',
+  authenticate,
+  requireAccountType('PLATFORM_ADMINISTRATOR'),
+  administrationController.suspendHotel,
+)
+
+administrationRouter.post(
+  '/hotels/:hotelId/deactivation',
+  authenticate,
+  requireAccountType('PLATFORM_ADMINISTRATOR'),
+  administrationController.deactivateHotel,
+)
+
+administrationRouter.post(
+  '/hotels/:hotelId/reactivation',
+  authenticate,
+  requireAccountType('PLATFORM_ADMINISTRATOR'),
+  administrationController.reactivateHotel,
+)

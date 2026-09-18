@@ -84,6 +84,7 @@ class Booking {
     this.paymentReportedAt,
     this.paymentVerifiedAt,
     this.paymentRejectionReason,
+    this.cancellationReason,
     required this.createdAt,
     this.review,
   });
@@ -108,6 +109,10 @@ class Booking {
   final DateTime? paymentReportedAt;
   final DateTime? paymentVerifiedAt;
   final String? paymentRejectionReason;
+  // BDR-024 — set only when this Customer cancelled a Confirmed booking;
+  // null for a Pending cancellation (never required) or one the Hotel
+  // Manager initiated.
+  final String? cancellationReason;
   final DateTime createdAt;
   final BookingReview? review;
 
@@ -142,6 +147,7 @@ class Booking {
       paymentReportedAt: parseOrNull(payment['reportedAt']),
       paymentVerifiedAt: parseOrNull(payment['verifiedAt']),
       paymentRejectionReason: payment['rejectionReason'] as String?,
+      cancellationReason: json['cancellationReason'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       review: json['review'] == null
           ? null

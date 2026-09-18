@@ -23,11 +23,11 @@ class HHNetworkImage extends StatelessWidget {
   final IconData fallbackIcon;
   final BoxFit fit;
 
-  Widget _placeholder() => Container(
+  Widget _placeholder(BuildContext context) => Container(
     width: width,
     height: height,
-    color: HHColors.surfaceSunken,
-    child: Icon(fallbackIcon, color: HHColors.textSubtle),
+    color: context.hh.surfaceSunken,
+    child: Icon(fallbackIcon, color: context.hh.textSubtle),
   );
 
   @override
@@ -35,13 +35,13 @@ class HHNetworkImage extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: url == null || url!.isEmpty
-          ? _placeholder()
+          ? _placeholder(context)
           : Image.network(
               url!,
               width: width,
               height: height,
               fit: fit,
-              errorBuilder: (context, error, stackTrace) => _placeholder(),
+              errorBuilder: (context, error, stackTrace) => _placeholder(context),
             ),
     );
   }

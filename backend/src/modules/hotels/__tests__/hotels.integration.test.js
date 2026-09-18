@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { createApp } from '../../../app.js'
 import { prisma } from '../../../shared/prismaClient.js'
 import * as applicationService from '../application.service.js'
-import * as suspensionService from '../suspension.service.js'
 import * as hotelService from '../hotel.service.js'
 import * as ownershipService from '../ownership.service.js'
 
@@ -13,14 +12,14 @@ import * as ownershipService from '../ownership.service.js'
  * Gate, not a mocked auth layer. Covers the HM1–HM15 journeys plus the
  * exception scenarios from business-specification.md §9.
  *
- * Administration & Platform Management (Module 13) does not exist yet
- * (Technical Design §17). Approve/reject/suspend/deactivate decisions are
- * exercised here by calling this module's own internal service functions
- * directly — the "stub caller" pattern the Implementation Plan §8
- * anticipates for exactly this situation, not a shortcut around the
- * authorization boundary (BR-HOTEL-14): those functions perform no role
- * check themselves by design: the caller (eventually Module 13's own
- * authorized endpoint) is responsible for that.
+ * Administration & Platform Management (Module 13) exposes the real
+ * approve/reject/suspend/deactivate endpoints exercised in the
+ * "Administration API" describe blocks below (`/api/v1/admin/...`).
+ * Elsewhere, an application decision is recorded directly through
+ * `applicationService.recordDecision` as test setup only (not itself under
+ * test) — that function performs no role check itself by design
+ * (BR-HOTEL-14); the real authorization boundary is Module 13's routes,
+ * which the "Administration API" tests exercise over HTTP.
  */
 
 let server
@@ -174,6 +173,19 @@ describe('Hotel registration and profile completion (HM1, HM2)', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.data.hotel.id, hotelId)
     assert.equal(res.body.data.latestApplication, null)
+    // The real review aggregate (Manager Mobile's own "My Hotel" screen) —
+    // null average (not 0) with zero reviews, the same shape the public
+    // Hotel Detail endpoint already returns to Customers.
+    assert.deepEqual(res.body.data.reviewSummary, { average: null, count: 0 })
+  })
+
+  test('reviewSummary is null when the Manager has no Hotel yet', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const res = await get('/api/v1/hotels/me', authHeader(accessToken))
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.hotel, null)
+    assert.equal(res.body.data.reviewSummary, null)
   })
 })
 
@@ -358,16 +370,143 @@ describe('Administration API — Hotel application decisions', () => {
   })
 })
 
-describe('Approved hotel suspension (HM11, BR-HOTEL-09)', () => {
-  test('suspends an Approved/Active Hotel', async () => {
+describe('Administration API — Hotel suspension, deactivation, and reactivation (HM11, HM17, BR-HOTEL-09, BR-HOTEL-16)', () => {
+  test('suspends an Approved/Active Hotel through the admin API', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'SUSPENDED')
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'SUSPENDED')
+  })
+
+  test('deactivates an Approved/Active Hotel through the admin API', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/deactivation`, undefined, authHeader(admin.accessToken))
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'DEACTIVATED')
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'DEACTIVATED')
+  })
+
+  test('refuses suspension of a Hotel that is not Approved/Active (409)', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await registerHotelToProfileComplete(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+    assert.equal(res.status, 409)
+  })
+
+  test('refuses deactivation of a Hotel that is not Approved/Active (409)', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await registerHotelToProfileComplete(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/deactivation`, undefined, authHeader(admin.accessToken))
+    assert.equal(res.status, 409)
+  })
+
+  test('a Suspended Hotel cannot be deactivated directly (409) — reactivate first', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+    await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/deactivation`, undefined, authHeader(admin.accessToken))
+    assert.equal(res.status, 409)
+  })
+
+  test('reactivates a Suspended Hotel back to Approved/Active through the admin API', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+    await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/reactivation`, undefined, authHeader(admin.accessToken))
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'APPROVED_ACTIVE')
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'APPROVED_ACTIVE')
+  })
+
+  test('reactivates a Deactivated Hotel back to Approved/Active through the admin API', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+    await post(`/api/v1/admin/hotels/${hotelId}/deactivation`, undefined, authHeader(admin.accessToken))
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/reactivation`, undefined, authHeader(admin.accessToken))
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'APPROVED_ACTIVE')
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'APPROVED_ACTIVE')
+  })
+
+  test('a reactivated Hotel can be suspended again', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+    await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+    await post(`/api/v1/admin/hotels/${hotelId}/reactivation`, undefined, authHeader(admin.accessToken))
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'SUSPENDED')
+  })
+
+  test('refuses reactivation of a Hotel that is not Suspended or Deactivated (409)', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/reactivation`, undefined, authHeader(admin.accessToken))
+    assert.equal(res.status, 409)
+  })
+
+  test('refuses reactivation from a Hotel Manager token', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const admin = await createAndLoginPlatformAdministrator()
+    await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/reactivation`, undefined, authHeader(accessToken))
+    assert.equal(res.status, 403)
+
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'SUSPENDED')
+  })
+
+  test('refuses suspension from a Hotel Manager token', async () => {
     const { accessToken } = await registerAndLoginHotelManager()
     const hotelId = await approveHotel(accessToken)
 
-    const hotel = await hotelService.getHotelById(hotelId)
-    await suspensionService.suspendHotel(hotel, adminStubUserId)
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(accessToken))
+    assert.equal(res.status, 403)
 
-    const res = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
-    assert.equal(res.body.data.status, 'SUSPENDED')
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'APPROVED_ACTIVE')
+  })
+
+  test('refuses deactivation from an unauthenticated request', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/deactivation`, undefined, {})
+    assert.equal(res.status, 401)
+
+    const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
+    assert.equal(hotelRes.body.data.status, 'APPROVED_ACTIVE')
   })
 })
 

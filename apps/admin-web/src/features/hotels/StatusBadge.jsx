@@ -1,7 +1,7 @@
 import { STATUS_TONE, formatStatusLabel } from './hotelStatus.js'
 
 export function StatusBadge({ status }) {
-  const tone = STATUS_TONE[status] ?? { fg: 'var(--text-subtle)', bg: 'var(--navy-050)' }
+  const tone = STATUS_TONE[status] ?? { fg: 'var(--text-subtle)', bg: 'var(--surface-navy-tint)' }
   return (
     <span
       style={{

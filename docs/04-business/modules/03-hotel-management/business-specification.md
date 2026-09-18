@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4, no self-review)
 depends_on: ["docs/Project-Overview.md", "docs/04-business/stakeholders-and-personas.md", "docs/04-business/business-decision-register.md", "docs/Project-Glossary.md", "docs/04-business/modules/01-authentication-and-account-management/business-specification.md"]
-version: 1.4
-last_updated: 2026-08-31
+version: 1.6
+last_updated: 2026-09-11
 ---
 
 # Hotel Management — Business Specification
@@ -103,6 +103,8 @@ the following approved decisions:
 | `BDR-014` | Hotel Profile Change Review Policy | Ordinary changes require no re-review; critical changes require Platform Administrator review before taking full effect (§6, §7, HM12–HM13). |
 | `BDR-015` | Required Hotel Business-Profile Content | Defines the required, optional, and custom-field structure a Hotel's profile must satisfy before it may reach Profile Complete (§7, BR-HOTEL-02). |
 | `BDR-017` | Hotel Geographic Location Capture | Defines the approved coordinate-plus-address location capture and OpenStreetMap workflow. |
+| `BDR-020` | Customer Hotel Search | A Customer may search Approved/Active Hotels by name or address, unauthenticated, matched server-side against every eligible Hotel (§7, BR-HOTEL-15, HM16). |
+| `BDR-022` | Hotel Suspension/Deactivation Reactivation & Notification | A Suspended or Deactivated Hotel may be reactivated to Approved/Active by a Platform Administrator; the Hotel Manager is notified on suspension, deactivation, and reactivation (§6, §7, BR-HOTEL-16, HM17). |
 
 ---
 
@@ -187,8 +189,8 @@ Sourced from `Project-Overview.md` §8 (Target Users) and `Project-Glossary.md` 
 | **Rejected — Editing** | Hotel is revising a rejected application. | Hotel Manager begins editing after rejection (`BDR-010`). |
 | **Resubmitted / Under Review** | An edited, previously-rejected application has been resubmitted. | Hotel Manager resubmits (`BDR-010`); re-enters the same review process as Submitted / Under Review. |
 | **Withdrawn** | Hotel Manager withdrew a pending application before a decision. | Hotel Manager withdraws (`BDR-011`). |
-| **Suspended** | Platform Administrator has suspended an approved Hotel; Hotel is not operationally eligible. | Platform Administrator suspension action (`BDR-012`). |
-| **Deactivated** | Platform Administrator has deactivated an approved Hotel. | Platform Administrator deactivation action (`BDR-012`). |
+| **Suspended** | Platform Administrator has suspended an approved Hotel; Hotel is not operationally eligible. | Platform Administrator suspension action (`BDR-012`). Reversible — Platform Administrator reactivation returns the Hotel to **Approved / Active** (`BDR-022`). |
+| **Deactivated** | Platform Administrator has deactivated an approved Hotel. | Platform Administrator deactivation action (`BDR-012`). Reversible — Platform Administrator reactivation returns the Hotel to **Approved / Active** (`BDR-022`). |
 | **Restricted / Under Review** | Required Hotel information has become invalid. | Detected per the applicable business process (`BDR-013`); Hotel is not fully operationally eligible until resolved. |
 | **Pending Critical Change Review** | An Approved / Active Hotel has submitted a critical information change awaiting Platform Administrator review. | Hotel Manager submits a critical information change (`BDR-014`). |
 
@@ -196,9 +198,10 @@ A Hotel may only be listed to Customers, and only its Halls may become visible, 
 **Approved / Active** state (`BDR-003`, §3). `BDR-012` does not distinguish the operational
 meaning of **Suspended** from **Deactivated** beyond both being Platform-Administrator-
 controlled and both ending operational eligibility; that distinction, if any, is tracked as a
-pending business decision (§11). Likewise, what happens to a **Withdrawn** application
-afterward, and whether a Hotel remains fully operational while in **Pending Critical Change
-Review**, are not settled by any approved decision (§11).
+pending business decision (§11) — `BDR-022` deliberately reactivates both identically rather
+than resolving it. Likewise, what happens to a **Withdrawn** application afterward, and
+whether a Hotel remains fully operational while in **Pending Critical Change Review**, are
+not settled by any approved decision (§11).
 
 ---
 
@@ -220,6 +223,8 @@ Review**, are not settled by any approved decision (§11).
 | BR-HOTEL-12 | Critical Hotel information changes require Platform Administrator review before the change becomes fully effective (`BDR-014`). |
 | BR-HOTEL-13 | A Hotel account represents exactly one physical location; multi-branch or multi-location structures are out of scope (`BDR-008`). |
 | BR-HOTEL-14 | The Platform Administrator's review, approval, rejection, suspension, and deactivation actions are performed through Administration & Platform Management's (Module 13) interface and workflow; this module governs only the Hotel-side states and transitions those actions produce (§3). |
+| BR-HOTEL-15 | A Customer may search Approved/Active Hotels by name or customer-facing address, without an account, as part of the same unauthenticated browsing right `BR-AUTH-01` already establishes (`BDR-020`). A search matches case-insensitively and by partial text, evaluated against every eligible Hotel in the database — never limited to whatever page of Hotels the Customer's device happens to already have loaded. Search never returns a Hotel that is not Approved/Active, the same eligibility rule the existing public Hotel listing, Nearby Hotels, and Popular Hotels already enforce. Search is a distinct mechanism from Nearby Hotels' fixed-5km distance calculation (`BDR-017`) — it never requires location and is unaffected by it. |
+| BR-HOTEL-16 | A Suspended or Deactivated Hotel may be reactivated to Approved / Active; only a Platform Administrator holds the authority to do so, the same authority `BR-HOTEL-09` already grants for suspension and deactivation (`BDR-022`). Reactivation restores full operational eligibility immediately, identically for either starting state. The Hotel Manager who registered the Hotel is notified when their Hotel is suspended, deactivated, or reactivated (`BDR-022`). |
 
 ---
 
@@ -252,6 +257,8 @@ unchanged.
 | HM13 | Ordinary profile change | Hotel is Approved / Active | Hotel Manager submits a change to ordinary (non-critical) profile information. | Change takes effect immediately; no review required (BR-HOTEL-11). |
 | HM14 | Invalid required information requiring review | Hotel is Approved / Active | Required information is found to be invalid, per the applicable business process. | Hotel reaches **Restricted / Under Review** (BR-HOTEL-10). |
 | HM15 | Customer-facing visibility boundary after approval | Hotel reaches Approved / Active | — | Hotel's Halls become eligible for Customer-facing visibility; the visibility mechanism itself is Hall Management's concern (Module 4, §3). |
+| HM16 | Customer searches for a Hotel by name or address | None (unauthenticated browsing, `BR-AUTH-01`) | Customer enters a search query in the Discover screen. | Matching Approved/Active Hotels are returned, regardless of how many other Hotels exist or when they were registered (`BR-HOTEL-15`, `BDR-020`). |
+| HM17 | Suspended or Deactivated hotel being reactivated | Hotel is Suspended or Deactivated | Platform Administrator reactivates the Hotel (Module 13, `BDR-022`). | Hotel reaches **Approved / Active** again; operationally eligible (BR-HOTEL-16). The Hotel Manager is notified, the same as on HM11's own suspension/deactivation. |
 
 ---
 
@@ -308,6 +315,16 @@ Written in Given/When/Then form against the journeys in §8 and rules in §7.
     effective until a Platform Administrator reviews it (BR-HOTEL-12, HM12).
 12. **Single location per Hotel** — Given a Hotel account, when it is registered, then it
     represents exactly one physical location, consistent with `BDR-008` (BR-HOTEL-13).
+13. **Suspended/Deactivated Hotel may be reactivated** — Given a Hotel in Suspended or
+    Deactivated, when a Platform Administrator reactivates it, then the Hotel reaches
+    Approved / Active and is operationally eligible again (BR-HOTEL-16, HM17).
+14. **Only Platform Administrator may reactivate** — Given a Suspended or Deactivated Hotel,
+    when any actor other than a Platform Administrator attempts to reactivate it, then the
+    action is refused (BR-HOTEL-16).
+15. **Hotel Manager notified of status changes** — Given a Hotel's status changes to
+    Suspended, Deactivated, or back to Approved / Active by Platform Administrator action,
+    when the change is recorded, then the Hotel Manager who registered the Hotel receives a
+    Notification (BR-HOTEL-16, HM11, HM17).
 
 ---
 
@@ -329,7 +346,7 @@ corresponding behavior.
 |---|---|---|---|---|
 | 1 | Rejection / Resubmission Cycle Limit | Hotel Policies | `BDR-010` approves edit-and-resubmit but does not define whether a cap or other handling applies to repeated rejection cycles. | BR-HOTEL-06, BR-HOTEL-07, HM7–HM8 |
 | 2 | Post-Withdrawal Reapplication | Hotel Policies | `BDR-011` approves withdrawal but does not define whether, or how, a Hotel Manager may submit a new application afterward. | BR-HOTEL-08, HM9 |
-| 3 | Suspension vs. Deactivation Distinction | Platform Policies | `BDR-012` approves both suspension and deactivation as Platform-Administrator-controlled but does not distinguish their operational meaning or the grounds for choosing one over the other. | BR-HOTEL-09, §6 |
+| 3 | Suspension vs. Deactivation Distinction | Platform Policies | `BDR-012` approves both suspension and deactivation as Platform-Administrator-controlled but does not distinguish their operational meaning or the grounds for choosing one over the other. **Still open as of `BDR-022`:** reactivation was deliberately made identical for both rather than resolving this. | BR-HOTEL-09, BR-HOTEL-16, §6 |
 | 4 | Restriction Scope & Applicable Business Process | Platform Policies | `BDR-013` approves restriction-and-review for invalid required information but does not define which fields are "required," what makes them "invalid," or the review process itself. | BR-HOTEL-10, HM14 |
 | 5 | Ordinary vs. Critical Information Classification | Platform Policies | `BDR-014` approves the two-tier review model but does not define which specific profile fields are "ordinary" versus "critical." | BR-HOTEL-11, BR-HOTEL-12, HM12–HM13 |
 | 6 | Hotel Operational Status During Critical-Change Review | Platform Policies | `BDR-014` does not define whether a Hotel remains fully operational (on its prior information) while a critical change is pending review, or is restricted during that window. | BR-HOTEL-12, HM12 |
@@ -361,6 +378,8 @@ corresponding behavior.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.6 | 2026-09-11 | Ahmed | Added `BR-HOTEL-16` and Journey `HM17` per `BDR-022`: a Suspended or Deactivated Hotel may be reactivated to Approved/Active by a Platform Administrator, and the Hotel Manager is now notified on suspension, deactivation, and reactivation. Resolves the reversibility question `BDR-012` left open; does not resolve Pending Decision #3 (Suspension vs. Deactivation Distinction) — both remain undifferentiated and reactivate identically. |
+| 1.5 | 2026-09-10 | Ahmed | Added `BR-HOTEL-15` and Journey `HM16` per `BDR-020` (Customer Hotel Search): a Customer may search Approved/Active Hotels by name or address, unauthenticated, matched server-side across every eligible Hotel — not limited to a loaded page. Fixes a real gap where a Hotel beyond the public listing's first page was unreachable by search. Does not alter Nearby Hotels' (`BDR-017`) or Popular Hotels' existing behavior. |
 | 1.4 | 2026-08-31 | Ahmed | Approved `BDR-017` and the structured Hotel Location business rules: coordinates plus editable address, non-blocking reverse-geocoding fallback, and no change to Hotel approval behavior. |
 | 1.3-proposed | 2026-08-30 | AI-drafted, pending Ahmed approval | Added a proposed structured Hotel Location workflow and cross-reference to `BDR-017`; no approved business rule is changed. |
 | 1.2 | 2026-08-26 | Ahmed | Resolves Pending Business Decision #7 (§11): `BDR-015` (Required Hotel Business-Profile Content) reached `Approved`. §2.3 references the new BDR; §7 `BR-HOTEL-02` now states the actual required fields (Hotel Name, Description, Location, Contact Phone), optional fields (Email, Hotel Logo, Hotel Photos), and the custom-field rule (never a substitute for a required field); §11 item 7 marked resolved rather than removed, preserving the traceability record. No other business rule or journey changed. Ahmed directed and reviewed this change directly in the same session `BDR-015` was approved; no separate Mohamed/Abukar review round occurred for this specific update, the same transparently-flagged deviation this module's own Technical Design v1.3 already used for an analogous Ahmed-directed correction. |

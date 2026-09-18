@@ -3,9 +3,11 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
+import '../../../chat/presentation/screens/chat_screen.dart';
 import '../../../reviews/presentation/widgets/star_rating.dart';
 import '../../data/booking_models.dart';
 import '../../data/booking_repository.dart';
+import '../widgets/cancel_confirmed_booking_dialog.dart';
 import '../widgets/leave_review_dialog.dart';
 import '../widgets/payment_terms.dart';
 
@@ -48,7 +50,19 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     }
   }
 
+  // BDR-024 — a Confirmed booking requires a reason (the Hotel already
+  // committed the Hall for it); a still-Pending one does not, so only the
+  // Confirmed case goes through the reason prompt.
   Future<void> _cancel() async {
+    final booking = _booking;
+    if (booking == null) return;
+    if (booking.status == 'CONFIRMED') {
+      setState(() => _busy = true);
+      final updated = await promptCancelConfirmedBooking(context, booking: booking, repository: _repository);
+      if (updated != null && mounted) setState(() => _booking = updated);
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
     setState(() => _busy = true);
     try {
       final updated = await _repository.cancel(widget.bookingId);
@@ -110,8 +124,19 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
-      appBar: AppBar(title: const Text('Booking Details')),
+      backgroundColor: context.hh.surfacePage,
+      appBar: AppBar(
+        title: const Text('Booking Details'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Messages',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ChatScreen(bookingId: widget.bookingId)),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(child: _body()),
     );
   }
@@ -153,7 +178,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           ),
           if (booking.hotel?.name != null) ...[
             const SizedBox(height: HHSpacing.space1),
-            Text(booking.hotel!.name!, style: TextStyle(color: HHColors.textMuted)),
+            Text(booking.hotel!.name!, style: TextStyle(color: context.hh.textMuted)),
           ],
           const SizedBox(height: HHSpacing.space5),
           HHCard(
@@ -180,7 +205,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Status', style: TextStyle(color: HHColors.textMuted)),
+                    Text('Status', style: TextStyle(color: context.hh.textMuted)),
                     HHStatusBadge(
                       label: booking.paymentStatus,
                       tone: bookingStatusTone(booking.paymentStatus),
@@ -253,7 +278,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: HHColors.textMuted)),
+        Text(label, style: TextStyle(color: context.hh.textMuted)),
         const SizedBox(width: HHSpacing.space3),
         Flexible(
           child: Text(

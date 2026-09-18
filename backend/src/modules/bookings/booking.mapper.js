@@ -1,4 +1,5 @@
 import { toReview } from '../reviews/review.mapper.js'
+import { storageProvider } from '../../shared/providers/storageProvider.js'
 
 export function toBooking(booking) {
   return {
@@ -11,6 +12,9 @@ export function toBooking(booking) {
       id: booking.customer.id,
       fullName: booking.customer.customerProfile?.profileData?.fullName ?? null,
       mobileNumber: booking.customer.mobileNumber,
+      avatarUrl: booking.customer.customerProfile?.avatarStoragePath
+        ? storageProvider.getPublicUrl({ path: booking.customer.customerProfile.avatarStoragePath })
+        : null,
     } : undefined,
     hotelId: booking.hotelId,
     hallId: booking.hallId,
@@ -33,6 +37,11 @@ export function toBooking(booking) {
     eventType: booking.eventType,
     specialRequest: booking.specialRequest,
     status: booking.status,
+    // BDR-024 — set only when a Customer cancelled a Confirmed booking;
+    // null for a still-Pending cancellation (never required there) and for
+    // a Hotel-Manager-initiated cancellation (this rule doesn't apply to
+    // it).
+    cancellationReason: booking.cancellationReason,
     paymentStatus: booking.paymentStatus,
     paymentDeadlineAt: booking.paymentDeadlineAt,
     pricing: {

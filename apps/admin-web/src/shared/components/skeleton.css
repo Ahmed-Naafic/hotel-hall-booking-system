@@ -12,7 +12,7 @@
 
 .hh-skeleton {
   display: block;
-  background: var(--gray-200);
+  background: var(--surface-sunken);
   border-radius: var(--radius-sm);
   animation: hh-skeleton-pulse var(--dur-slower) var(--ease-standard) infinite;
 }

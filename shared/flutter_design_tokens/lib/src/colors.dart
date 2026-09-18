@@ -17,6 +17,9 @@ abstract final class HHColors {
   static const navy200 = Color(0xFFC3D3E2);
   static const navy100 = Color(0xFFE4EBF2);
   static const navy050 = Color(0xFFF3F6FA);
+  /// One step below navy900, added for the dark theme's page ground so the
+  /// page still sits beneath navy900 sunken areas. Matches `--navy-950`.
+  static const navy950 = Color(0xFF030D1A);
 
   static const teal900 = Color(0xFF0A3A41);
   static const teal800 = Color(0xFF115C65);

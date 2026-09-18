@@ -6,7 +6,9 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/home_screen.dart';
-import 'package:manager_mobile/features/authentication/presentation/screens/profile_screen.dart';
+import 'package:manager_mobile/features/calendar/presentation/screens/calendar_screen.dart';
+import 'package:manager_mobile/features/chat/application/chat_badge_controller.dart';
+import 'package:manager_mobile/features/chat/data/chat_repository.dart';
 import 'package:manager_mobile/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:manager_mobile/features/halls/presentation/screens/hall_list_screen.dart';
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
@@ -44,6 +46,9 @@ Widget _wrap({bool withHotel = true}) {
         return successResponse(withHotel ? {'hotel': _hotelJson(), 'latestApplication': null} : {'hotel': null, 'latestApplication': null});
       }
       if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
+      if (r.url.path.endsWith('/bookings/summary')) {
+        return successResponse({'totalBookings': 0, 'totalRevenueCents': 0, 'pendingCount': 0});
+      }
       if (r.url.path.endsWith('/bookings')) return successResponse([]);
       if (r.url.path.contains('/halls')) return _hallPageResponse();
       throw StateError('unexpected: ${r.method} ${r.url.path}');
@@ -63,6 +68,9 @@ Widget _wrap({bool withHotel = true}) {
       ),
       ChangeNotifierProvider(
         create: (_) => NotificationController(NotificationRepository(apiClient)),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => ChatBadgeController(ChatRepository(apiClient)),
       ),
     ],
     child: const MaterialApp(home: HomeScreen()),
@@ -84,21 +92,37 @@ void main() {
 
     expect(find.byType(DashboardScreen), findsOneWidget);
     expect(find.byType(NavigationDestination), findsNWidgets(5));
-    for (final label in ['Home', 'Hotel', 'Halls', 'Bookings', 'Profile']) {
+    for (final label in ['Home', 'Hotel', 'Halls', 'Bookings', 'Calendar']) {
       expect(_navLabel(label), findsOneWidget, reason: '"$label" nav destination');
     }
   });
 
-  testWidgets('switching to the Hotel tab shows the existing MyHotelScreen, embedded (no back arrow)', (tester) async {
-    await tester.pumpWidget(_wrap());
-    await tester.pumpAndSettle();
+  testWidgets(
+    'switching to the Hotel tab shows the existing MyHotelScreen, embedded — its back arrow switches to the Dashboard tab, never a real pop',
+    (tester) async {
+      await tester.pumpWidget(_wrap());
+      await tester.pumpAndSettle();
 
-    await tester.tap(_navLabel('Hotel'));
-    await tester.pumpAndSettle();
+      await tester.tap(_navLabel('Hotel'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(MyHotelScreen), findsOneWidget);
-    expect(find.byType(BackButton), findsNothing);
-  });
+      expect(find.byType(MyHotelScreen), findsOneWidget);
+      // A bottom-nav tab has no route of its own to pop — the approved app
+      // mockup's own "My Hotel" screen still shows a back arrow, so this one
+      // switches back to the Dashboard tab instead.
+      expect(find.byType(BackButton), findsNothing);
+      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      // `IndexedStack` keeps every tab's widget alive regardless of which is
+      // selected, so `findsOneWidget` for `DashboardScreen` alone wouldn't
+      // prove the switch happened — the `NavigationBar`'s own selected index
+      // is the real signal.
+      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, 0);
+    },
+  );
 
   testWidgets('switching to the Halls tab shows the existing HallListScreen once a Hotel exists', (tester) async {
     await tester.pumpWidget(_wrap());
@@ -132,15 +156,14 @@ void main() {
     expect(find.text('No bookings yet'), findsOneWidget);
   });
 
-  testWidgets('switching to the Profile tab shows the existing ProfileScreen unchanged', (tester) async {
+  testWidgets('switching to the Calendar tab shows the new CalendarScreen', (tester) async {
     await tester.pumpWidget(_wrap());
     await tester.pumpAndSettle();
 
-    await tester.tap(_navLabel('Profile'));
+    await tester.tap(_navLabel('Calendar'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ProfileScreen), findsOneWidget);
-    expect(find.text('Log out'), findsOneWidget);
+    expect(find.byType(CalendarScreen), findsOneWidget);
   });
 
   testWidgets('switching tabs and back preserves each tab\'s own state (IndexedStack, not a reload)', (tester) async {
@@ -156,6 +179,10 @@ void main() {
       httpClient: MockClient((r) async {
         if (r.url.path.endsWith('/hotels/me')) return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
         if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
+        if (r.url.path.endsWith('/bookings/summary')) {
+          return successResponse({'totalBookings': 0, 'totalRevenueCents': 0, 'pendingCount': 0});
+        }
+        if (r.url.path.endsWith('/bookings')) return successResponse([]);
         if (r.url.path.contains('/halls')) {
           if (r.url.queryParameters['limit'] == '1') {
             hallCountCallCount += 1;
@@ -181,6 +208,9 @@ void main() {
         ),
         ChangeNotifierProvider(
           create: (_) => NotificationController(NotificationRepository(apiClient)),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ChatBadgeController(ChatRepository(apiClient)),
         ),
       ],
       child: const MaterialApp(home: HomeScreen()),
@@ -212,7 +242,14 @@ void main() {
         httpClient: MockClient((r) async {
           if (r.url.path.endsWith('/hotels/me')) return successResponse({'hotel': _hotelJson(), 'latestApplication': null});
           if (r.url.path.endsWith('/media')) return successResponse({'logo': null, 'photos': []});
+          if (r.url.path.endsWith('/bookings/summary')) {
+            return successResponse({'totalBookings': 0, 'totalRevenueCents': 0, 'pendingCount': 0});
+          }
           if (r.url.path.endsWith('/bookings')) {
+            // Both the Bookings tab's own list and the Dashboard's Recent
+            // Bookings preview hit this same path — this counter is only
+            // ever asserted with `greaterThan`, so counting either source
+            // is correct either way.
             bookingsCallCount += 1;
             return successResponse([]);
           }
@@ -234,6 +271,9 @@ void main() {
           ),
           ChangeNotifierProvider(
             create: (_) => NotificationController(NotificationRepository(apiClient)),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => ChatBadgeController(ChatRepository(apiClient)),
           ),
         ],
         child: const MaterialApp(home: HomeScreen()),

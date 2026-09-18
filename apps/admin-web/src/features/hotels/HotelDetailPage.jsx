@@ -185,15 +185,15 @@ export function HotelDetailPage({ hotelId, onBack }) {
                 marginTop: 'var(--space-4)',
                 padding: 'var(--space-4)',
                 borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--gold-300)',
-                background: 'var(--gold-100)',
+                border: '1px solid var(--border-gold)',
+                background: 'var(--surface-gold-tint)',
               }}
             >
               <p
                 style={{
                   margin: '0 0 var(--space-3)',
                   fontSize: 'var(--text-sm)',
-                  color: 'var(--navy-800)',
+                  color: 'var(--text-body)',
                 }}
               >
                 This application is awaiting a decision.
@@ -258,7 +258,7 @@ export function HotelDetailPage({ hotelId, onBack }) {
                 style={{
                   margin: '0 0 var(--space-3)',
                   fontSize: 'var(--text-sm)',
-                  color: 'var(--navy-800)',
+                  color: 'var(--text-body)',
                 }}
               >
                 This Hotel is approved and active. It can be reactivated later from this same page.
@@ -309,7 +309,7 @@ export function HotelDetailPage({ hotelId, onBack }) {
                 style={{
                   margin: '0 0 var(--space-3)',
                   fontSize: 'var(--text-sm)',
-                  color: 'var(--navy-800)',
+                  color: 'var(--text-body)',
                 }}
               >
                 This Hotel is {hotel.status === 'SUSPENDED' ? 'suspended' : 'deactivated'} and not

@@ -5,10 +5,10 @@ class ManagerBookingRepository {
   ManagerBookingRepository(this._client);
   final ApiClient _client;
 
-  Future<List<ManagerBooking>> list(String hotelId) async {
+  Future<List<ManagerBooking>> list(String hotelId, {int limit = 100}) async {
     final result = await _client.getPaginated(
       '/hotels/$hotelId/bookings',
-      query: {'limit': '100'},
+      query: {'limit': '$limit'},
     );
     return (result.data as List)
         .map(
@@ -18,11 +18,23 @@ class ManagerBookingRepository {
         .toList();
   }
 
-  Future<void> action(
+  /// Every lifecycle action responds with the Booking as it now stands, so
+  /// the caller can show the result without waiting on a list refetch.
+  Future<ManagerBooking> action(
     String hotelId,
     String bookingId,
     String action, {
     Object? body,
-  }) =>
-      _client.post('/hotels/$hotelId/bookings/$bookingId/$action', body: body);
+  }) async {
+    final data = await _client.post(
+      '/hotels/$hotelId/bookings/$bookingId/$action',
+      body: body,
+    );
+    return ManagerBooking.fromJson((data as Map).cast<String, dynamic>());
+  }
+
+  Future<BookingSummary> summary(String hotelId) async {
+    final data = await _client.get('/hotels/$hotelId/bookings/summary');
+    return BookingSummary.fromJson((data as Map).cast<String, dynamic>());
+  }
 }

@@ -19,15 +19,17 @@ import * as hallRepository from './hall.repository.js'
 
 /**
  * Pure decision function — no I/O. The owning Hotel Manager always sees
- * their own Hall regardless of Hotel eligibility (`BR-HALL-02`); anyone
- * else sees it only while the owning Hotel is eligible (`BR-HALL-03`,
- * `BR-HALL-04`).
+ * their own Hall regardless of Hotel eligibility or its own Active/Inactive
+ * toggle (`BR-HALL-02`); anyone else sees it only while the owning Hotel is
+ * eligible (`BR-HALL-03`, `BR-HALL-04`) AND the Hall itself is Active — the
+ * Manager's own on/off switch (`Hall.isActive`), a second, independent gate
+ * layered on top of eligibility, never a replacement for it.
  */
-export function computeVisibility({ isOwner, eligible }) {
+export function computeVisibility({ isOwner, eligible, isActive = true }) {
   if (isOwner) {
     return true
   }
-  return eligible === true
+  return eligible === true && isActive === true
 }
 
 /**
@@ -40,7 +42,7 @@ export async function isHallVisible(hall, { isOwner }) {
     return true
   }
   const { eligible } = await eligibilityService.getEligibility(hall.hotelId)
-  return computeVisibility({ isOwner, eligible })
+  return computeVisibility({ isOwner, eligible, isActive: hall.isActive })
 }
 
 /**
@@ -65,14 +67,15 @@ export function getHotelEligibility(hotelId) {
  * scenario, though no approved journey exercises that today).
  */
 export async function filterVisible(halls, resolveIsOwner) {
-  const results = await Promise.all(
-    halls.map(async (hall) => {
-      const isOwner = resolveIsOwner ? resolveIsOwner(hall) : false
-      const visible = await isHallVisible(hall, { isOwner })
-      return visible ? hall : null
-    }),
+  const isOwnerOf = (hall) => (resolveIsOwner ? resolveIsOwner(hall) : false)
+  const eligibilityByHotelId = await eligibilityService.getEligibilityForMany(
+    halls.filter((hall) => !isOwnerOf(hall)).map((hall) => hall.hotelId),
   )
-  return results.filter(Boolean)
+  return halls.filter((hall) => {
+    const isOwner = isOwnerOf(hall)
+    const eligible = isOwner ? true : (eligibilityByHotelId.get(hall.hotelId)?.eligible ?? false)
+    return computeVisibility({ isOwner, eligible, isActive: hall.isActive })
+  })
 }
 
 /**
@@ -82,14 +85,9 @@ export async function filterVisible(halls, resolveIsOwner) {
  * one Hotel (§11's own explicit rule) — every candidate is checked with
  * `isOwner: false`.
  *
- * Known N+1 characteristic (Technical Design §18 Item 5): one Eligibility
- * Query Interface call per candidate Hall, accepted rather than solved,
- * per `architecture-principles.md` §12 (optimize only against a measured
- * requirement). `hasNext`/`nextCursor` are computed against the *raw*
- * candidate page (before visibility filtering), so pagination correctly
- * continues scanning forward even when some candidates on a page are
- * Hidden and filtered out — the same accepted characteristic, not a
- * separate defect.
+ * `hasNext`/`nextCursor` are computed against the *raw* candidate page
+ * (before visibility filtering), so pagination correctly continues scanning
+ * forward even when some candidates on a page are Hidden and filtered out.
  */
 export async function browseVisibleHalls({ hotelId, cursor, limit }) {
   const candidates = await hallRepository.listCandidatesForBrowse({ hotelId, cursor, take: limit + 1 })
@@ -116,12 +114,23 @@ function hallCapacity(hall) {
  */
 export async function listLargeHalls({ limit }) {
   const candidates = await hallRepository.findAllCandidatesForRanking()
-  const halls = await filterVisible(candidates, () => false)
-  return halls
+  const visible = await filterVisible(candidates, () => false)
+  const ranked = visible
     .sort((a, b) => {
       const diff = hallCapacity(b) - hallCapacity(a)
       if (diff !== 0) return diff
       return a.id.localeCompare(b.id)
     })
     .slice(0, limit)
+
+  if (ranked.length === 0) {
+    return []
+  }
+
+  // The ranking above runs on lean rows; only the Halls that survived it are
+  // worth the media/hotel display joins.
+  const hydratedById = new Map(
+    (await hallRepository.hydrateByIds(ranked.map((hall) => hall.id))).map((hall) => [hall.id, hall]),
+  )
+  return ranked.map((hall) => hydratedById.get(hall.id)).filter(Boolean)
 }

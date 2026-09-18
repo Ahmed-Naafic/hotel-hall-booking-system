@@ -6,15 +6,29 @@ import 'package:provider/provider.dart';
 import '../../application/notification_controller.dart';
 import '../../data/notification_models.dart';
 
-/// Notification V1 — Manager Mobile's Notification Center. Every
-/// Notification Catalog type reachable here (`NEW_BOOKING_REQUEST`,
-/// `CUSTOMER_PAYMENT_REPORTED`, `CUSTOMER_BOOKING_CANCELLED`) concerns the
-/// own-Hotel Bookings queue — the safest existing destination for it
-/// (Approved Technical Design, "Navigation Targets"): the Bookings tab
-/// lives inside `HomeScreen`'s `IndexedStack`, not a pushable route, so
-/// this screen pops itself and returns `true` to signal its caller
-/// (Dashboard's bell action) to switch to that tab, the same
-/// push-and-react-on-return shape already used elsewhere in this app.
+/// Notification V1 — Manager Mobile's Notification Center. Neither of this
+/// app's two reachable destinations (own-Hotel Bookings queue for
+/// `NEW_BOOKING_REQUEST`/`CUSTOMER_PAYMENT_REPORTED`/
+/// `CUSTOMER_BOOKING_CANCELLED`; `MyHotelScreen` for
+/// `HOTEL_APPLICATION_APPROVED`/`HOTEL_APPLICATION_REJECTED` (`BDR-021`) and
+/// `HOTEL_SUSPENDED`/`HOTEL_DEACTIVATED`/`HOTEL_REACTIVATED` (`BDR-022`)) is a
+/// pushable route — both live inside `HomeScreen`'s `IndexedStack` as tabs —
+/// so this screen pops itself with which tab to switch to, and its caller
+/// (Dashboard's bell action) reacts on return, the same push-and-
+/// react-on-return shape already used elsewhere in this app.
+enum NotificationDestination { bookingsTab, hotelTab }
+
+/// Notification types whose current-status destination is `MyHotelScreen` —
+/// every type that changes the Hotel's own status without carrying a
+/// `bookingId` (`BDR-021`, `BDR-022`).
+const _hotelStatusNotificationTypes = {
+  'HOTEL_APPLICATION_APPROVED',
+  'HOTEL_APPLICATION_REJECTED',
+  'HOTEL_SUSPENDED',
+  'HOTEL_DEACTIVATED',
+  'HOTEL_REACTIVATED',
+};
+
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
 
@@ -34,14 +48,16 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     if (notification.isUnread) await controller.markRead(notification.id);
     if (!mounted) return;
     if (notification.bookingId != null) {
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(NotificationDestination.bookingsTab);
+    } else if (_hotelStatusNotificationTypes.contains(notification.type)) {
+      Navigator.of(context).pop(NotificationDestination.hotelTab);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
@@ -117,7 +133,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: notification.isUnread ? HHColors.actionPrimary : Colors.transparent,
+                    color: notification.isUnread ? context.hh.actionPrimary : Colors.transparent,
                   ),
                 ),
               ),
@@ -134,7 +150,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                       ),
                     ),
                     const SizedBox(height: HHSpacing.space1),
-                    Text(notification.body, style: TextStyle(color: HHColors.textMuted)),
+                    Text(notification.body, style: TextStyle(color: context.hh.textMuted)),
                   ],
                 ),
               ),

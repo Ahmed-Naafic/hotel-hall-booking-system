@@ -24,7 +24,7 @@ class HHCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final card = Container(
       decoration: BoxDecoration(
-        color: color ?? HHColors.surfaceCard,
+        color: color ?? context.hh.surfaceCard,
         borderRadius: BorderRadius.circular(HHRadii.card),
         boxShadow: HHElevation.card,
       ),

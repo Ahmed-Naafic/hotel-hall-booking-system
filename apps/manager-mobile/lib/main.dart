@@ -4,6 +4,8 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import 'core/auth_gate.dart';
+import 'features/chat/application/chat_badge_controller.dart';
+import 'features/chat/data/chat_repository.dart';
 import 'features/hotel/application/hotel_context_controller.dart';
 import 'features/hotel/data/hotel_repository.dart';
 import 'features/notifications/application/notification_controller.dart';
@@ -33,6 +35,9 @@ class ManagerMobileApp extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        // App-wide: the chosen theme applies to every screen, including
+        // the ones shown before sign-in.
+        ChangeNotifierProvider(create: (_) => ThemeController()..load()),
         // Shared, stateless — Hotel/Hall repositories are built from this
         // wherever they're needed, never a second HTTP client instance.
         Provider<ApiClient>.value(value: apiClient),
@@ -52,12 +57,22 @@ class ManagerMobileApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => NotificationController(NotificationRepository(apiClient)),
         ),
+        // App-wide, same rationale as NotificationController above — a
+        // second, independent unread badge (Business Rule 8) that must
+        // agree wherever it's shown.
+        ChangeNotifierProvider(
+          create: (_) => ChatBadgeController(ChatRepository(apiClient)),
+        ),
       ],
-      child: MaterialApp(
-        title: 'Hotel Manager Mobile',
-        debugShowCheckedModeBanner: false,
-        theme: buildHotelHallTheme(),
-        home: const AuthGate(),
+      child: Consumer<ThemeController>(
+        builder: (context, themeController, _) => MaterialApp(
+          title: 'Hotel Manager Mobile',
+          debugShowCheckedModeBanner: false,
+          theme: buildHotelHallTheme(),
+          darkTheme: buildHotelHallTheme(brightness: Brightness.dark),
+          themeMode: themeController.mode,
+          home: const AuthGate(),
+        ),
       ),
     );
   }

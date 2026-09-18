@@ -40,18 +40,20 @@ Map<String, dynamic> _meJson({
 Widget _wrap(
   Future<http.Response> Function(http.Request) handler, {
   ImagePickerFn pickImage = pickImageFromGallery,
+  AuthStatus authStatus = AuthStatus.authenticated,
 }) {
   final sessionStore = SessionStore(storage: InMemoryTokenStorage());
   final apiClient = ApiClient(httpClient: MockClient(handler), baseUrl: 'http://test/api/v1');
   final auth = AuthController(repository: AuthRepository(apiClient), sessionStore: sessionStore)
     ..currentUser = AppUser.fromJson(testUser())
-    ..status = AuthStatus.authenticated;
+    ..status = authStatus;
 
   return MultiProvider(
     providers: [
       Provider<ApiClient>.value(value: apiClient),
       ChangeNotifierProvider<AuthController>.value(value: auth),
       ChangeNotifierProvider(create: (_) => NotificationController(NotificationRepository(apiClient))),
+      ChangeNotifierProvider(create: (_) => ThemeController(storage: InMemoryTokenStorage())),
     ],
     child: MaterialApp(home: CustomerProfileScreen(pickImage: pickImage)),
   );
@@ -312,5 +314,18 @@ void main() {
     expect(logoutCalled, true);
     expect(auth.status, AuthStatus.unauthenticated);
     expect(auth.currentUser, isNull);
+  });
+
+  // The session can end while this screen is open (an expired refresh token
+  // clears it without closing anything), and offering "Log out" to someone
+  // already logged out is the visible symptom.
+  testWidgets('no "Log out" is offered when the session is not authenticated', (tester) async {
+    await tester.pumpWidget(_wrap(
+      (_) async => _envelope(_meJson(fullName: 'Amina Yusuf')),
+      authStatus: AuthStatus.unauthenticated,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Log out'), findsNothing);
   });
 }

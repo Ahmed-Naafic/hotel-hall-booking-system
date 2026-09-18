@@ -156,3 +156,29 @@ export function IconSettingsSlider(props) {
     </Svg>
   )
 }
+
+export function IconSun(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4" />
+    </Svg>
+  )
+}
+
+export function IconMoon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M20 13.5A8 8 0 0 1 10.5 4a8 8 0 1 0 9.5 9.5Z" />
+    </Svg>
+  )
+}
+
+export function IconMonitor(props) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4.5" width="18" height="12" rx="1.5" />
+      <path d="M9 20h6M12 16.5V20" />
+    </Svg>
+  )
+}

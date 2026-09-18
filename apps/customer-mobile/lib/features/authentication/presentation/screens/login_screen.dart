@@ -16,7 +16,7 @@ class LoginScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(HHSpacing.space7),
@@ -34,7 +34,7 @@ class LoginScreen extends StatelessWidget {
                 'Log in to book your next event',
                 style: TextStyle(
                   fontSize: HHTypeScale.textMd,
-                  color: HHColors.textMuted,
+                  color: context.hh.textMuted,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -49,7 +49,7 @@ class LoginScreen extends StatelessWidget {
                     password: password,
                   );
                   if (ok && context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.of(context).pop(true);
                   }
                   return ok;
                 },
@@ -57,11 +57,17 @@ class LoginScreen extends StatelessWidget {
               const SizedBox(height: HHSpacing.space6),
               Center(
                 child: TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     auth.clearError();
-                    Navigator.of(context).push(
+                    final registered = await Navigator.of(context).push<bool>(
                       MaterialPageRoute(builder: (_) => const RegisterScreen()),
                     );
+                    // Registering signs the Customer in, so this screen has
+                    // nothing left to ask for — close it too, reporting the
+                    // same success to whoever pushed it.
+                    if (registered == true && context.mounted) {
+                      Navigator.of(context).pop(true);
+                    }
                   },
                   child: const Text("Don't have an account? Register"),
                 ),

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:customer_mobile/core/pending_action_controller.dart';
 import 'package:customer_mobile/features/availability/presentation/screens/book_hall_screen.dart';
+import 'package:customer_mobile/features/bookings/presentation/screens/booking_history_screen.dart';
 import 'package:customer_mobile/features/discovery/application/popular_hotels_controller.dart';
 import 'package:customer_mobile/features/discovery/data/discovery_models.dart';
 import 'package:customer_mobile/features/discovery/data/discovery_repository.dart';
@@ -116,6 +117,9 @@ void main() {
         if (path == '/api/v1/bookings' && request.method == 'POST') {
           return _envelope(_bookingJson());
         }
+        if (path == '/api/v1/bookings' && request.method == 'GET') {
+          return _envelope([_bookingJson()]);
+        }
         return _envelope({});
       });
 
@@ -141,9 +145,13 @@ void main() {
 
       expect(find.byType(BookHallScreen), findsNothing);
       expect(
-        find.text('Booking requested. Track its status and payment from My Bookings.'),
+        find.text('Booking requested. Track its status and payment here.'),
         findsOneWidget,
       );
+      // The finished Hall Detail route is replaced, not stacked on top of:
+      // the Customer lands on their own Bookings.
+      expect(find.byType(BookingHistoryScreen), findsOneWidget);
+      expect(find.byType(HallDetailScreen), findsNothing);
     },
   );
 }

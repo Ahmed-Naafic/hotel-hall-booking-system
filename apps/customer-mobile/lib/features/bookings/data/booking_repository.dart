@@ -57,9 +57,15 @@ class BookingRepository {
 
   /// Cancels the Customer's own applicable Booking. The record is never
   /// deleted — the backend transitions it to CANCELLED and preserves it in
-  /// history.
-  Future<Booking> cancel(String bookingId) async {
-    final data = await _client.post('/bookings/$bookingId/cancellation');
+  /// history. `reason` is required by the backend only when the Booking
+  /// being cancelled is CONFIRMED (BDR-024); omitted (never sent as an
+  /// empty string) when cancelling a still-PENDING one.
+  Future<Booking> cancel(String bookingId, {String? reason}) async {
+    final trimmed = reason?.trim();
+    final data = await _client.post(
+      '/bookings/$bookingId/cancellation',
+      body: trimmed?.isNotEmpty == true ? {'reason': trimmed} : null,
+    );
     return Booking.fromJson((data as Map).cast<String, dynamic>());
   }
 

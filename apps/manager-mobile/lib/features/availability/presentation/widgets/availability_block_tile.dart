@@ -43,10 +43,10 @@ class AvailabilityBlockTile extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: HHColors.surfaceNavyTint,
+                  color: context.hh.surfaceNavyTint,
                   borderRadius: BorderRadius.circular(HHRadii.control),
                 ),
-                child: Icon(Icons.block_outlined, color: HHColors.navy700, size: 20),
+                child: Icon(Icons.block_outlined, color: context.hh.textHeading, size: 20),
               ),
               const SizedBox(width: HHSpacing.space4),
               Expanded(
@@ -64,7 +64,7 @@ class AvailabilityBlockTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         reason,
-                        style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm),
+                        style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textSm),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -74,7 +74,7 @@ class AvailabilityBlockTile extends StatelessWidget {
               ),
               PopupMenuButton<String>(
                 tooltip: 'More actions',
-                icon: Icon(Icons.more_vert, color: HHColors.textSubtle),
+                icon: Icon(Icons.more_vert, color: context.hh.textSubtle),
                 itemBuilder: (context) => const [
                   PopupMenuItem(
                     value: 'edit',

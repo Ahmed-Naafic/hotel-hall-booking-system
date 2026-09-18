@@ -6,10 +6,13 @@ import { ConflictError } from '../../shared/errors/errorTypes.js'
  * arbiter of every Hotel status transition. No other component in this
  * module mutates Hotel.status directly (architecture-principles.md §4).
  *
- * The transition map below is exactly Technical Design §6.2's table — no
- * transition exists here that isn't listed there. In particular, no
- * reactivation path out of SUSPENDED/DEACTIVATED, and no exit from
- * WITHDRAWN, are deliberate omissions (Technical Design §6), not bugs.
+ * The transition map below extends Technical Design §6.2's table with a
+ * Platform-Administrator-triggered reactivation path out of SUSPENDED and
+ * DEACTIVATED back to APPROVED_ACTIVE — both are reversible administrative
+ * actions, not permanent ones (BDR-012). No exit from WITHDRAWN remains a
+ * deliberate omission (Technical Design §6): a withdrawn application is
+ * resubmitted from REGISTERED/PROFILE_COMPLETE via a brand-new application,
+ * never reopened in place.
  */
 const VALID_TRANSITIONS = {
   REGISTERED: ['PROFILE_COMPLETE'],
@@ -19,8 +22,8 @@ const VALID_TRANSITIONS = {
   REJECTED: ['UNDER_REVIEW'],
   RESTRICTED_UNDER_REVIEW: ['APPROVED_ACTIVE'],
   WITHDRAWN: [],
-  SUSPENDED: [],
-  DEACTIVATED: [],
+  SUSPENDED: ['APPROVED_ACTIVE'],
+  DEACTIVATED: ['APPROVED_ACTIVE'],
 }
 
 export function isValidTransition(fromStatus, toStatus) {

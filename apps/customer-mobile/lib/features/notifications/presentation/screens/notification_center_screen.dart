@@ -41,7 +41,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
@@ -119,7 +119,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: notification.isUnread ? HHColors.actionPrimary : Colors.transparent,
+                    color: notification.isUnread ? context.hh.actionPrimary : Colors.transparent,
                   ),
                 ),
               ),
@@ -136,7 +136,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                       ),
                     ),
                     const SizedBox(height: HHSpacing.space1),
-                    Text(notification.body, style: TextStyle(color: HHColors.textMuted)),
+                    Text(notification.body, style: TextStyle(color: context.hh.textMuted)),
                   ],
                 ),
               ),

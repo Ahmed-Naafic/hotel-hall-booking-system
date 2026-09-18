@@ -28,15 +28,52 @@ Map<String, dynamic> _hotelJson({String status = 'REGISTERED', Map<String, dynam
 /// always resolves through this endpoint, never `GET /hotels/:id`) — the
 /// Hotel keyed under `hotel` (`null` when the Manager has none yet), never a
 /// bare Hotel object.
-Map<String, dynamic> _myHotelJson({String status = 'REGISTERED', Map<String, dynamic>? profileData}) =>
-    {'hotel': _hotelJson(status: status, profileData: profileData), 'latestApplication': null};
+Map<String, dynamic> _myHotelJson({
+  String status = 'REGISTERED',
+  Map<String, dynamic>? profileData,
+  double? averageRating,
+  int reviewCount = 0,
+}) => {
+  'hotel': _hotelJson(status: status, profileData: profileData),
+  'latestApplication': null,
+  'reviewSummary': {'average': averageRating, 'count': reviewCount},
+};
 
 /// The Manager has no Hotel yet — `GET /hotels/me` still returns `200`, with
 /// `hotel: null` (`hotelController.getMyHotel`), never a `404`.
 const _noHotelJson = {'hotel': null, 'latestApplication': null};
 
+/// `GET /hotels/:id/halls?limit=1`'s paginated envelope, shaped exactly
+/// like `HallRepository.listHalls` expects (`pagination` a sibling of
+/// `data`, never nested inside it) — an empty Hall list by default.
+http.Response _hallsPageResponse({int total = 0}) => http.Response(
+      '{"status":"success","message":"ok","data":[],'
+      '"pagination":{"page":1,"limit":1,"total":$total,"hasNext":false,"hasPrevious":false}}',
+      200,
+    );
+
+/// `GET /hotels/:id/bookings/summary`'s response — zero Bookings by
+/// default, the real database-side aggregate `MyHotelScreen`'s stat grid
+/// reads, never a client-side count.
+http.Response _summaryResponse({int totalBookings = 0, int totalRevenueCents = 0, int pendingCount = 0}) =>
+    successResponse({'totalBookings': totalBookings, 'totalRevenueCents': totalRevenueCents, 'pendingCount': pendingCount});
+
+/// Every test below reaches `MyHotelScreen`'s `ready` state at some point,
+/// which now always fetches Hall count and Booking summary for its stat
+/// grid (`HotelProfileHeader`) regardless of the Hotel's own status — Halls
+/// may be created before full approval (`BR-HALL-02`). Wrapping every
+/// test's own handler with this intercepts those two endpoints uniformly
+/// rather than repeating the same two `if` branches in each test.
+Future<http.Response> Function(http.Request) _withStats(Future<http.Response> Function(http.Request) handler) {
+  return (request) async {
+    if (request.method == 'GET' && request.url.path.endsWith('/halls')) return _hallsPageResponse();
+    if (request.method == 'GET' && request.url.path.endsWith('/bookings/summary')) return _summaryResponse();
+    return handler(request);
+  };
+}
+
 Widget _wrap(Future<http.Response> Function(http.Request) handler) {
-  final apiClient = ApiClient(httpClient: MockClient(handler), baseUrl: 'http://test/api/v1');
+  final apiClient = ApiClient(httpClient: MockClient(_withStats(handler)), baseUrl: 'http://test/api/v1');
   final hotelContext = HotelContextController(repository: HotelRepository(apiClient), storage: InMemoryTokenStorage());
   return MultiProvider(
     providers: [
@@ -89,7 +126,27 @@ void main() {
   });
 
   testWidgets(
-    'the Hotel identity card shows only the name, status, and creation date — never Description/Location/Contact info (that lives one tap away, at Hotel Details)',
+    'the stat grid never overflows on a narrow phone, even for the longest real Hotel status (RESTRICTED_UNDER_REVIEW)',
+    (tester) async {
+      // A real, narrow phone width — the 800x2400 surface `setUp` sets for
+      // the profile-form tests elsewhere in this file would hide a
+      // width-dependent text-wrap overflow like this one.
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize = const Size(360, 800);
+      addTearDown(binding.platformDispatcher.views.first.resetPhysicalSize);
+
+      await tester.pumpWidget(_wrap((r) async => successResponse(_myHotelJson(
+            status: 'RESTRICTED_UNDER_REVIEW',
+            profileData: {'name': 'Liido Beach Hotel'},
+          ))));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'the profile header shows name, location, and About Hotel directly — but never Contact Phone/Email (those stay one tap away, at Hotel Details)',
     (tester) async {
       await tester.pumpWidget(_wrap((r) async {
         if (r.method == 'GET' && r.url.path.endsWith('/media')) {
@@ -113,12 +170,96 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Liido Beach Hotel'), findsOneWidget);
-      expect(find.text('A beachfront venue in Mogadishu.'), findsNothing);
-      expect(find.text('Karaan, Muqdisho, Banaadir, Soomaaliya'), findsNothing);
+      expect(find.text('Karaan, Muqdisho, Banaadir, Soomaaliya'), findsOneWidget);
+      expect(find.text('A beachfront venue in Mogadishu.'), findsOneWidget);
       expect(find.text('+252611234567'), findsNothing);
       expect(find.text('contact@liidobeach.example'), findsNothing);
     },
   );
+
+  testWidgets('shows a Verified badge only for an APPROVED_ACTIVE Hotel, never for any other status', (tester) async {
+    await tester.pumpWidget(_wrap((r) async {
+      if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+        return successResponse({'logo': null, 'photos': []});
+      }
+      return successResponse(_myHotelJson(status: 'APPROVED_ACTIVE', profileData: {'name': 'Liido Beach Hotel'}));
+    }));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verified'), findsOneWidget);
+  });
+
+  testWidgets('shows no Verified badge for a REJECTED Hotel', (tester) async {
+    await tester.pumpWidget(_wrap((r) async {
+      if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+        return successResponse({'logo': null, 'photos': []});
+      }
+      if (r.method == 'GET' && r.url.path == '/api/v1/hotels/h1') {
+        return successResponse(_hotelJson(status: 'REJECTED', profileData: {'name': 'Liido Beach Hotel'}));
+      }
+      return successResponse(_myHotelJson(status: 'REJECTED', profileData: {'name': 'Liido Beach Hotel'}));
+    }));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verified'), findsNothing);
+  });
+
+  testWidgets('shows the real average rating and review count once the Hotel has reviews', (tester) async {
+    await tester.pumpWidget(_wrap((r) async {
+      if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+        return successResponse({'logo': null, 'photos': []});
+      }
+      return successResponse(_myHotelJson(
+        status: 'APPROVED_ACTIVE',
+        profileData: {'name': 'Liido Beach Hotel'},
+        averageRating: 4.6,
+        reviewCount: 128,
+      ));
+    }));
+    await tester.pumpAndSettle();
+
+    expect(find.text('4.6 (128 reviews)'), findsOneWidget);
+  });
+
+  testWidgets('shows no rating row while the Hotel has zero reviews — never a fabricated 0.0', (tester) async {
+    await tester.pumpWidget(_wrap((r) async {
+      if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+        return successResponse({'logo': null, 'photos': []});
+      }
+      return successResponse(_myHotelJson(status: 'APPROVED_ACTIVE', profileData: {'name': 'Liido Beach Hotel'}));
+    }));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('reviews)'), findsNothing);
+    expect(find.byIcon(Icons.star_rounded), findsNothing);
+  });
+
+  testWidgets('the bottom "Edit Profile" button opens the edit form, same as the AppBar icon', (tester) async {
+    await tester.pumpWidget(_wrap((r) async {
+      if (r.method == 'GET' && r.url.path.endsWith('/media')) {
+        return successResponse({'logo': null, 'photos': []});
+      }
+      return successResponse(_myHotelJson(status: 'APPROVED_ACTIVE', profileData: {'name': 'Liido Beach Hotel'}));
+    }));
+    await tester.pumpAndSettle();
+
+    // The AppBar's own edit `IconButton` has a "Edit Profile" tooltip,
+    // whose (offscreen-until-hovered) `Text` also matches a plain
+    // `find.text` — target the bottom button specifically instead. No
+    // scroll needed: this file's `setUp` already enlarges the test
+    // surface (800x2400) so the button is on-screen without it.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Edit Profile'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HotelProfileFormScreen), findsOneWidget);
+  });
+
+  testWidgets('the bottom "Edit Profile" button is absent for a Hotel that cannot be edited (UNDER_REVIEW)', (tester) async {
+    await tester.pumpWidget(_wrap((r) async => successResponse(_myHotelJson(status: 'UNDER_REVIEW'))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Profile'), findsNothing);
+  });
 
   testWidgets(
     'tapping the Hotel identity card opens the read-only Hotel Details screen, never the edit form directly',
@@ -154,12 +295,7 @@ void main() {
 
   testWidgets('"Manage Halls" navigates to HallListScreen with the resolved hotelId', (tester) async {
     final apiClient = ApiClient(
-      httpClient: MockClient((r) async {
-        if (r.url.path.endsWith('/halls')) {
-          return http.Response('{"status":"success","message":"ok","data":[],"pagination":{"page":1,"limit":20,"total":0,"hasNext":false,"hasPrevious":false}}', 200);
-        }
-        return successResponse(_myHotelJson(status: 'APPROVED_ACTIVE'));
-      }),
+      httpClient: MockClient(_withStats((r) async => successResponse(_myHotelJson(status: 'APPROVED_ACTIVE')))),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
@@ -194,7 +330,7 @@ void main() {
 
   testWidgets('a REGISTERED Hotel: tapping "Complete Hotel Profile" opens the profile-completion screen', (tester) async {
     final apiClient = ApiClient(
-      httpClient: MockClient((r) async {
+      httpClient: MockClient(_withStats((r) async {
         // HotelProfileFormScreen fetches its own Hotel Media independently
         // as soon as it mounts (HotelMediaController) — unrelated to this
         // test's own assertion, stubbed the same way
@@ -203,7 +339,7 @@ void main() {
           return successResponse({'logo': null, 'photos': []});
         }
         return successResponse(_myHotelJson(status: 'REGISTERED'));
-      }),
+      })),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
@@ -221,7 +357,7 @@ void main() {
   testWidgets('a PROFILE_COMPLETE Hotel: "Submit Application" calls the endpoint and reaches UNDER_REVIEW', (tester) async {
     var applicationPosted = false;
     final apiClient = ApiClient(
-      httpClient: MockClient((r) async {
+      httpClient: MockClient(_withStats((r) async {
         if (r.method == 'POST' && r.url.path == '/api/v1/hotels/h1/applications') {
           applicationPosted = true;
           return successResponse({
@@ -234,7 +370,7 @@ void main() {
           }, status: 201);
         }
         return successResponse(_myHotelJson(status: applicationPosted ? 'UNDER_REVIEW' : 'PROFILE_COMPLETE'));
-      }),
+      })),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
@@ -257,7 +393,7 @@ void main() {
     'tapping the identity card for a REJECTED Hotel also opens Hotel Details (not directly editable from here either)',
     (tester) async {
       final apiClient = ApiClient(
-        httpClient: MockClient((r) async {
+        httpClient: MockClient(_withStats((r) async {
           if (r.method == 'GET' && r.url.path.endsWith('/media')) {
             return successResponse({'logo': null, 'photos': []});
           }
@@ -265,7 +401,7 @@ void main() {
             return successResponse(_hotelJson(status: 'REJECTED', profileData: {'name': 'Liido Beach Hotel'}));
           }
           return successResponse(_myHotelJson(status: 'REJECTED', profileData: {'name': 'Liido Beach Hotel'}));
-        }),
+        })),
         baseUrl: 'http://test/api/v1',
       );
       final storage = InMemoryTokenStorage();
@@ -299,7 +435,7 @@ void main() {
           : {'name': 'Liido Beach Hotel'};
 
       final apiClient = ApiClient(
-        httpClient: MockClient((r) async {
+        httpClient: MockClient(_withStats((r) async {
           if (r.method == 'GET' && r.url.path.endsWith('/media')) {
             return successResponse({'logo': null, 'photos': []});
           }
@@ -314,7 +450,7 @@ void main() {
             return successResponse(_hotelJson(status: 'APPROVED_ACTIVE', profileData: currentProfileData()));
           }
           return successResponse(_myHotelJson(status: 'APPROVED_ACTIVE', profileData: currentProfileData()));
-        }),
+        })),
         baseUrl: 'http://test/api/v1',
       );
       final storage = InMemoryTokenStorage();
@@ -366,7 +502,7 @@ void main() {
 
   testWidgets('an UNDER_REVIEW Hotel shows the waiting/review state, with no action button', (tester) async {
     final apiClient = ApiClient(
-      httpClient: MockClient((r) async => successResponse(_myHotelJson(status: 'UNDER_REVIEW'))),
+      httpClient: MockClient(_withStats((r) async => successResponse(_myHotelJson(status: 'UNDER_REVIEW')))),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();
@@ -383,7 +519,7 @@ void main() {
   testWidgets('end-to-end onboarding: completing the profile updates the still-open My Hotel screen to the next step', (tester) async {
     var profileCompleted = false;
     final apiClient = ApiClient(
-      httpClient: MockClient((r) async {
+      httpClient: MockClient(_withStats((r) async {
         // HotelProfileFormScreen loads its own Hotel Media independently
         // (HotelMediaController) as soon as it mounts, and the Location
         // picker's "Confirm location" step reverse-geocodes the placed pin
@@ -404,7 +540,7 @@ void main() {
           ));
         }
         return successResponse(_myHotelJson(status: profileCompleted ? 'PROFILE_COMPLETE' : 'REGISTERED'));
-      }),
+      })),
       baseUrl: 'http://test/api/v1',
     );
     final storage = InMemoryTokenStorage();

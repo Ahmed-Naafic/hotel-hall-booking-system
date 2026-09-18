@@ -48,8 +48,10 @@ const actives = {
   primary: { background: "var(--action-primary-active)" },
   accent: { background: "var(--action-accent-active)" },
   gold: { background: "var(--action-gold-active)" },
-  secondary: { background: "var(--navy-100)" },
-  ghost: { background: "var(--navy-100)" },
+  secondary: { background: "var(--surface-navy-tint-strong)" },
+  ghost: { background: "var(--surface-navy-tint-strong)" },
+  // `inverse` is a light button placed on a dark surface in either theme, so
+  // its pressed state stays a pale navy rather than following the theme.
   inverse: { background: "var(--navy-100)" },
   danger: { background: "var(--danger-100)" },
 };

@@ -63,6 +63,14 @@ export const env = {
   // (shared/providers/smsProvider.js falls back to MockSmsProvider); never
   // hardcode a placeholder value here.
   sms: {
+    // Xaliye reaches Somali numbers, which is what Verification (BR-AUTH-02)
+    // actually needs, so it is preferred over Twilio when configured. Only
+    // the endpoint is required; `SMS_API_KEY` is sent as a bearer token when
+    // present and omitted when not.
+    xaliye: {
+      baseUrl: process.env.SMS_API_URL || undefined,
+      apiKey: process.env.SMS_API_KEY || undefined,
+    },
     twilio: {
       accountSid: process.env.TWILIO_ACCOUNT_SID || undefined,
       authToken: process.env.TWILIO_AUTH_TOKEN || undefined,

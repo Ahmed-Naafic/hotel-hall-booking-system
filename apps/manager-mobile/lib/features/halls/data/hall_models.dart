@@ -1,7 +1,9 @@
-/// Mirrors `openapi.json#/components/schemas/PublicHall` exactly. No
-/// `status`/`visibility` field exists on this resource — Hall Management
-/// Technical Design §6/§12 deliberately never returns one; visibility is a
-/// request-time outcome, not Hall data. This app does not invent one.
+/// Mirrors `openapi.json#/components/schemas/PublicHall` exactly.
+/// `isActive` is the owning Hotel Manager's own Active/Inactive toggle
+/// (`Hall.isActive`, a real persisted column) — distinct from Hall
+/// Management's own visibility computation, which stays request-time, not
+/// Hall data (Technical Design §6/§12): this app never invents a
+/// visibility field, but `isActive` is a real one the backend returns.
 class Hall {
   const Hall({
     required this.id,
@@ -9,6 +11,7 @@ class Hall {
     required this.profileData,
     required this.createdAt,
     required this.updatedAt,
+    this.isActive = true,
     this.photos = const [],
     this.bookingTerms = const {},
   });
@@ -18,6 +21,7 @@ class Hall {
   final Map<String, dynamic>? profileData;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isActive;
 
   /// `toPublicHall` (`hall.mapper.js`) already includes `photos` on every
   /// Hall response this app fetches (`GET /hotels/:hotelId/halls[/:id]`) —
@@ -32,6 +36,7 @@ class Hall {
     profileData: (json['profileData'] as Map?)?.cast<String, dynamic>(),
     createdAt: DateTime.parse(json['createdAt'] as String),
     updatedAt: DateTime.parse(json['updatedAt'] as String),
+    isActive: json['isActive'] as bool? ?? true,
     photos: ((json['photos'] as List?) ?? const [])
         .map(
           (item) => HallMedia.fromJson((item as Map).cast<String, dynamic>()),
@@ -75,6 +80,13 @@ class Hall {
     final value = profileData?['description']?.toString().trim();
     return (value == null || value.isEmpty) ? null : value;
   }
+
+  /// The Hall's own rent rate, straight from `bookingTerms` (already
+  /// present on every Hall response — `hall.mapper.js#toPublicHall`) —
+  /// `null` only for a Hall whose commercial terms were never set.
+  int? get rentAmountCents => bookingTerms['rentAmountCents'] as int?;
+
+  int? get rentDurationHours => bookingTerms['rentDurationHours'] as int?;
 }
 
 class HallPage {

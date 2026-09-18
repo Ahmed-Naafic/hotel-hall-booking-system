@@ -87,11 +87,19 @@ async function prismaOpenApplicationId(hotelId) {
   return application.id
 }
 
+// Every Hotel this file creates, so `after` can remove it and its Halls
+// again. Large Halls ranks across the whole table with no pagination, so
+// Halls left behind by a previous run permanently shrink the top-`limit`
+// window every later run is asserting inside — the suite would slowly
+// break itself without this.
+const createdHotelIds = []
+
 /** Registers, completes, submits, and approves a Hotel — reaching APPROVED_ACTIVE. */
 async function createApprovedHotel() {
   const { accessToken } = await registerAndLoginHotelManager()
   const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
   const hotelId = created.data.id
+  createdHotelIds.push(hotelId)
   await patch(`/api/v1/hotels/${hotelId}`, completeHotelProfile(), authHeader(accessToken))
   await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
   const hotel = await hotelService.getHotelById(hotelId)
@@ -102,6 +110,7 @@ async function createApprovedHotel() {
 async function createUnapprovedHotel() {
   const { accessToken } = await registerAndLoginHotelManager()
   const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
+  createdHotelIds.push(created.data.id)
   return created.data.id
 }
 
@@ -122,6 +131,16 @@ before(async () => {
 
 after(async () => {
   await new Promise((resolve) => server.close(resolve))
+
+  // Halls first: `Hall.hotel` is a required relation with no cascade, so a
+  // Hotel with Halls cannot be deleted. Everything else this file creates
+  // off a Hotel (applications, media) cascades with it. Scoped strictly to
+  // ids this run recorded — never a blanket delete, since this database is
+  // shared with manual testing.
+  if (createdHotelIds.length > 0) {
+    await prisma.hall.deleteMany({ where: { hotelId: { in: createdHotelIds } } })
+    await prisma.hotel.deleteMany({ where: { id: { in: createdHotelIds } } })
+  }
 })
 
 describe('GET /halls/large-capacity', () => {
@@ -136,10 +155,13 @@ describe('GET /halls/large-capacity', () => {
   })
 
   test('the largest Hall appears first among several of differing capacity', async () => {
+    // Capacities well above anything else on the platform, so all three stay
+    // inside the top-`limit` window this ranking returns regardless of what
+    // else the database holds — the relative order is what's under test.
     const hotelId = await createApprovedHotel()
-    const small = await createHallDirect(hotelId, 50)
-    const large = await createHallDirect(hotelId, 900)
-    const medium = await createHallDirect(hotelId, 300)
+    const small = await createHallDirect(hotelId, 90050)
+    const large = await createHallDirect(hotelId, 90900)
+    const medium = await createHallDirect(hotelId, 90300)
 
     const res = await get('/api/v1/halls/large-capacity?limit=100')
     assert.equal(res.status, 200)
@@ -161,9 +183,11 @@ describe('GET /halls/large-capacity', () => {
   })
 
   test('Halls with equal capacity use a deterministic secondary ordering (by id)', async () => {
+    // Equal, and high enough to stay inside the ranked window (see above) —
+    // the id tiebreak is what's under test, not the capacity.
     const hotelId = await createApprovedHotel()
-    const a = await createHallDirect(hotelId, 200)
-    const b = await createHallDirect(hotelId, 200)
+    const a = await createHallDirect(hotelId, 90200)
+    const b = await createHallDirect(hotelId, 90200)
     const expectedOrder = [a.id, b.id].sort()
 
     const res1 = await get('/api/v1/halls/large-capacity?limit=100')

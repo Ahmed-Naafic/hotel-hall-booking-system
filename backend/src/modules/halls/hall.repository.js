@@ -29,10 +29,26 @@ export function update(id, data) {
   return prisma.hall.update({ where: { id }, data })
 }
 
-/** Every Hall for one Hotel, regardless of visibility — the Hotel Manager's own management view. */
-export function listByHotelId({ hotelId, skip, take }) {
+/**
+ * `activeFilter` — `true`/`false` restricts to that `isActive` value,
+ * `undefined` applies no filter at all (the owning Manager's own "All"
+ * view). `search` matches `profileData.name` the same way Hotel Management
+ * already matches Hotel name (`hotel.repository.js`) — one established
+ * convention, not a second one invented here.
+ */
+function hallListWhere({ hotelId, activeFilter, search }) {
+  return {
+    hotelId,
+    deletedAt: null,
+    ...(activeFilter === undefined ? {} : { isActive: activeFilter }),
+    ...(search ? { profileData: { path: ['name'], string_contains: search, mode: 'insensitive' } } : {}),
+  }
+}
+
+/** Every Hall for one Hotel matching the given filters — the Hotel Manager's own management view (unfiltered by default, regardless of visibility). */
+export function listByHotelId({ hotelId, skip, take, activeFilter, search }) {
   return prisma.hall.findMany({
-    where: { hotelId, deletedAt: null },
+    where: hallListWhere({ hotelId, activeFilter, search }),
     skip,
     take,
     orderBy: { createdAt: 'desc' },
@@ -40,8 +56,8 @@ export function listByHotelId({ hotelId, skip, take }) {
   })
 }
 
-export function countByHotelId(hotelId) {
-  return prisma.hall.count({ where: { hotelId, deletedAt: null } })
+export function countByHotelId(hotelId, { activeFilter, search } = {}) {
+  return prisma.hall.count({ where: hallListWhere({ hotelId, activeFilter, search }) })
 }
 
 /**
@@ -66,12 +82,25 @@ export function listCandidatesForBrowse({ hotelId, cursor, take }) {
  * Every Hall candidate for capacity ranking (Large Halls) — unfiltered by
  * Hotel eligibility, same as listCandidatesForBrowse above; the Visibility
  * Component (visibility.service.js) applies that filter, never this
- * repository (architecture-principles.md §5). `hotel: true` is a display
- * join (the owning Hotel's name), not a filter criterion.
+ * repository (architecture-principles.md §5).
+ *
+ * Only the columns that ranking and visibility actually read, because this
+ * query is unpaginated by design (the ranking spans the whole table): the
+ * display joins would otherwise pull every media row on the platform into
+ * memory just to discard all but the top `limit`. `hydrateByIds` below
+ * fetches those joins for the winners alone.
  */
 export function findAllCandidatesForRanking() {
   return prisma.hall.findMany({
     where: { deletedAt: null },
+    select: { id: true, hotelId: true, isActive: true, profileData: true },
+  })
+}
+
+/** Full display shape for an already-decided set of Halls, order not guaranteed. */
+export function hydrateByIds(ids) {
+  return prisma.hall.findMany({
+    where: { id: { in: ids } },
     include: { media: true, hotel: true },
   })
 }

@@ -21,12 +21,19 @@ http.Response _envelope(dynamic data, {Map<String, dynamic>? pagination}) => htt
   200,
 );
 
-Map<String, dynamic> _notificationJson({String id = 'n1', String status = 'UNREAD', String? bookingId = 'b1'}) => {
+Map<String, dynamic> _notificationJson({
+  String id = 'n1',
+  String status = 'UNREAD',
+  String? bookingId = 'b1',
+  String type = 'NEW_BOOKING_REQUEST',
+  String title = 'New booking request',
+  String body = 'A new booking request for Main Hall was submitted.',
+}) => {
   'id': id,
-  'type': 'NEW_BOOKING_REQUEST',
+  'type': type,
   'status': status,
-  'title': 'New booking request',
-  'body': 'A new booking request for Main Hall was submitted.',
+  'title': title,
+  'body': body,
   'bookingId': bookingId,
   'hotelId': 'h1',
   'hotelApplicationId': null,
@@ -47,7 +54,7 @@ Widget _wrap(Future<http.Response> Function(http.Request) handler) {
           body: Center(
             child: ElevatedButton(
               onPressed: () async {
-                final result = await Navigator.of(context).push<bool>(
+                final result = await Navigator.of(context).push<NotificationDestination>(
                   MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
                 );
                 _lastPopResult = result;
@@ -61,7 +68,7 @@ Widget _wrap(Future<http.Response> Function(http.Request) handler) {
   );
 }
 
-bool? _lastPopResult;
+NotificationDestination? _lastPopResult;
 
 void main() {
   setUp(() => _lastPopResult = null);
@@ -98,7 +105,7 @@ void main() {
     expect(find.text('No notifications yet'), findsOneWidget);
   });
 
-  testWidgets('tapping a booking-related notification marks it read and pops with true', (tester) async {
+  testWidgets('tapping a booking-related notification marks it read and pops to the bookings tab', (tester) async {
     var markedRead = false;
     await tester.pumpWidget(
       _wrap((request) async {
@@ -120,7 +127,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(markedRead, true);
-    expect(_lastPopResult, true);
+    expect(_lastPopResult, NotificationDestination.bookingsTab);
+  });
+
+  testWidgets('tapping a Hotel status-change notification pops to the hotel tab (BDR-021, BDR-022)', (tester) async {
+    for (final type in const ['HOTEL_APPLICATION_APPROVED', 'HOTEL_SUSPENDED', 'HOTEL_DEACTIVATED', 'HOTEL_REACTIVATED']) {
+      _lastPopResult = null;
+      await tester.pumpWidget(
+        _wrap((request) async {
+          if (request.url.path.endsWith('/notifications') && request.method == 'GET') {
+            return _envelope(
+              [_notificationJson(bookingId: null, type: type, title: 'Hotel status changed')],
+              pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null},
+            );
+          }
+          if (request.url.path.endsWith('/unread-count')) return _envelope({'count': 1});
+          if (request.url.path.endsWith('/n1/read') && request.method == 'POST') {
+            return _envelope(_notificationJson(bookingId: null, type: type, status: 'READ'));
+          }
+          return _envelope({});
+        }),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Hotel status changed'));
+      await tester.pumpAndSettle();
+
+      expect(_lastPopResult, NotificationDestination.hotelTab, reason: 'type: $type');
+    }
   });
 
   testWidgets('Mark all read clears the unread indicator', (tester) async {

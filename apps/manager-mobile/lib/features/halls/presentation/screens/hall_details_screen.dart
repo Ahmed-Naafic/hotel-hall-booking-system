@@ -147,7 +147,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(
         title: Text(_hall?.displayTitle ?? 'Hall'),
         actions: [
@@ -178,7 +178,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
         return HHEmptyState(
           icon: Icons.error_outline,
           message: _errorMessage ?? 'Something went wrong.',
-          iconColor: HHColors.danger700,
+          iconColor: context.hh.danger700,
           actionLabel: 'Retry',
           onAction: _load,
         );
@@ -260,7 +260,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                       Text(
                         'Description',
                         style: TextStyle(
-                          color: HHColors.textMuted,
+                          color: context.hh.textMuted,
                           fontSize: HHTypeScale.textXs,
                         ),
                       ),
@@ -294,7 +294,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                               Text(
                                 ManagerFormatters.label(entry.key),
                                 style: TextStyle(
-                                  color: HHColors.textMuted,
+                                  color: context.hh.textMuted,
                                   fontSize: HHTypeScale.textXs,
                                 ),
                               ),
@@ -318,7 +318,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                     Text(
                       'Created ${hall.createdAt.toLocal()}',
                       style: TextStyle(
-                        color: HHColors.textMuted,
+                        color: context.hh.textMuted,
                         fontSize: HHTypeScale.textSm,
                       ),
                     ),
@@ -326,7 +326,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
                     Text(
                       'Last updated ${hall.updatedAt.toLocal()}',
                       style: TextStyle(
-                        color: HHColors.textMuted,
+                        color: context.hh.textMuted,
                         fontSize: HHTypeScale.textSm,
                       ),
                     ),
@@ -356,7 +356,7 @@ class _DetailRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: HHColors.actionPrimary),
+        Icon(icon, size: 18, color: context.hh.actionPrimary),
         const SizedBox(width: HHSpacing.space3),
         Expanded(
           child: Column(
@@ -365,7 +365,7 @@ class _DetailRow extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  color: HHColors.textMuted,
+                  color: context.hh.textMuted,
                   fontSize: HHTypeScale.textXs,
                 ),
               ),

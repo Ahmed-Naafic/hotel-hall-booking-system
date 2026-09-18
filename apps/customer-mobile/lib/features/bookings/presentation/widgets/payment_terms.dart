@@ -41,40 +41,43 @@ class PaymentTermsCard extends StatelessWidget {
         const HHSectionLabel('PAYMENT TERMS'),
         const SizedBox(height: HHSpacing.space3),
         _row(
+          context,
           'Rent',
           rentAmountCents == null
               ? 'Not set by the Hotel yet'
               : '${formatMoneyCents(rentAmountCents)} / $rentDurationHours hours',
         ),
         _row(
+          context,
           'Advance required',
           advancePaymentPercent == null
               ? '—'
               : '${advancePaymentPercent!.toStringAsFixed(0)}%',
         ),
-        _row('Required advance amount', formatMoneyCents(requiredAdvanceCents)),
+        _row(context, 'Required advance amount', formatMoneyCents(requiredAdvanceCents)),
         const Padding(
           padding: EdgeInsets.symmetric(vertical: HHSpacing.space3),
           child: Divider(height: 1),
         ),
         _row(
+          context,
           'Send payment to',
           paymentReceivingNumber.isEmpty
               ? 'Not set by the Hotel yet'
               : paymentReceivingNumber,
         ),
-        _row('Hotel contact', customerServiceNumber.isEmpty ? '—' : customerServiceNumber),
+        _row(context, 'Hotel contact', customerServiceNumber.isEmpty ? '—' : customerServiceNumber),
       ],
     ),
   );
 
-  Widget _row(String label, String value) => Padding(
+  Widget _row(BuildContext context, String label, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: HHSpacing.space1),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: HHColors.textMuted)),
+        Text(label, style: TextStyle(color: context.hh.textMuted)),
         const SizedBox(width: HHSpacing.space3),
         Flexible(
           child: Text(

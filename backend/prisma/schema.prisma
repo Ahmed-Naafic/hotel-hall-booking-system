@@ -46,6 +46,7 @@ model User {
   reviews                                  Review[]
   notifications                            Notification[]
   deviceTokens                             DeviceToken[]
+  chatMessages                             ChatMessage[]
 
   @@map("users")
 }
@@ -54,9 +55,9 @@ model User {
 /// Profile fields remain empty/flexible until the pending M02 business decisions
 /// approve an explicit allowlist and completion policy.
 model CustomerProfile {
-  id          String    @id @default(uuid()) @db.Uuid
-  userId      String    @unique @map("user_id") @db.Uuid
-  profileData Json      @default("{}") @map("profile_data")
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  profileData       Json      @default("{}") @map("profile_data")
   /// The Customer's own profile photo — object-storage path (Storage
   /// Provider abstraction, mirroring Hotel/Hall Media's own `storagePath`
   /// convention), never the public URL itself. `null` until the Customer
@@ -64,10 +65,10 @@ model CustomerProfile {
   /// re-upload — a single avatar, not a gallery, so this stays a plain
   /// column rather than a second Media table for one image.
   avatarStoragePath String?   @map("avatar_storage_path")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("customer_profiles")
 }
@@ -340,17 +341,23 @@ model Booking {
   paymentRejectionReason String?       @map("payment_rejection_reason")
   cancelledAt            DateTime?     @map("cancelled_at")
   cancelledByUserId      String?       @map("cancelled_by_user_id") @db.Uuid
+  /// Required only when a Customer cancels a `CONFIRMED` Booking (BDR-024)
+  /// — never required cancelling a still-`PENDING` one, and never required
+  /// of a Hotel Manager's own cancellation. Shown to the Hotel Manager on
+  /// the Booking's own detail screen.
+  cancellationReason     String?       @map("cancellation_reason")
   completedAt            DateTime?     @map("completed_at")
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
 
-  customer          User    @relation("CustomerBookings", fields: [customerUserId], references: [id])
-  hotel             Hotel   @relation(fields: [hotelId], references: [id])
-  hall              Hall    @relation(fields: [hallId], references: [id])
-  paymentVerifiedBy User?   @relation("VerifiedBookingPayments", fields: [paymentVerifiedById], references: [id])
-  cancelledBy       User?   @relation("CancelledBookings", fields: [cancelledByUserId], references: [id])
+  customer          User           @relation("CustomerBookings", fields: [customerUserId], references: [id])
+  hotel             Hotel          @relation(fields: [hotelId], references: [id])
+  hall              Hall           @relation(fields: [hallId], references: [id])
+  paymentVerifiedBy User?          @relation("VerifiedBookingPayments", fields: [paymentVerifiedById], references: [id])
+  cancelledBy       User?          @relation("CancelledBookings", fields: [cancelledByUserId], references: [id])
   review            Review?
   notifications     Notification[]
+  chatMessages      ChatMessage[]
 
   @@index([customerUserId, createdAt], map: "idx_bookings_customer_created_at")
   @@index([hotelId, status, createdAt], map: "idx_bookings_hotel_status_created_at")
@@ -539,6 +546,10 @@ enum NotificationType {
   HOTEL_DEACTIVATED
   /// Hotel Manager — reactivation out of SUSPENDED/DEACTIVATED
   HOTEL_REACTIVATED
+  /// Customer — C9, Hotel Manager — M9 (Communication V1). Recipient is
+  /// whichever participant did not send the message; the type is the same
+  /// either way.
+  NEW_CHAT_MESSAGE
 
   @@map("notification_type")
 }
@@ -567,4 +578,25 @@ model DeviceToken {
 
   @@index([userId], map: "idx_device_tokens_user_id")
   @@map("device_tokens")
+}
+
+/// Communication V1 — one Booking's conversation between its Customer and
+/// its Hotel's Manager. No separate "Thread" entity: the Booking itself is
+/// the thread (`bookingId` is the thread key). `readAt` is set only on a
+/// row whose `senderUserId` is the *other* participant relative to whoever
+/// is reading — never on the reader's own sent messages.
+model ChatMessage {
+  id           String    @id @default(uuid()) @db.Uuid
+  bookingId    String    @map("booking_id") @db.Uuid
+  senderUserId String    @map("sender_user_id") @db.Uuid
+  body         String
+  readAt       DateTime? @map("read_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sender  User    @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, createdAt], map: "idx_chat_messages_booking_created_at")
+  @@index([bookingId, senderUserId, readAt], map: "idx_chat_messages_unread_lookup")
+  @@map("chat_messages")
 }

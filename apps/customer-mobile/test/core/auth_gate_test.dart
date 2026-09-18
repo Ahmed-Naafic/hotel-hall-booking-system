@@ -1,5 +1,7 @@
 import 'package:customer_mobile/core/auth_gate.dart';
 import 'package:customer_mobile/core/pending_action_controller.dart';
+import 'package:customer_mobile/features/chat/application/chat_badge_controller.dart';
+import 'package:customer_mobile/features/chat/data/chat_repository.dart';
 import 'package:customer_mobile/features/discovery/application/discovery_controller.dart';
 import 'package:customer_mobile/features/discovery/data/discovery_repository.dart';
 import 'package:customer_mobile/features/discovery/presentation/discover_screen.dart';
@@ -35,6 +37,9 @@ Widget _wrap(AuthController controller) {
       ),
       ChangeNotifierProvider(
         create: (_) => NotificationController(NotificationRepository(discoveryClient)),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => ChatBadgeController(ChatRepository(discoveryClient)),
       ),
     ],
     child: const MaterialApp(home: AuthGate()),

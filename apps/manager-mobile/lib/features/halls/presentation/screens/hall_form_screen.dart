@@ -162,7 +162,7 @@ class _HallFormScreenState extends State<HallFormScreen> {
       child: Consumer<HallFormController>(
         builder: (context, controller, _) {
           return Scaffold(
-            backgroundColor: HHColors.surfacePage,
+            backgroundColor: context.hh.surfacePage,
             appBar: AppBar(
               title: Text(widget.isEditing ? 'Edit Hall' : 'Create Hall'),
             ),
@@ -281,7 +281,7 @@ class _HallFormScreenState extends State<HallFormScreen> {
                         'Add any other details about this Hall. These cannot replace the required '
                         'information above.',
                         style: TextStyle(
-                          color: HHColors.textMuted,
+                          color: context.hh.textMuted,
                           fontSize: HHTypeScale.textSm,
                         ),
                       ),
@@ -328,7 +328,7 @@ class _HallPhotosSection extends StatelessWidget {
       if (controller.photos.isEmpty)
         Text(
           'No existing photos. Add photos from the Hall Details page.',
-          style: TextStyle(color: HHColors.textMuted),
+          style: TextStyle(color: context.hh.textMuted),
         )
       else
         Wrap(

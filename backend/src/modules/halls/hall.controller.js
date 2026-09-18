@@ -81,6 +81,8 @@ export const listHallsForHotel = asyncHandler(async (req, res) => {
     userId: req.identity?.userId,
     page,
     limit,
+    search: req.query.search,
+    status: req.query.status,
   })
   sendSuccess(res, {
     statusCode: 200,

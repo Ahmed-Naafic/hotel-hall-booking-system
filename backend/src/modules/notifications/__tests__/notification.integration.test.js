@@ -5,6 +5,7 @@ import { prisma } from '../../../shared/prismaClient.js'
 import { pushProvider } from '../../../shared/providers/pushProvider.js'
 import * as hotelService from '../../hotels/hotel.service.js'
 import * as applicationService from '../../hotels/application.service.js'
+import * as suspensionService from '../../hotels/suspension.service.js'
 import * as hallService from '../../halls/hall.service.js'
 
 /**
@@ -345,6 +346,112 @@ describe('Hotel application notifications (Platform Administrator)', () => {
     const rows = await prisma.notification.findMany({ where: { hotelId, type: 'HOTEL_APPLICATION_WITHDRAWN' } })
     createdNotificationIds.push(...rows.map((n) => n.id))
     assert.ok(rows.some((n) => n.recipientUserId === adminStubUserId))
+  })
+})
+
+describe('Hotel application decision notifications (Hotel Manager, BDR-021)', () => {
+  async function submittedApplication() {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const { body: created } = await post('/api/v1/hotels', {}, authHeader(manager.accessToken))
+    const hotelId = created.data.id
+    createdHotelIds.push(hotelId)
+    await patch(`/api/v1/hotels/${hotelId}`, completeHotelProfile(), authHeader(manager.accessToken))
+    const { body: application } = await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(manager.accessToken))
+    return { manager, hotelId, applicationId: application.data.id }
+  }
+
+  test('approving an application notifies the Hotel Manager who registered it', async () => {
+    const { manager, hotelId, applicationId } = await submittedApplication()
+    const hotel = await hotelService.getHotelById(hotelId)
+
+    await applicationService.recordDecision(hotel, applicationId, 'APPROVED', adminStubUserId)
+
+    const list = await notificationsFor(manager.accessToken)
+    createdNotificationIds.push(...list.body.data.map((n) => n.id))
+    const notification = list.body.data.find((n) => n.type === 'HOTEL_APPLICATION_APPROVED' && n.hotelId === hotelId)
+    assert.ok(notification, 'expected the Hotel Manager to be notified of the approval')
+    assert.equal(notification.hotelApplicationId, applicationId)
+  })
+
+  test('rejecting an application notifies the Hotel Manager who registered it, with the reason', async () => {
+    const { manager, hotelId, applicationId } = await submittedApplication()
+    const hotel = await hotelService.getHotelById(hotelId)
+
+    await applicationService.recordDecision(hotel, applicationId, 'REJECTED', adminStubUserId, {
+      decisionReason: 'Missing required Hall media.',
+    })
+
+    const list = await notificationsFor(manager.accessToken)
+    createdNotificationIds.push(...list.body.data.map((n) => n.id))
+    const notification = list.body.data.find((n) => n.type === 'HOTEL_APPLICATION_REJECTED' && n.hotelId === hotelId)
+    assert.ok(notification, 'expected the Hotel Manager to be notified of the rejection')
+    assert.match(notification.body, /Missing required Hall media\./)
+  })
+
+  test('the Platform Administrator who decided is never notified of their own decision', async () => {
+    const { hotelId, applicationId } = await submittedApplication()
+    const hotel = await hotelService.getHotelById(hotelId)
+
+    await applicationService.recordDecision(hotel, applicationId, 'APPROVED', adminStubUserId)
+
+    const rows = await prisma.notification.findMany({ where: { hotelId, type: 'HOTEL_APPLICATION_APPROVED' } })
+    createdNotificationIds.push(...rows.map((n) => n.id))
+    assert.equal(rows.some((n) => n.recipientUserId === adminStubUserId), false)
+  })
+})
+
+describe('Hotel status-change notifications (Hotel Manager, BDR-022)', () => {
+  test('suspending a Hotel notifies the Hotel Manager who registered it', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const hotelId = await createApprovedHotel(manager.accessToken)
+    const hotel = await hotelService.getHotelById(hotelId)
+
+    await suspensionService.suspendHotel(hotel, adminStubUserId)
+
+    const list = await notificationsFor(manager.accessToken)
+    createdNotificationIds.push(...list.body.data.map((n) => n.id))
+    const notification = list.body.data.find((n) => n.type === 'HOTEL_SUSPENDED' && n.hotelId === hotelId)
+    assert.ok(notification, 'expected the Hotel Manager to be notified of the suspension')
+  })
+
+  test('deactivating a Hotel notifies the Hotel Manager who registered it', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const hotelId = await createApprovedHotel(manager.accessToken)
+    const hotel = await hotelService.getHotelById(hotelId)
+
+    await suspensionService.deactivateHotel(hotel, adminStubUserId)
+
+    const list = await notificationsFor(manager.accessToken)
+    createdNotificationIds.push(...list.body.data.map((n) => n.id))
+    const notification = list.body.data.find((n) => n.type === 'HOTEL_DEACTIVATED' && n.hotelId === hotelId)
+    assert.ok(notification, 'expected the Hotel Manager to be notified of the deactivation')
+  })
+
+  test('reactivating a suspended Hotel notifies the Hotel Manager who registered it', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const hotelId = await createApprovedHotel(manager.accessToken)
+    let hotel = await hotelService.getHotelById(hotelId)
+    await suspensionService.suspendHotel(hotel, adminStubUserId)
+    hotel = await hotelService.getHotelById(hotelId)
+
+    await suspensionService.reactivateHotel(hotel, adminStubUserId)
+
+    const list = await notificationsFor(manager.accessToken)
+    createdNotificationIds.push(...list.body.data.map((n) => n.id))
+    const notification = list.body.data.find((n) => n.type === 'HOTEL_REACTIVATED' && n.hotelId === hotelId)
+    assert.ok(notification, 'expected the Hotel Manager to be notified of the reactivation')
+  })
+
+  test('the Platform Administrator who suspended is never notified of their own action', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const hotelId = await createApprovedHotel(manager.accessToken)
+    const hotel = await hotelService.getHotelById(hotelId)
+
+    await suspensionService.suspendHotel(hotel, adminStubUserId)
+
+    const rows = await prisma.notification.findMany({ where: { hotelId, type: 'HOTEL_SUSPENDED' } })
+    createdNotificationIds.push(...rows.map((n) => n.id))
+    assert.equal(rows.some((n) => n.recipientUserId === adminStubUserId), false)
   })
 })
 

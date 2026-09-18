@@ -42,7 +42,7 @@ function QuickActionButton({ label, description, Icon, onClick }) {
         borderStyle: 'solid',
         borderColor: hover ? 'var(--teal-600)' : 'var(--border-subtle)',
         borderRadius: 'var(--radius-lg)',
-        background: hover ? 'var(--teal-100)' : 'var(--surface-card)',
+        background: hover ? 'var(--surface-teal-tint)' : 'var(--surface-card)',
         cursor: 'pointer',
         transition: 'var(--transition-control)',
         fontFamily: 'var(--font-sans)',
@@ -57,8 +57,8 @@ function QuickActionButton({ label, description, Icon, onClick }) {
           height: 36,
           flex: '0 0 auto',
           borderRadius: 'var(--radius-md)',
-          background: 'var(--navy-050)',
-          color: 'var(--navy-700)',
+          background: 'var(--surface-navy-tint)',
+          color: 'var(--text-heading)',
         }}
       >
         <Icon size={18} />

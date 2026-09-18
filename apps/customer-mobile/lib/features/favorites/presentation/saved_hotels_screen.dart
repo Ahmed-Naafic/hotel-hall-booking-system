@@ -39,7 +39,7 @@ class _SavedHotelsScreenState extends State<SavedHotelsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('Saved Hotels')),
       body: SafeArea(
         child: RefreshIndicator(

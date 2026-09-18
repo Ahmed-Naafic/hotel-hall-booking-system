@@ -124,8 +124,12 @@ export function validateHotelId(req, res, next) {
   next()
 }
 
+// BDR-020 — search is free text, not an identifier; only bounded so an
+// unreasonably long query can't be sent, never restricted in character set.
+const MAX_SEARCH_LENGTH = 200
+
 export function validatePublicHotels(req, res, next) {
-  const { limit, cursor } = req.query ?? {}
+  const { limit, cursor, search } = req.query ?? {}
   if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
     throw new ValidationError('The request could not be processed due to invalid input.', [
       { field: 'limit', message: 'limit must be a positive integer.' },
@@ -134,6 +138,11 @@ export function validatePublicHotels(req, res, next) {
   if (cursor !== undefined && !UUID_PATTERN.test(cursor)) {
     throw new ValidationError('The request could not be processed due to invalid input.', [
       { field: 'cursor', message: 'cursor must be a valid identifier.' },
+    ])
+  }
+  if (search !== undefined && (typeof search !== 'string' || search.length > MAX_SEARCH_LENGTH)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'search', message: `search must be a string of ${MAX_SEARCH_LENGTH} characters or fewer.` },
     ])
   }
   next()

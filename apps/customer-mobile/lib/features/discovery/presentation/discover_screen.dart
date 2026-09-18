@@ -15,6 +15,7 @@ import '../../availability/presentation/screens/book_hall_screen.dart';
 import '../../bookings/data/booking_models.dart';
 import '../../bookings/presentation/screens/booking_history_screen.dart';
 import '../../bookings/presentation/widgets/payment_terms.dart';
+import '../../chat/application/chat_badge_controller.dart';
 import '../../notifications/application/notification_controller.dart';
 import '../../notifications/presentation/screens/notification_center_screen.dart';
 import '../application/all_halls_controller.dart';
@@ -189,7 +190,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => _handleRefresh(discovery),
@@ -717,8 +718,7 @@ class _TopHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          _HeaderButton(
-            icon: Icons.event_note_outlined,
+          _BookingsHeaderButton(
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
             ),
@@ -762,23 +762,67 @@ class _NotificationHeaderButton extends StatelessWidget {
     final unreadCount = context.select<NotificationController, int>(
       (c) => c.unreadCount,
     );
+    return _BadgedHeaderButton(
+      icon: Icons.notifications_none_rounded,
+      count: unreadCount,
+      onTap: onTap,
+    );
+  }
+}
+
+/// The "My Bookings" header button, additionally carrying Communication
+/// V1's own independent unread-message badge (Business Rule 8) — a
+/// conversation only lives inside a Booking, so this is the safest existing
+/// destination for it rather than a new, standalone chat-inbox screen
+/// (Technical Design, no new screen invented).
+class _BookingsHeaderButton extends StatelessWidget {
+  const _BookingsHeaderButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadCount = context.select<ChatBadgeController, int>(
+      (c) => c.unreadCount,
+    );
+    return _BadgedHeaderButton(
+      icon: Icons.event_note_outlined,
+      count: unreadCount,
+      onTap: onTap,
+    );
+  }
+}
+
+class _BadgedHeaderButton extends StatelessWidget {
+  const _BadgedHeaderButton({
+    required this.icon,
+    required this.count,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        _HeaderButton(icon: Icons.notifications_none_rounded, onTap: onTap),
-        if (unreadCount > 0)
+        _HeaderButton(icon: icon, onTap: onTap),
+        if (count > 0)
           Positioned(
             right: 4,
             top: 4,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
-                color: HHColors.danger700,
+                color: context.hh.danger700,
                 borderRadius: BorderRadius.circular(999),
               ),
               constraints: const BoxConstraints(minWidth: 16),
               child: Text(
-                unreadCount > 99 ? '99+' : '$unreadCount',
+                count > 99 ? '99+' : '$count',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
@@ -954,10 +998,10 @@ class _HotelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: HHColors.surfaceCard,
+        color: context.hh.surfaceCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: featured ? HHColors.gold300 : HHColors.navy100,
+          color: featured ? context.hh.borderGold : context.hh.borderSubtle,
         ),
         boxShadow: [
           BoxShadow(
@@ -987,8 +1031,8 @@ class _HotelCardChevron extends StatelessWidget {
     return Container(
       width: 30,
       height: 30,
-      decoration: const BoxDecoration(
-        color: HHColors.actionAccent,
+      decoration: BoxDecoration(
+        color: context.hh.actionAccent,
         shape: BoxShape.circle,
       ),
       child: const Icon(
@@ -1020,14 +1064,14 @@ class _BookmarkToggle extends StatelessWidget {
         child: Container(
           width: 26,
           height: 26,
-          decoration: const BoxDecoration(
-            color: HHColors.navy050,
+          decoration: BoxDecoration(
+            color: context.hh.surfaceNavyTint,
             shape: BoxShape.circle,
           ),
           child: Icon(
             isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
             size: 14,
-            color: isSaved ? HHColors.actionAccent : HHColors.textBody,
+            color: isSaved ? context.hh.actionAccent : context.hh.textBody,
           ),
         ),
       ),
@@ -1045,10 +1089,10 @@ class _HotelCardLocation extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(
+        Icon(
           Icons.location_on_outlined,
           size: 15,
-          color: HHColors.textMuted,
+          color: context.hh.textMuted,
         ),
         const SizedBox(width: 4),
         Expanded(
@@ -1058,7 +1102,7 @@ class _HotelCardLocation extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(
               context,
-            ).textTheme.bodySmall?.copyWith(color: HHColors.textMuted),
+            ).textTheme.bodySmall?.copyWith(color: context.hh.textMuted),
           ),
         ),
       ],
@@ -1112,7 +1156,7 @@ class _NearbyHotelTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: HHColors.textHeading,
+                      color: context.hh.textHeading,
                     ),
                   ),
                   if (hotel.location.isNotEmpty) ...[
@@ -1126,24 +1170,24 @@ class _NearbyHotelTile extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: HHColors.navy050,
+                      color: context.hh.surfaceNavyTint,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.near_me_outlined,
                           size: 13,
-                          color: HHColors.textHeading,
+                          color: context.hh.textHeading,
                         ),
                         const SizedBox(width: 5),
                         Text(
                           '${nearbyHotel.distanceKm.toStringAsFixed(1)} km away',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: HHColors.textHeading,
+                            color: context.hh.textHeading,
                           ),
                         ),
                       ],
@@ -1203,7 +1247,7 @@ class _PopularHotelTile extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: HHColors.actionGold,
+                      color: context.hh.actionGold,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: const Row(
@@ -1241,7 +1285,7 @@ class _PopularHotelTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: HHColors.textHeading,
+                      color: context.hh.textHeading,
                     ),
                   ),
                   if (hotel.location.isNotEmpty) ...[
@@ -1254,7 +1298,7 @@ class _PopularHotelTile extends StatelessWidget {
                     '${popularHotel.bookingCount == 1 ? 'booking' : 'bookings'} this month',
                     style: Theme.of(
                       context,
-                    ).textTheme.bodySmall?.copyWith(color: HHColors.textMuted),
+                    ).textTheme.bodySmall?.copyWith(color: context.hh.textMuted),
                   ),
                 ],
               ),
@@ -1475,10 +1519,10 @@ class _BrowsableHallTile extends StatelessWidget {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.payments_outlined,
                                 size: 16,
-                                color: HHColors.textGold,
+                                color: context.hh.textGold,
                               ),
                               const SizedBox(width: 5),
                               Text(
@@ -1486,7 +1530,7 @@ class _BrowsableHallTile extends StatelessWidget {
                                 '${hall.rentDurationHours}h',
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
-                                      color: HHColors.textGold,
+                                      color: context.hh.textGold,
                                       fontWeight: FontWeight.w700,
                                     ),
                               ),
@@ -1685,7 +1729,7 @@ class _FeaturedHotelsCarouselState extends State<_FeaturedHotelsCarousel> {
                 width: active ? 20 : 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: active ? HHColors.actionAccent : HHColors.gray300,
+                  color: active ? context.hh.actionAccent : context.hh.borderDefault,
                   borderRadius: BorderRadius.circular(999),
                 ),
               );
@@ -1858,7 +1902,7 @@ class _HotelListTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: HHColors.textHeading,
+                      color: context.hh.textHeading,
                     ),
                   ),
                   if (hotel.location.isNotEmpty) ...[
@@ -1872,7 +1916,7 @@ class _HotelListTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: HHColors.textMuted,
+                        color: context.hh.textMuted,
                       ),
                     ),
                   ],
@@ -1929,7 +1973,7 @@ class _HotelDetailScreenState extends State<HotelDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       body: FutureBuilder<(HotelSummary, List<HallSummary>)>(
         future: future,
         builder: (context, snapshot) {
@@ -2621,10 +2665,10 @@ class _HallCard extends StatelessWidget {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.payments_outlined,
                                   size: 16,
-                                  color: HHColors.textGold,
+                                  color: context.hh.textGold,
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
@@ -2633,7 +2677,7 @@ class _HallCard extends StatelessWidget {
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w700,
-                                        color: HHColors.textGold,
+                                        color: context.hh.textGold,
                                       ),
                                 ),
                               ],
@@ -2667,18 +2711,37 @@ class HallDetailScreen extends StatelessWidget {
 
   Future<void> _book(BuildContext context) async {
     final auth = context.read<AuthController>();
+    final pending = context.read<PendingActionController>();
 
-    context.read<PendingActionController>().preserveBookingHall(hall);
+    // Armed only for the window where a sign-in route sits on top of this
+    // one: if this route is torn down while the Customer signs in, Discover
+    // resumes the Hall from here rather than stranding them on the browse
+    // list with nothing to continue.
+    pending.preserveBookingHall(hall);
 
     if (auth.status != AuthStatus.authenticated) {
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
-    } else if (auth.currentUser?.isVerified != true) {
+      if (!context.mounted) return;
+    }
+
+    // Registering signs the Customer in but leaves them unverified, so
+    // verification is a sequential second step — never an `else` to the
+    // branch above, which is what used to end a new Customer's journey the
+    // moment they finished registering.
+    if (auth.status == AuthStatus.authenticated &&
+        auth.currentUser?.isVerified != true) {
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const VerifyScreen()));
+      if (!context.mounted) return;
     }
+
+    // This route survived the sign-in flow, so it drives the rest of the
+    // journey itself — disarm the Discover-side fallback before it can push
+    // a second copy of this screen.
+    pending.takeHall();
 
     if (context.mounted && auth.currentUser?.isVerified == true) {
       final booked = await Navigator.of(context).push<bool>(
@@ -2690,10 +2753,21 @@ class HallDetailScreen extends StatelessWidget {
         // Discover right now), so the next time they actually view that
         // tab it's never showing pre-Booking data.
         context.read<PopularHotelsController>().markStale();
-        ScaffoldMessenger.of(context).showSnackBar(
+
+        final messenger = ScaffoldMessenger.of(context);
+        // The journey ends on My Bookings, not back on the Hall that was
+        // just booked: `pushReplacement` drops this now-finished Hall Detail
+        // route, so going back from here returns to browsing rather than
+        // re-offering the same Hall. Not awaited — the confirmation belongs
+        // over the Bookings list the Customer is landing on, not whenever
+        // they eventually leave it.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
+        );
+        messenger.showSnackBar(
           const SnackBar(
             content: Text(
-              'Booking requested. Track its status and payment from My Bookings.',
+              'Booking requested. Track its status and payment here.',
             ),
           ),
         );
@@ -2706,7 +2780,7 @@ class HallDetailScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -3083,11 +3157,13 @@ class _NetworkImage extends StatelessWidget {
 
   final String? url;
 
-  static const _placeholderDecoration = BoxDecoration(
+  // Reads the palette, so it is built per-context rather than held as a
+  // const field.
+  static BoxDecoration _placeholderDecoration(BuildContext context) => BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [HHColors.navy050, HHColors.navy100],
+      colors: [context.hh.surfaceNavyTint, context.hh.surfaceNavyTintStrong],
     ),
   );
 
@@ -3095,12 +3171,12 @@ class _NetworkImage extends StatelessWidget {
   Widget build(BuildContext context) {
     if (url == null || url!.trim().isEmpty) {
       return Container(
-        decoration: _placeholderDecoration,
+        decoration: _placeholderDecoration(context),
         alignment: Alignment.center,
-        child: const Icon(
+        child: Icon(
           Icons.apartment_rounded,
           size: 42,
-          color: HHColors.navy400,
+          color: context.hh.textSubtle,
         ),
       );
     }
@@ -3112,11 +3188,11 @@ class _NetworkImage extends StatelessWidget {
       fit: BoxFit.cover,
       errorBuilder: (_, _, _) {
         return Container(
-          decoration: _placeholderDecoration,
+          decoration: _placeholderDecoration(context),
           alignment: Alignment.center,
-          child: const Icon(
+          child: Icon(
             Icons.broken_image_outlined,
-            color: HHColors.navy400,
+            color: context.hh.textSubtle,
           ),
         );
       },

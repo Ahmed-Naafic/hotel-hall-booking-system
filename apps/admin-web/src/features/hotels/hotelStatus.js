@@ -29,15 +29,15 @@ export const HOTEL_STATUSES = [
 export const APPLICATION_STATUSES = ['UNDER_REVIEW', 'APPROVED_ACTIVE', 'REJECTED', 'WITHDRAWN']
 
 export const STATUS_TONE = {
-  REGISTERED: { fg: 'var(--navy-400)', bg: 'var(--navy-050)' },
-  PROFILE_COMPLETE: { fg: 'var(--navy-500)', bg: 'var(--navy-050)' },
+  REGISTERED: { fg: 'var(--text-muted)', bg: 'var(--surface-navy-tint)' },
+  PROFILE_COMPLETE: { fg: 'var(--text-body)', bg: 'var(--surface-navy-tint)' },
   UNDER_REVIEW: { fg: 'var(--info-700)', bg: 'var(--info-100)' },
   APPROVED_ACTIVE: { fg: 'var(--success-700)', bg: 'var(--success-100)' },
   REJECTED: { fg: 'var(--danger-700)', bg: 'var(--danger-100)' },
-  WITHDRAWN: { fg: 'var(--navy-400)', bg: 'var(--navy-050)' },
+  WITHDRAWN: { fg: 'var(--text-muted)', bg: 'var(--surface-navy-tint)' },
   SUSPENDED: { fg: 'var(--danger-700)', bg: 'var(--danger-100)' },
   DEACTIVATED: { fg: 'var(--danger-700)', bg: 'var(--danger-100)' },
-  RESTRICTED_UNDER_REVIEW: { fg: 'var(--gold-700)', bg: 'var(--gold-100)' },
+  RESTRICTED_UNDER_REVIEW: { fg: 'var(--text-gold)', bg: 'var(--surface-gold-tint)' },
 }
 
 // Plain-language gloss of the Hotel's current lifecycle state — grounded

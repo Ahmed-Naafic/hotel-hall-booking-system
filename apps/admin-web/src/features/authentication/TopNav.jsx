@@ -4,6 +4,8 @@ import logoMark from '../../shared/design-system/assets/logo-mark.png'
 import { IconMenu, IconClose } from '../../shared/components/Icon.jsx'
 import { ProfileMenu } from './ProfileMenu.jsx'
 import { NotificationsMenu } from './NotificationsMenu.jsx'
+import { ThemeToggle } from '../../shared/theme/ThemeToggle.jsx'
+import { useTheme } from '../../shared/theme/useTheme.js'
 
 /**
  * The permanent top navigation (no sidebar, per the approved nav
@@ -19,8 +21,9 @@ const NAV_ITEMS = [
   { key: 'applications', label: 'Applications' },
 ]
 
-export function TopNav({ activeView, onNavigate, user, onChangePassword, onLogout }) {
+export function TopNav({ activeView, onNavigate, user, onChangePassword, onLogout, onSelectHotel }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { preference, setPreference } = useTheme()
 
   function navigate(view) {
     setMobileOpen(false)
@@ -67,7 +70,8 @@ export function TopNav({ activeView, onNavigate, user, onChangePassword, onLogou
         </nav>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '0 0 auto' }}>
-          <NotificationsMenu />
+          <ThemeToggle preference={preference} onChange={setPreference} />
+          <NotificationsMenu onSelectHotel={onSelectHotel} />
           <ProfileMenu user={user} onChangePassword={onChangePassword} onLogout={onLogout} />
           <button
             className="hh-topnav-toggle"

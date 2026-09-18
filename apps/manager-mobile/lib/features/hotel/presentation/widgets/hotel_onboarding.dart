@@ -35,9 +35,11 @@ HHBadgeTone toneForHotelStatus(String status) {
 /// The Hotel's own identity at a glance — logo, name, status, and creation
 /// date. Deliberately never grows to show Description/Location/Contact
 /// info: that fuller, Photos-inclusive view lives one tap away, at
-/// `HotelDetailsScreen`, not inline here. Shared by the Dashboard's Home tab
-/// and [MyHotelScreen], which each fetch the Logo separately (it's Hotel
-/// Media, not part of the `Hotel` model itself) and pass it down.
+/// `HotelDetailsScreen`, not inline here. Used by the Dashboard's Home tab
+/// (its own compact summary card), which fetches the Logo separately (it's
+/// Hotel Media, not part of the `Hotel` model itself) and passes it down.
+/// `MyHotelScreen` shows its own richer profile presentation instead —
+/// `HotelProfileHeader` — since the Hotel tab has room for it.
 class HotelIdentityCard extends StatelessWidget {
   const HotelIdentityCard({super.key, required this.hotel, this.logoUrl, this.onTap});
 
@@ -64,10 +66,10 @@ class HotelIdentityCard extends StatelessWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: HHColors.surfaceNavyTint,
+                        color: context.hh.surfaceNavyTint,
                         borderRadius: BorderRadius.circular(HHRadii.control),
                       ),
-                      child: Icon(Icons.apartment, color: HHColors.actionPrimary),
+                      child: Icon(Icons.apartment, color: context.hh.actionPrimary),
                     )
                   : HHNetworkImage(
                       url: logoUrl,
@@ -89,7 +91,7 @@ class HotelIdentityCard extends StatelessWidget {
                 ),
               ),
               if (onTap != null)
-                Icon(Icons.chevron_right, color: HHColors.textSubtle),
+                Icon(Icons.chevron_right, color: context.hh.textSubtle),
             ],
           ),
           const SizedBox(height: HHSpacing.space5),
@@ -103,7 +105,7 @@ class HotelIdentityCard extends StatelessWidget {
                     Text(
                       'Hotel status',
                       style: TextStyle(
-                        color: HHColors.textMuted,
+                        color: context.hh.textMuted,
                         fontSize: HHTypeScale.textXs,
                       ),
                     ),
@@ -118,7 +120,7 @@ class HotelIdentityCard extends StatelessWidget {
               Text(
                 'Since ${hotel.createdAt.toLocal().year}-${hotel.createdAt.toLocal().month.toString().padLeft(2, '0')}-${hotel.createdAt.toLocal().day.toString().padLeft(2, '0')}',
                 style: TextStyle(
-                  color: HHColors.textSubtle,
+                  color: context.hh.textSubtle,
                   fontSize: HHTypeScale.textXs,
                 ),
               ),
@@ -186,7 +188,7 @@ class HotelOnboardingCard extends StatelessWidget {
           Text(
             message,
             style: TextStyle(
-              color: HHColors.textMuted,
+              color: context.hh.textMuted,
               fontSize: HHTypeScale.textSm,
               height: 1.4,
             ),
@@ -225,7 +227,7 @@ List<Widget> hotelOnboardingSteps(
         const SizedBox(height: HHSpacing.space5),
         HotelOnboardingCard(
           icon: Icons.assignment_outlined,
-          iconColor: HHColors.actionAccent,
+          iconColor: context.hh.actionAccent,
           title: 'Complete your Hotel profile',
           message:
               "Add your Hotel's business-profile information before you can submit it for review.",
@@ -248,7 +250,7 @@ List<Widget> hotelOnboardingSteps(
         const SizedBox(height: HHSpacing.space5),
         HotelOnboardingCard(
           icon: Icons.send_outlined,
-          iconColor: HHColors.actionGold,
+          iconColor: context.hh.actionGold,
           title: 'Ready to submit',
           message:
               'Your Hotel profile is complete. Submit your application for Platform Administrator review.',
@@ -270,7 +272,7 @@ List<Widget> hotelOnboardingSteps(
         const SizedBox(height: HHSpacing.space5),
         HotelOnboardingCard(
           icon: Icons.hourglass_top_outlined,
-          iconColor: HHColors.warning700,
+          iconColor: context.hh.warning700,
           title: 'Under review',
           message:
               'Your application has been submitted and is awaiting Platform Administrator review.',

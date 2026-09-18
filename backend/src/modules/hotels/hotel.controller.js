@@ -48,12 +48,18 @@ export const getHotel = asyncHandler(async (req, res) => {
 export const getMyHotel = asyncHandler(async (req, res) => {
   const hotel = await hotelService.getLatestOwnHotel(req.identity.userId)
   const latestApplication = hotel ? await applicationService.getLatestApplicationForHotel(hotel.id) : null
+  // The same real aggregate the public Hotel Detail endpoint already
+  // exposes to Customers (`getPublicHotel#reviewSummary`) — the Hotel
+  // Manager has every right to see their own Hotel's real rating too, no
+  // new data invented, just a second legitimate reader of it.
+  const reviewSummary = hotel ? await reviewService.getHotelReviewSummary(hotel.id) : null
   sendSuccess(res, {
     statusCode: 200,
     message: hotel ? 'Hotel retrieved successfully.' : 'No Hotel is registered for this account.',
     data: {
       hotel: hotel ? toPublicHotel(hotel) : null,
       latestApplication: latestApplication ? toPublicApplication(latestApplication) : null,
+      reviewSummary,
     },
   })
 })
@@ -169,7 +175,8 @@ function withMediaUrls(hotel) {
 
 export const listPublicHotels = asyncHandler(async (req, res) => {
   const limit = req.query.limit ? Math.min(Number(req.query.limit), 100) : 20
-  const { hotels, hasNext, nextCursor } = await hotelService.listPublicHotels({ cursor: req.query.cursor, limit })
+  const search = req.query.search?.trim() || undefined
+  const { hotels, hasNext, nextCursor } = await hotelService.listPublicHotels({ cursor: req.query.cursor, limit, search })
   sendSuccess(res, {
     message: 'Hotels retrieved successfully.',
     data: hotels.map(withMediaUrls),

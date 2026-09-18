@@ -92,3 +92,33 @@ test('lazy expiration releases an overdue pending period', async () => {
   assert.equal(await availabilityService.isPeriodFree({ hallId: hall.id, startsAt: booking.startsAt, endsAt: booking.endsAt }), true)
   assert.equal((await prisma.booking.findUnique({ where: { id: booking.id } })).status, 'EXPIRED')
 })
+
+test('rejects creating a Booking against a Hall the Manager has deactivated (404, never leaked, same shape as ineligible-Hotel)', async () => {
+  await prisma.hall.update({ where: { id: hall.id }, data: { isActive: false } })
+  try {
+    await assert.rejects(() => createBooking(60, 2), (error) => error.statusCode === 404)
+  } finally {
+    await prisma.hall.update({ where: { id: hall.id }, data: { isActive: true } })
+  }
+})
+
+test('Manager Dashboard Overview counts only PENDING as pending and sums revenue from CONFIRMED/COMPLETED only', async () => {
+  // Deltas against a fresh baseline — this Hotel is shared across every
+  // test in this file, so an earlier test's Bookings are already in the
+  // count by the time this one runs.
+  const before = await bookingService.getHotelSummary({ hotelId: hotel.id })
+
+  const pending = await createBooking(50, 2)
+  const confirmed = await createBooking(51, 2)
+  await bookingService.reportPayment({ bookingId: confirmed.id, customerUserId: customer.id, amountCents: confirmed.requiredAdvanceCents })
+  await bookingService.verifyPayment({ bookingId: confirmed.id, hotelId: hotel.id, actorUserId: manager.id, decision: 'VERIFY' })
+  await bookingService.transitionHotel({ bookingId: confirmed.id, hotelId: hotel.id, actorUserId: manager.id, action: 'CONFIRMED' })
+  const rejected = await createBooking(52, 2)
+  await bookingService.transitionHotel({ bookingId: rejected.id, hotelId: hotel.id, actorUserId: manager.id, action: 'REJECTED' })
+
+  const after = await bookingService.getHotelSummary({ hotelId: hotel.id })
+  assert.equal(after.totalBookings, before.totalBookings + 3)
+  assert.equal(after.totalRevenueCents, before.totalRevenueCents + confirmed.totalRentCents)
+  assert.equal(after.pendingCount, before.pendingCount + 1)
+  assert.equal(pending.status, 'PENDING')
+})

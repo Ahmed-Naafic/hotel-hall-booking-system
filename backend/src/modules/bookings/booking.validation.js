@@ -38,6 +38,20 @@ export function validatePaymentDecision(req, res, next) {
   next()
 }
 
+/**
+ * Whether a reason is actually *required* is state-dependent (only a
+ * `CONFIRMED` Booking, BDR-024) and enforced in `booking.service.js#
+ * cancelCustomer`, never here — this only checks the shape of what was
+ * sent, the same split `validatePaymentDecision` follows for `reason`
+ * there (input shape here, state-dependent requirement in the service).
+ */
+export function validateCancelCustomer(req, res, next) {
+  if (req.body?.reason !== undefined && typeof req.body.reason !== 'string') {
+    fail([{ field: 'reason', message: 'reason must be a string.' }])
+  }
+  next()
+}
+
 export function validateList(req, res, next) {
   const details = []
   if (req.query.cursor !== undefined && !UUID.test(req.query.cursor)) details.push({ field: 'cursor', message: 'cursor must be a valid identifier.' })

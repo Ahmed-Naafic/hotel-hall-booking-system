@@ -18,11 +18,18 @@ export async function updateHallProfile(hall, changedFields) {
   }
 
   const commercialKeys = ['rentAmountCents', 'rentDurationHours', 'advancePaymentPercent', 'customerServiceNumber', 'paymentReceivingNumber']
+  // `isActive` is a real column (Hall.isActive), not profile content — kept
+  // out of the profileData merge below the same way commercialKeys are.
+  const directColumnKeys = ['isActive']
   const commercialData = Object.fromEntries(commercialKeys.filter((key) => changedFields[key] !== undefined).map((key) => [key, changedFields[key]]))
-  const profileChanges = Object.fromEntries(Object.entries(changedFields).filter(([key]) => !commercialKeys.includes(key)))
+  const directData = Object.fromEntries(directColumnKeys.filter((key) => changedFields[key] !== undefined).map((key) => [key, changedFields[key]]))
+  const profileChanges = Object.fromEntries(
+    Object.entries(changedFields).filter(([key]) => ![...commercialKeys, ...directColumnKeys].includes(key)),
+  )
   const updated = await hallRepository.update(hall.id, {
     profileData: { ...(hall.profileData ?? {}), ...profileChanges },
     ...commercialData,
+    ...directData,
   })
   recordAuditEvent('HALL_PROFILE_UPDATED', { hallId: hall.id, hotelId: hall.hotelId })
   return updated

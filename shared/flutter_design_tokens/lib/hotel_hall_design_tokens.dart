@@ -11,6 +11,7 @@ library;
 export 'src/colors.dart';
 export 'src/elevation.dart';
 export 'src/motion.dart';
+export 'src/palette.dart';
 export 'src/radii.dart';
 export 'src/spacing.dart';
 export 'src/theme.dart';

@@ -43,6 +43,26 @@ export function findLatestByOwner(registeredByUserId) {
   })
 }
 
+// Status-only projections backing the Eligibility Query Interface
+// (eligibility.service.js), which never reads anything but `status`. The
+// `findById` above joins media and the registering Manager on every call —
+// wasted work when the caller only asks "is this Hotel eligible?", and
+// multiplied by every Hall on a browse page before `findStatusesByIds`
+// collapsed that into one query.
+export function findStatusById(id) {
+  return prisma.hotel.findUnique({
+    where: { id, deletedAt: null },
+    select: { id: true, status: true },
+  })
+}
+
+export function findStatusesByIds(ids) {
+  return prisma.hotel.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    select: { id: true, status: true },
+  })
+}
+
 export function updateProfileData(id, profileData, client = prisma) {
   return client.hotel.update({ where: { id }, data: { profileData }, include: managerInclude })
 }
@@ -80,9 +100,24 @@ const publicInclude = {
   media: { orderBy: { createdAt: 'asc' } },
 }
 
-export function listPublic({ cursor, take }) {
+// `BDR-020` — case-insensitive, partial match against Hotel Name and the
+// customer-facing address (`BDR-017`'s `location.address`), evaluated in
+// PostgreSQL via Prisma's JSON path filtering — never by loading candidate
+// Hotels into the application to filter there (rejected at any Hotel-count
+// scale, per BDR-020's own Options Considered).
+function searchWhere(search) {
+  if (!search) return {}
+  return {
+    OR: [
+      { profileData: { path: ['name'], string_contains: search, mode: 'insensitive' } },
+      { profileData: { path: ['location', 'address'], string_contains: search, mode: 'insensitive' } },
+    ],
+  }
+}
+
+export function listPublic({ cursor, take, search }) {
   return prisma.hotel.findMany({
-    where: { deletedAt: null, status: 'APPROVED_ACTIVE' },
+    where: { deletedAt: null, status: 'APPROVED_ACTIVE', ...searchWhere(search) },
     include: publicInclude,
     take,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),

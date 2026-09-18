@@ -265,7 +265,7 @@ class _BookHallViewState extends State<_BookHallView> {
         : null;
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('Book Hall')),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -277,7 +277,7 @@ class _BookHallViewState extends State<_BookHallView> {
                 onTap: () => _pickDate(context),
                 child: Row(
                   children: [
-                    Icon(Icons.event_outlined, color: HHColors.actionPrimary),
+                    Icon(Icons.event_outlined, color: context.hh.actionPrimary),
                     const SizedBox(width: HHSpacing.space3),
                     Expanded(
                       child: Text(
@@ -287,7 +287,7 @@ class _BookHallViewState extends State<_BookHallView> {
                         ),
                       ),
                     ),
-                    Icon(Icons.expand_more, color: HHColors.textSubtle),
+                    Icon(Icons.expand_more, color: context.hh.textSubtle),
                   ],
                 ),
               ),
@@ -360,7 +360,7 @@ class _BookHallViewState extends State<_BookHallView> {
                       Text(
                         'This time overlaps a busy period shown above.',
                         style: TextStyle(
-                          color: HHColors.danger700,
+                          color: context.hh.danger700,
                           fontSize: HHTypeScale.textSm,
                         ),
                       ),
@@ -381,7 +381,7 @@ class _BookHallViewState extends State<_BookHallView> {
                 const SizedBox(height: HHSpacing.space3),
                 Text(
                   'This Hall has not finished setting up its payment terms yet — booking is not available.',
-                  style: TextStyle(color: HHColors.danger700, fontSize: HHTypeScale.textSm),
+                  style: TextStyle(color: context.hh.danger700, fontSize: HHTypeScale.textSm),
                 ),
               ],
               const SizedBox(height: HHSpacing.space7),
@@ -408,7 +408,7 @@ class _BookHallViewState extends State<_BookHallView> {
         return HHEmptyState(
           icon: Icons.error_outline,
           message: controller.errorMessage ?? 'Something went wrong.',
-          iconColor: HHColors.danger700,
+          iconColor: context.hh.danger700,
           actionLabel: 'Retry',
           onAction: controller.load,
         );
@@ -417,7 +417,7 @@ class _BookHallViewState extends State<_BookHallView> {
           return HHCard(
             child: Text(
               'No busy periods on this date.',
-              style: TextStyle(color: HHColors.textMuted),
+              style: TextStyle(color: context.hh.textMuted),
             ),
           );
         }
@@ -433,7 +433,7 @@ class _BookHallViewState extends State<_BookHallView> {
                     ' – '
                     '${_mogadishuLocal(period.end).hour.toString().padLeft(2, '0')}:${_mogadishuLocal(period.end).minute.toString().padLeft(2, '0')}'
                     ' Busy',
-                    style: TextStyle(color: HHColors.textMuted),
+                    style: TextStyle(color: context.hh.textMuted),
                   ),
                 ),
             ],
@@ -466,11 +466,11 @@ class _TimeRow extends StatelessWidget {
             Icon(
               Icons.schedule_outlined,
               size: 18,
-              color: HHColors.actionPrimary,
+              color: context.hh.actionPrimary,
             ),
             const SizedBox(width: HHSpacing.space3),
             Expanded(
-              child: Text(label, style: TextStyle(color: HHColors.textMuted)),
+              child: Text(label, style: TextStyle(color: context.hh.textMuted)),
             ),
             Text(
               value,

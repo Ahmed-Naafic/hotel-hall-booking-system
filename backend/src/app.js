@@ -18,6 +18,7 @@ import { bookingRouter, hotelBookingRouter } from './modules/bookings/booking.ro
 import { favoriteRouter } from './modules/favorites/favorite.routes.js'
 import { bookingReviewRouter, hotelReviewRouter } from './modules/reviews/review.routes.js'
 import { notificationRouter } from './modules/notifications/notification.routes.js'
+import { bookingMessagesRouter, messagesRouter } from './modules/chat/chat.routes.js'
 
 const openapiSpecPath = fileURLToPath(new URL('./openapi/openapi.json', import.meta.url))
 const openapiSpec = JSON.parse(readFileSync(openapiSpecPath, 'utf-8'))
@@ -39,7 +40,9 @@ export function createApp() {
   app.use('/api/v1/auth', authenticationRouter)
   app.use('/api/v1/customers', customerRouter)
   app.use('/api/v1/bookings/:bookingId/review', bookingReviewRouter)
+  app.use('/api/v1/bookings/:bookingId/messages', bookingMessagesRouter)
   app.use('/api/v1/bookings', bookingRouter)
+  app.use('/api/v1/messages', messagesRouter)
   app.use('/api/v1/hotels/:hotelId/bookings', hotelBookingRouter)
   app.use('/api/v1/favorites', favoriteRouter)
   app.use('/api/v1/hotels/:hotelId/reviews', hotelReviewRouter)

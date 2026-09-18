@@ -50,14 +50,15 @@ void main() {
     addTearDown(binding.platformDispatcher.views.first.resetDevicePixelRatio);
   });
 
-  testWidgets('shows a loading indicator, then the empty state with "No halls yet" / "Create Hall"', (tester) async {
+  testWidgets('shows a loading indicator, then the empty state with "No halls yet" / "Add Hall"', (tester) async {
     await tester.pumpWidget(_wrap((r) async => _pageResponse([])));
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pumpAndSettle();
 
     expect(find.text('No halls yet'), findsOneWidget);
-    expect(find.text('Create Hall'), findsWidgets);
+    // "Add Hall" appears twice: the floating action button and the empty state's own.
+    expect(find.text('Add Hall'), findsNWidgets(2));
   });
 
   testWidgets('shows Hall tiles on success', (tester) async {
@@ -97,11 +98,11 @@ void main() {
     expect(find.byType(HallDetailsScreen), findsOneWidget);
   });
 
-  testWidgets('tapping "Create Hall" from the empty state navigates to HallFormScreen', (tester) async {
+  testWidgets('tapping "Add Hall" from the empty state navigates to HallFormScreen', (tester) async {
     await tester.pumpWidget(_wrap((r) async => _pageResponse([])));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Create Hall').first);
+    await tester.tap(find.text('Add Hall').first);
     await tester.pumpAndSettle();
 
     expect(find.byType(HallFormScreen), findsOneWidget);
@@ -117,7 +118,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No halls yet'), findsOneWidget);
 
-    await tester.tap(find.text('Create Hall').first);
+    await tester.tap(find.text('Add Hall').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Hall Name'), 'The Ivory Room');
     await tester.enterText(find.widgetWithText(TextFormField, 'Capacity'), '80');

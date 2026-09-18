@@ -151,7 +151,7 @@ class _BlockFormScreenState extends State<BlockFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: Text(widget.isEditing ? 'Edit Block' : 'Add Block')),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -238,10 +238,10 @@ class _PickerRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: HHSpacing.space2),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: HHColors.actionPrimary),
+            Icon(icon, size: 18, color: context.hh.actionPrimary),
             const SizedBox(width: HHSpacing.space3),
             Expanded(
-              child: Text(label, style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm)),
+              child: Text(label, style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textSm)),
             ),
             Text(value, style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textMd)),
           ],

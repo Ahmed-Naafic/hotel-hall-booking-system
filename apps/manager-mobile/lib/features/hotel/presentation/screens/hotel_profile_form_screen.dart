@@ -196,7 +196,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
       child: Consumer2<HotelProfileFormController, HotelMediaController>(
         builder: (context, controller, mediaController, _) {
           return Scaffold(
-            backgroundColor: HHColors.surfacePage,
+            backgroundColor: context.hh.surfacePage,
             appBar: AppBar(title: Text(_isOnboarding ? 'Complete Hotel Profile' : 'Edit Hotel Profile')),
             body: SafeArea(
               child: SingleChildScrollView(
@@ -258,21 +258,21 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(HHSpacing.space5),
                                 decoration: BoxDecoration(
-                                  color: HHColors.surfaceSunken,
+                                  color: context.hh.surfaceSunken,
                                   borderRadius: BorderRadius.circular(
                                     HHRadii.card,
                                   ),
                                   border: Border.all(
                                     color: field.hasError
-                                        ? HHColors.danger700
-                                        : HHColors.borderDefault,
+                                        ? context.hh.danger700
+                                        : context.hh.borderDefault,
                                   ),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(
                                       Icons.map_outlined,
-                                      color: HHColors.actionPrimary,
+                                      color: context.hh.actionPrimary,
                                       size: 28,
                                     ),
                                     const SizedBox(width: HHSpacing.space4),
@@ -293,7 +293,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                                             Text(
                                               '${_location!.latitude.toStringAsFixed(6)}, ${_location!.longitude.toStringAsFixed(6)}',
                                               style: TextStyle(
-                                                color: HHColors.textMuted,
+                                                color: context.hh.textMuted,
                                                 fontSize: HHTypeScale.textXs,
                                               ),
                                             )
@@ -301,7 +301,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                                             Text(
                                               'Previous address: $_legacyLocation. Select its exact map location.',
                                               style: TextStyle(
-                                                color: HHColors.textMuted,
+                                                color: context.hh.textMuted,
                                                 fontSize: HHTypeScale.textXs,
                                               ),
                                             ),
@@ -322,7 +322,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                                 child: Text(
                                   field.errorText!,
                                   style: TextStyle(
-                                    color: HHColors.danger700,
+                                    color: context.hh.danger700,
                                     fontSize: HHTypeScale.textXs,
                                   ),
                                 ),
@@ -374,7 +374,7 @@ class _HotelProfileFormScreenState extends State<HotelProfileFormScreen> {
                         'Add any other details about your Hotel. These cannot replace the required '
                         'information above.',
                         style: TextStyle(
-                          color: HHColors.textMuted,
+                          color: context.hh.textMuted,
                           fontSize: HHTypeScale.textSm,
                         ),
                       ),
@@ -445,7 +445,7 @@ class _LogoSection extends StatelessWidget {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Icon(Icons.delete_outline, color: HHColors.danger700),
+                    : Icon(Icons.delete_outline, color: context.hh.danger700),
               ),
             ],
           ),
@@ -524,7 +524,7 @@ class _PhotoThumbnail extends StatelessWidget {
                 : () => mediaController.deleteMedia(photo.id),
             child: CircleAvatar(
               radius: 12,
-              backgroundColor: HHColors.danger700,
+              backgroundColor: context.hh.danger700,
               child: isDeleting
                   ? const SizedBox(
                       width: 12,

@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4, no self-review)
 depends_on: ["docs/04-business/modules/03-hotel-management/business-specification.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/system-architecture-overview.md", "docs/02-architecture/data-architecture.md", "docs/02-architecture/security-architecture.md", "docs/02-architecture/architecture-principles.md", "docs/02-architecture/folder-structure.md", "docs/02-architecture/technology-stack.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/05-technical-design/modules/01-authentication-and-account-management/technical-design.md"]
-version: 2.0
-last_updated: 2026-08-31
+version: 2.2
+last_updated: 2026-09-11
 ---
 
 # Hotel Management — Technical Design
@@ -293,6 +293,8 @@ stateDiagram-v2
     APPROVED_ACTIVE --> DEACTIVATED: Module 13 deactivates (BR-HOTEL-09)
     APPROVED_ACTIVE --> RESTRICTED_UNDER_REVIEW: Invalid required information detected (HM14, BR-HOTEL-10)
     RESTRICTED_UNDER_REVIEW --> APPROVED_ACTIVE: Review resolved (process undefined, Pending Decision #4)
+    SUSPENDED --> APPROVED_ACTIVE: Module 13 reactivates (BDR-012)
+    DEACTIVATED --> APPROVED_ACTIVE: Module 13 reactivates (BDR-012)
     WITHDRAWN --> [*]: Reapplication path undefined (Pending Decision #2)
 ```
 
@@ -311,15 +313,20 @@ stateDiagram-v2
 | `APPROVED_ACTIVE` | `DEACTIVATED` | Platform Administrator deactivates | Module 13 authorization confirmed | Operational eligibility ends |
 | `APPROVED_ACTIVE` | `RESTRICTED_UNDER_REVIEW` | Invalid required information detected (HM14) | Detection mechanism undefined (§18 Item 4) | Operational eligibility suspended pending review |
 | `RESTRICTED_UNDER_REVIEW` | `APPROVED_ACTIVE` | Review resolved favorably | Resolution process undefined (§18 Item 4) | Operational eligibility restored |
+| `SUSPENDED` | `APPROVED_ACTIVE` | Platform Administrator reactivates | Module 13 authorization confirmed | Operational eligibility restored |
+| `DEACTIVATED` | `APPROVED_ACTIVE` | Platform Administrator reactivates | Module 13 authorization confirmed | Operational eligibility restored |
 
-No transition exists out of `WITHDRAWN` (Pending Decision #2), a defined negative exit from
-`RESTRICTED_UNDER_REVIEW` (Pending Decision #4), or reactivation out of `SUSPENDED`/
-`DEACTIVATED` back to `APPROVED_ACTIVE` — all three absences are deliberate, not omissions.
-**Added during technical review:** the original draft flagged the first two explicitly but
-left reactivation silently absent; `BR-HOTEL-09` approves that a Hotel may be suspended or
-deactivated but does not address whether either is reversible, so no reactivation transition
-is shown, consistent with how `WITHDRAWN` and `RESTRICTED_UNDER_REVIEW`'s own open questions
-are handled.
+No transition exists out of `WITHDRAWN` (Pending Decision #2), and no defined negative exit
+from `RESTRICTED_UNDER_REVIEW` (Pending Decision #4) — both absences remain deliberate, not
+omissions.
+**Since 2.2:** an earlier revision of this section left `SUSPENDED`/`DEACTIVATED` reactivation
+silently absent, reasoning that `BR-HOTEL-09` approves suspension/deactivation without
+addressing reversibility. Product direction has since settled that question: both are
+Platform-Administrator-reversible operational actions, not permanent ones, consistent with
+`BDR-012`'s existing "Platform Administrator is the sole authority controlling suspension and
+deactivation" — reactivation is the same authority exercised in the other direction. Suspension
+and deactivation remain otherwise undistinguished operationally (`BDR-012`'s own open risk);
+both reactivate through the identical transition.
 
 ---
 
@@ -488,9 +495,11 @@ provider failure returns a non-blocking unavailable result. No nearby-Hotel sear
 **Genuinely dependent on Pending Business Decisions — not invented here:**
 
 - **Suspension vs. Deactivation distinction** (Pending Decision #3) — both are modeled as
-  sibling status values with identical technical effect (operational eligibility ends). If a
-  future decision differentiates their behavior (e.g., different reactivation paths), it is
-  an additive change to the Lifecycle Component (§3), not a redesign.
+  sibling status values with identical technical effect (operational eligibility ends).
+  **Since 2.2:** both also reactivate to `APPROVED_ACTIVE` through the identical transition
+  (§6.1, §6.2, `BDR-012`) — still undifferentiated, as anticipated here. If a future decision
+  differentiates their behavior instead, it remains an additive change to the Lifecycle
+  Component (§3), not a redesign.
 - **Restriction detection mechanism** (Pending Decision #4) — what makes information
   "invalid," and what automatically or manually triggers the `APPROVED_ACTIVE →
   RESTRICTED_UNDER_REVIEW` transition, is undefined. This design provides the status value
@@ -533,10 +542,13 @@ provider failure returns a non-blocking unavailable result. No nearby-Hotel sear
   no approved module owns the Audit Record entity. This module produces Audit Records for
   security-significant, state-changing actions (§13) without claiming ownership, consistent
   with Module 1's own precedent.
-- **Notification** — the Business Specification does not require notifying a Hotel Manager of
-  a decision or state change; no such requirement is invented here. A future integration with
-  Notification Management (Module 10) is plausible but not designed, since nothing approved
-  currently requires it.
+- **Notification (Module 10)** — **Since 2.2:** a Hotel Manager is now notified
+  (`HOTEL_SUSPENDED`, `HOTEL_DEACTIVATED`, `HOTEL_REACTIVATED`) when their own Hotel is
+  suspended, deactivated, or reactivated, called from the Suspension / Restriction Component
+  (§9) exactly where it already records the corresponding Audit Record — the same
+  call-site pattern `application.service.js` already uses for application-decision
+  notifications (`BDR-021`). No notification exists yet for restriction (§9's still-undefined
+  Pending Decision #4).
 
 ---
 
@@ -629,6 +641,29 @@ action does not belong to this module's own API surface.
   pagination — a bounded, page-numbered administrative list view).
 - **Response concept** — `200 OK`; a page of Hotel summaries matching the filter.
 - **Validation** — `400` for an unrecognized `status` filter value.
+
+#### `GET /api/v1/hotels/public` — `search` parameter (`BDR-020`)
+- **Purpose** — Customer-facing Hotel browsing (`hotel.controller.js#listPublicHotels`,
+  `HM16`, `BR-HOTEL-15`). This endpoint already exists (backing the Customer Mobile
+  Discover screen's "All Hotels" tab, alongside the separately-scoped `/public/nearby` and
+  `/public/popular` endpoints) but predates this Technical Design's coverage; documented here
+  only to the extent needed to specify the new `search` parameter it gains under `BDR-020` —
+  its existing shape is otherwise unchanged.
+- **Actor** — Customer, or an anonymous caller (`BR-AUTH-01`, no account required).
+- **Authentication** — Public.
+- **Request** — `search` (optional, new) — free-text; matched case-insensitively, by partial
+  substring, against Hotel Name and the customer-facing `location.address` field
+  (`BDR-017`). Combines with the endpoint's existing `cursor`/`limit` pagination — a searched
+  result set pages exactly like an unsearched one, never a full unpaginated dump.
+- **Response** — `200 OK`; a page of Hotel summaries matching the search (or every eligible
+  Hotel, if `search` is omitted), each already restricted to `APPROVED_ACTIVE` and non-deleted
+  (`hotel.repository.js`'s existing `publicInclude`/eligibility filter — unchanged).
+- **Validation** — no new validation beyond the existing `cursor`/`limit` checks; an absent or
+  empty `search` behaves exactly as today (no filter applied).
+- **Implementation note** — the match happens in PostgreSQL via Prisma
+  (`hotel.repository.js#listPublic`'s `where` clause, case-insensitive `contains` on the
+  Hotel's name and address), never by loading candidate Hotels into the application to filter
+  there (`BDR-020`'s explicit rejection of that approach at any Hotel-count scale).
 
 **Added in v1.8 — Hotel Media (§8a, `BDR-015`, `ADR-0006`):**
 
@@ -1105,6 +1140,8 @@ Every row traces to an approved source; no technical element in this document la
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 2.2 | 2026-09-11 | Ahmed | Added `SUSPENDED`/`DEACTIVATED` → `APPROVED_ACTIVE` reactivation transitions (§6.1, §6.2, §9) — both are now Platform-Administrator-reversible, resolving the question 2.1 and earlier left open (`BDR-012`). Module 13's own Technical Design covers the new suspend/deactivate/reactivate REST endpoints that trigger these transitions; §10 here documents the corresponding new Hotel Manager notifications. |
+| 2.1 | 2026-09-10 | Ahmed | Added §11's `GET /api/v1/hotels/public` `search` parameter (`BDR-020`): case-insensitive, partial, server-side match on Hotel Name/address, combined with the endpoint's existing cursor pagination — fixes a real gap where a Hotel beyond the first page was unreachable by Customer search. This is the first Technical Design coverage of `GET /hotels/public` itself (pre-existing, implemented ahead of this document — documented only to the extent needed to specify the new parameter; its other existing behavior, and the separately-scoped `/public/nearby`/`/public/popular` endpoints, are unchanged and not otherwise retroactively documented here). |
 | 2.0 | 2026-08-31 | Ahmed | Approved Hotel Location architecture (`BDR-017`, `ADR-0008`): structured `profileData.location`, owner-scoped backend reverse geocoding, OpenStreetMap Manager UI, Nominatim provider abstraction, and manual-address fallback. |
 | 1.9-proposed | 2026-08-30 | AI-drafted, pending Ahmed approval | Added a proposed geographic-location capture architecture; implementation remains blocked pending `BDR-017` and technical review. |
 | 1.8 | 2026-08-26 | Ahmed | Designs the Hotel Media upload/replace/delete/retrieve architecture `ADR-0006` left open: new §8a (Media Management); Media Component added to §3; Hotel Media entity added to §4/§4.1; ownership/constraint/cascade notes added to §5; four new endpoints added to §11; credential-handling and authorization notes added to §12; three new Audit actions added to §13; four new error rows added to §16 (no new status code — `500` covers upstream/persistence failures, matching the existing Twilio-failure precedent); dependencies (`multer`, `@supabase/supabase-js`) and §19 traceability updated. Directed explicitly by the requester (mandated architecture: Manager Mobile → Hotel Management Backend → Supabase Storage / Neon metadata, no direct Flutter-to-Supabase access, no service-role credential in Flutter). Ahmed directed and reviewed this change directly; no separate Mohamed/Abukar review round occurred for this specific update (the same transparently-flagged deviation v1.3 already used). |

@@ -20,6 +20,9 @@
 /* --- Semantic aliases: surfaces --- */
 --surface-page:var(--ivory);--surface-card:var(--white);--surface-raised:var(--white);--surface-sunken:var(--sand-100);
 --surface-navy:var(--navy-700);--surface-navy-deep:var(--navy-900);--surface-teal:var(--teal-700);--surface-gold-tint:var(--gold-100);--surface-navy-tint:var(--navy-050);
+/* The pressed/selected step above --surface-navy-tint, and the teal
+   equivalent for accent-tinted chips. */
+--surface-navy-tint-strong:var(--navy-100);--surface-teal-tint:var(--teal-100);
 --surface-overlay:rgba(6,24,47,.62);--surface-glass:rgba(255,255,255,.78);--surface-glass-dark:rgba(6,24,47,.42);
 /* --- Semantic aliases: lines --- */
 --border-subtle:var(--gray-200);--border-default:var(--gray-300);--border-strong:var(--navy-200);--border-navy:var(--navy-700);--border-gold:var(--gold-600);--border-rule-gold:var(--gold-500);
@@ -29,4 +32,71 @@
 --action-accent:var(--teal-700);--action-accent-hover:var(--teal-600);--action-accent-active:var(--teal-800);
 --action-gold:var(--gold-600);--action-gold-hover:var(--gold-500);--action-gold-active:var(--gold-700);
 --action-disabled-bg:var(--gray-100);--action-disabled-text:var(--gray-400);
+}
+
+/* --- Dark theme ---------------------------------------------------------
+   Only the semantic aliases are remapped; the brand and neutral scales above
+   are the same values in both themes, so "navy-700" means one colour
+   everywhere and dark mode is a different set of *roles*, not a second
+   palette to keep in sync.
+
+   `data-theme` is always written explicitly by `shared/theme/theme.js`
+   (which resolves the "system" preference itself and re-resolves when the OS
+   flips), so there is deliberately no `prefers-color-scheme` block here —
+   one source of truth for which theme is active, and no chance of the two
+   disagreeing.
+
+   Surfaces climb with elevation, inverted from the light theme: the page is
+   the darkest layer and each raised layer is one step lighter, which is what
+   makes cards read as "above" the page without borders doing the work. */
+:root[data-theme="dark"]{
+/* The one value the light scales have no equivalent for — a step below
+   navy-900, so the page still sits beneath navy-900 sunken areas. */
+--navy-950:#030d1a;
+
+/* --- Semantic aliases: text --- */
+--text-heading:var(--navy-050);--text-body:var(--gray-200);--text-muted:var(--gray-400);--text-subtle:var(--gray-500);
+/* Unchanged: both sit on a filled brand-coloured surface in either theme. */
+--text-inverse:var(--white);--text-on-navy:#e8eff6;
+/* The 700-step accents are far too dark to read on a dark ground; the
+   400-step of the same scale is the same hue at a legible lightness. */
+--text-accent:var(--teal-400);--text-gold:var(--gold-400);--text-link:var(--teal-400);--text-link-hover:var(--teal-300);
+
+/* --- Semantic aliases: surfaces --- */
+--surface-page:var(--navy-950);--surface-card:var(--navy-800);--surface-raised:var(--navy-700);--surface-sunken:var(--navy-900);
+/* One step above the page so the top bar stays distinguishable from it. */
+--surface-navy:var(--navy-800);--surface-navy-deep:var(--navy-950);--surface-teal:var(--teal-800);
+/* The pale 100-step tints become low-alpha washes of the same hue — a solid
+   light tint would be a bright slab on a dark page. */
+--surface-gold-tint:color-mix(in srgb, var(--gold-500) 16%, transparent);
+--surface-navy-tint:color-mix(in srgb, var(--navy-400) 14%, transparent);
+--surface-navy-tint-strong:color-mix(in srgb, var(--navy-400) 26%, transparent);
+--surface-teal-tint:color-mix(in srgb, var(--teal-500) 18%, transparent);
+--surface-overlay:rgba(3,13,26,.72);--surface-glass:rgba(10,33,65,.72);--surface-glass-dark:rgba(3,13,26,.55);
+
+/* --- Semantic aliases: lines ---
+   Translucent white rather than a fixed grey, so a divider keeps the same
+   weight over every surface in the elevation ramp above. */
+--border-subtle:rgba(255,255,255,.08);--border-default:rgba(255,255,255,.16);--border-strong:var(--navy-400);--border-navy:var(--navy-400);
+--border-gold:var(--gold-600);--border-rule-gold:var(--gold-500);
+--focus-ring:var(--teal-400);
+
+/* --- Semantic status ---
+   The 500 fills carry over; the 700 steps are text-weight and need
+   lightening, and the 100 tints become washes for the same reason as above. */
+--success-700:color-mix(in srgb, var(--success-500) 62%, var(--white));
+--success-100:color-mix(in srgb, var(--success-500) 20%, transparent);
+--warning-700:color-mix(in srgb, var(--warning-500) 68%, var(--white));
+--warning-100:color-mix(in srgb, var(--warning-500) 20%, transparent);
+--danger-700:color-mix(in srgb, var(--danger-500) 62%, var(--white));
+--danger-100:color-mix(in srgb, var(--danger-500) 22%, transparent);
+--info-700:var(--navy-300);--info-500:var(--navy-400);--info-100:color-mix(in srgb, var(--navy-400) 18%, transparent);
+
+/* --- Interactive ---
+   Primary stays in the navy family but climbs to a step that reads as a
+   raised control against a navy page, instead of vanishing into it. */
+--action-primary:var(--navy-500);--action-primary-hover:var(--navy-400);--action-primary-active:var(--navy-600);
+--action-accent:var(--teal-600);--action-accent-hover:var(--teal-500);--action-accent-active:var(--teal-700);
+--action-gold:var(--gold-500);--action-gold-hover:var(--gold-400);--action-gold-active:var(--gold-600);
+--action-disabled-bg:rgba(255,255,255,.08);--action-disabled-text:var(--gray-500);
 }

@@ -55,6 +55,20 @@ async function patch(path, body, headers = {}) {
   return { status: res.status, body: text ? JSON.parse(text) : undefined }
 }
 
+async function postFile(path, { filename, bytes, token }) {
+  const form = new FormData()
+  form.append('file', new Blob([bytes]), filename)
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
+  const text = await res.text()
+  return { status: res.status, body: text ? JSON.parse(text) : undefined }
+}
+
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00])
+
 function authHeader(token) {
   return { Authorization: `Bearer ${token}` }
 }
@@ -354,6 +368,27 @@ describe('Manager visibility of Customer identity (BDR-018)', () => {
     assert.equal(res.body.data.customer.fullName, 'Test Customer')
     assert.equal(res.body.data.customer.mobileNumber, customer.mobileNumber)
   })
+
+  test('a Hotel Manager sees the Customer avatar the Customer uploaded after the Booking was made (null until then)', async () => {
+    const { customer, manager, hotelId, booking } = await createPendingBooking()
+
+    const before = await get(`/api/v1/hotels/${hotelId}/bookings/${booking.id}`, authHeader(manager.accessToken))
+    assert.equal(before.body.data.customer.avatarUrl, null)
+
+    const uploaded = await postFile('/api/v1/customers/me/avatar', {
+      filename: 'me.png', bytes: PNG_BYTES, token: customer.accessToken,
+    })
+    assert.equal(uploaded.status, 201)
+
+    const detail = await get(`/api/v1/hotels/${hotelId}/bookings/${booking.id}`, authHeader(manager.accessToken))
+    assert.equal(detail.status, 200)
+    assert.ok(detail.body.data.customer.avatarUrl)
+    assert.equal(detail.body.data.customer.avatarUrl, uploaded.body.data.profile.avatarUrl)
+
+    const list = await get(`/api/v1/hotels/${hotelId}/bookings`, authHeader(manager.accessToken))
+    const listed = list.body.data.find((b) => b.id === booking.id)
+    assert.equal(listed.customer.avatarUrl, uploaded.body.data.profile.avatarUrl)
+  })
 })
 
 describe('Payment reporting and verification', () => {
@@ -495,12 +530,13 @@ describe('Invalid state transitions', () => {
 })
 
 describe('Cancellation authorization', () => {
-  test('a Customer cancels their own PENDING booking (200, CANCELLED) — never deleted', async () => {
+  test('a Customer cancels their own PENDING booking (200, CANCELLED) — never deleted, no reason required (BDR-024)', async () => {
     const { customer, booking } = await createPendingBooking()
 
     const res = await post(`/api/v1/bookings/${booking.id}/cancellation`, undefined, authHeader(customer.accessToken))
     assert.equal(res.status, 200)
     assert.equal(res.body.data.status, 'CANCELLED')
+    assert.equal(res.body.data.cancellationReason, null)
 
     const stillExists = await prisma.booking.findUnique({ where: { id: booking.id } })
     assert.ok(stillExists, 'the booking record must be preserved, never deleted')
@@ -540,13 +576,22 @@ describe('Cancellation authorization', () => {
     assert.equal(res.body.data.paymentStatus, 'PAID')
   })
 
-  test('a CONFIRMED booking can be cancelled by its own Customer (200, CANCELLED)', async () => {
+  test('a CONFIRMED booking can be cancelled by its own Customer, given a reason (200, CANCELLED, BDR-024)', async () => {
+    const { customer, manager, hotelId, booking } = await createPaidBooking()
+    await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/confirmation`, undefined, authHeader(manager.accessToken))
+
+    const res = await post(`/api/v1/bookings/${booking.id}/cancellation`, { reason: 'A family emergency came up.' }, authHeader(customer.accessToken))
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.status, 'CANCELLED')
+    assert.equal(res.body.data.cancellationReason, 'A family emergency came up.')
+  })
+
+  test('a Customer cancelling a CONFIRMED booking with no reason is rejected (422, BDR-024)', async () => {
     const { customer, manager, hotelId, booking } = await createPaidBooking()
     await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/confirmation`, undefined, authHeader(manager.accessToken))
 
     const res = await post(`/api/v1/bookings/${booking.id}/cancellation`, undefined, authHeader(customer.accessToken))
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.status, 'CANCELLED')
+    assert.equal(res.status, 422)
   })
 
   test('a CONFIRMED booking can be cancelled by its own-Hotel Manager (200, CANCELLED)', async () => {
@@ -599,5 +644,101 @@ describe('Payment deadline and expiration', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.data.status, 'PENDING')
     assert.equal(res.body.data.paymentStatus, 'PAID')
+  })
+})
+
+/**
+ * The one path a real Customer actually takes to a rating, start to finish.
+ * Every other test that needs a COMPLETED Booking inserts one in that status
+ * directly, and the only other completion test asserts a failure — so until
+ * this existed, nothing verified that a Booking can reach COMPLETED at all,
+ * nor that a review is reachable once it does.
+ */
+describe('The whole journey to a review', () => {
+  test('paid → confirmed → completed → reviewed, and the rating reaches the Hotel', async () => {
+    const { customer, manager, hotelId, booking } = await createPaidBooking()
+
+    const confirmed = await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/confirmation`, undefined, authHeader(manager.accessToken))
+    assert.equal(confirmed.status, 200)
+    assert.equal(confirmed.body.data.status, 'CONFIRMED')
+
+    // Nothing may be completed while it is still ahead of us...
+    const early = await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/completion`, undefined, authHeader(manager.accessToken))
+    assert.equal(early.status, 422)
+
+    // ...so move the Booking's own window into the past rather than sleeping
+    // through it — the same clock-shifting technique the expiry tests above
+    // already use. Only the clock is simulated: every transition below still
+    // runs through the real endpoint and the real rule. It ends an hour ago,
+    // inside the No-show grace window, so this exercises the Manager
+    // completing it by hand rather than the auto-completion sweep.
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        startsAt: new Date(Date.now() - 5 * 3600000),
+        endsAt: new Date(Date.now() - 3600000),
+      },
+    })
+
+    const completed = await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/completion`, undefined, authHeader(manager.accessToken))
+    assert.equal(completed.status, 200)
+    assert.equal(completed.body.data.status, 'COMPLETED')
+
+    const review = await post(`/api/v1/bookings/${booking.id}/review`, { rating: 5, text: 'Excellent hall.' }, authHeader(customer.accessToken))
+    assert.equal(review.status, 201)
+    assert.equal(review.body.data.review.rating, 5)
+
+    // The Customer's own Booking now carries it — this is what decides
+    // whether Customer Mobile still offers "Leave a Review".
+    const detail = await get(`/api/v1/bookings/${booking.id}`, authHeader(customer.accessToken))
+    assert.equal(detail.body.data.review.rating, 5)
+
+    // And it reaches the Hotel's public rating.
+    const publicHotel = await get(`/api/v1/hotels/public/${hotelId}`)
+    assert.equal(publicHotel.body.data.reviewSummary.count, 1)
+    assert.equal(publicHotel.body.data.reviewSummary.average, 5)
+  })
+
+  test('a CONFIRMED Booking completes itself once the No-show window has passed', async () => {
+    const { customer, manager, hotelId, booking } = await createPaidBooking()
+    await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/confirmation`, undefined, authHeader(manager.accessToken))
+
+    // Ended well beyond the grace window, and nobody touches Complete.
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        startsAt: new Date(Date.now() - 3 * 86400000),
+        endsAt: new Date(Date.now() - 2 * 86400000),
+      },
+    })
+
+    const asCustomer = await get(`/api/v1/bookings/${booking.id}`, authHeader(customer.accessToken))
+    assert.equal(asCustomer.body.data.status, 'COMPLETED')
+
+    // ...which is what makes the review reachable without the Manager ever
+    // having acted, the case that previously left every Booking stuck.
+    const review = await post(`/api/v1/bookings/${booking.id}/review`, { rating: 4 }, authHeader(customer.accessToken))
+    assert.equal(review.status, 201)
+  })
+
+  test('a Booking still inside the No-show window is left alone for the Manager to decide', async () => {
+    const { manager, hotelId, booking } = await createPaidBooking()
+    await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/confirmation`, undefined, authHeader(manager.accessToken))
+
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        startsAt: new Date(Date.now() - 5 * 3600000),
+        endsAt: new Date(Date.now() - 3600000),
+      },
+    })
+
+    const res = await get(`/api/v1/hotels/${hotelId}/bookings/${booking.id}`, authHeader(manager.accessToken))
+    assert.equal(res.body.data.status, 'CONFIRMED')
+
+    // Still No-show-able, which is the whole point of the window.
+    const noShow = await post(`/api/v1/hotels/${hotelId}/bookings/${booking.id}/no-show`, undefined, authHeader(manager.accessToken))
+    assert.equal(noShow.status, 200)
+    assert.equal(noShow.body.data.status, 'NO_SHOW')
   })
 })

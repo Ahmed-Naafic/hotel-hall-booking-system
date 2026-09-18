@@ -16,7 +16,7 @@ class HHSectionLabel extends StatelessWidget {
     final text = Text(
       label,
       style: TextStyle(
-        color: HHColors.textMuted,
+        color: context.hh.textMuted,
         fontWeight: HHTypeScale.weightSemibold,
         fontSize: HHTypeScale.textXs,
         letterSpacing: 0.8,

@@ -57,5 +57,24 @@ void main() {
       expect(theme.scaffoldBackgroundColor, HHColors.surfacePage);
       expect(theme.textTheme.bodyLarge, isNotNull);
     });
+
+    test('carries the palette matching its brightness, so context.hh resolves', () {
+      final light = buildHotelHallTheme();
+      final dark = buildHotelHallTheme(brightness: Brightness.dark);
+
+      expect(light.extension<HHPalette>()?.surfacePage, HHPalette.light.surfacePage);
+      expect(dark.extension<HHPalette>()?.surfacePage, HHPalette.dark.surfacePage);
+      expect(dark.brightness, Brightness.dark);
+      expect(dark.scaffoldBackgroundColor, HHPalette.dark.surfacePage);
+    });
+
+    test('recolours the type scale for the dark theme', () {
+      // HHTypography bakes the light heading/body colours into every style;
+      // a dark theme that skipped this would render dark navy text on a dark
+      // page.
+      final dark = buildHotelHallTheme(brightness: Brightness.dark);
+      expect(dark.textTheme.bodyLarge?.color, HHPalette.dark.textBody);
+      expect(dark.textTheme.displaySmall?.color, HHPalette.dark.textHeading);
+    });
   });
 }

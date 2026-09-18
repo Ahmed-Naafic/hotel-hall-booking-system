@@ -3,12 +3,10 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../core/push_notification_service.dart';
-import '../../../notifications/application/notification_controller.dart';
-
-/// C3 — mobile-number verification. Rendered by `AuthGate` whenever the
-/// authenticated user's `isVerified` is `false` — never a separate route
-/// pushed onto the stack, so there is nothing to navigate back out of.
+/// C3 — mobile-number verification. Pushed as a route by whichever flow
+/// requires a verified Customer (booking a Hall being the first), and pops
+/// itself with `true` once the code is confirmed so that flow can carry on
+/// from where it left off.
 class VerifyScreen extends StatelessWidget {
   const VerifyScreen({super.key});
 
@@ -17,7 +15,7 @@ class VerifyScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(HHSpacing.space7),
@@ -35,7 +33,7 @@ class VerifyScreen extends StatelessWidget {
                 'We sent a 6-digit code to ${auth.currentUser?.mobileNumber ?? 'your mobile number'}.',
                 style: TextStyle(
                   fontSize: HHTypeScale.textMd,
-                  color: HHColors.textMuted,
+                  color: context.hh.textMuted,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -48,7 +46,7 @@ class VerifyScreen extends StatelessWidget {
                   auth.clearError();
                   final ok = await auth.confirmVerification(code);
                   if (ok && context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.of(context).pop(true);
                   }
                   return ok;
                 },
@@ -56,23 +54,6 @@ class VerifyScreen extends StatelessWidget {
                   auth.clearError();
                   return auth.resendVerificationCode();
                 },
-              ),
-              const SizedBox(height: HHSpacing.space6),
-              Center(
-                child: TextButton(
-                  onPressed: () async {
-                    // Best-effort — unregister this device's push token
-                    // before the session that authorized it goes away, so
-                    // a shared device never keeps receiving this account's
-                    // notifications after logging out.
-                    final token = await PushNotificationService.instance.getToken();
-                    if (context.mounted) {
-                      await context.read<NotificationController>().unregisterDeviceToken(token);
-                    }
-                    await auth.logout();
-                  },
-                  child: const Text('Log out'),
-                ),
               ),
             ],
           ),

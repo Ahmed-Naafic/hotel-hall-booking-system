@@ -18,7 +18,7 @@ class RegisterScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('Register Your Hotel')),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -28,7 +28,7 @@ class RegisterScreen extends StatelessWidget {
             children: [
               Text(
                 'Create your Hotel Manager account to start onboarding your Hotel.',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textMuted),
               ),
               const SizedBox(height: HHSpacing.space7),
               RegisterForm(

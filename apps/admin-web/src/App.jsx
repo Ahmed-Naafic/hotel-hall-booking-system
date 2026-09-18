@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AuthProvider } from './shared/auth/AuthContext.jsx'
+import { ThemeProvider } from './shared/theme/ThemeContext.jsx'
 import { useAuth } from './shared/auth/useAuth.js'
 import { LoginPage } from './features/authentication/LoginPage.jsx'
 import { DashboardShell } from './features/authentication/DashboardShell.jsx'
@@ -32,9 +33,11 @@ function AppShell() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppShell />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppShell />
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
 

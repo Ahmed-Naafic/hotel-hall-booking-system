@@ -111,8 +111,8 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
             ),
             if (currentAvatarUrl != null)
               ListTile(
-                leading: Icon(Icons.delete_outline, color: HHColors.danger700),
-                title: Text('Remove photo', style: TextStyle(color: HHColors.danger700)),
+                leading: Icon(Icons.delete_outline, color: context.hh.danger700),
+                title: Text('Remove photo', style: TextStyle(color: context.hh.danger700)),
                 onTap: () => Navigator.of(context).pop(_AvatarAction.remove),
               ),
           ],
@@ -167,6 +167,13 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
     final snapshot = controller.snapshot;
     final fullName = _fullNameFrom(snapshot);
     final avatarUrl = _avatarUrlFrom(snapshot);
+    // This screen is only ever opened by an authenticated Customer, but the
+    // session can end underneath it — an expired refresh token trips
+    // `ApiClient`'s sessionExpiredHandler, which clears the session without
+    // closing whatever screen is open. Offering "Log out" to someone who is
+    // already logged out is the visible symptom of that.
+    final isAuthenticated =
+        context.watch<AuthController>().status == AuthStatus.authenticated;
 
     // A registration made after Full Name became required (BDR-018) always
     // has one; only an account registered before then can still lack it —
@@ -180,7 +187,7 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
     }
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('My Profile')),
       body: controller.isLoading && snapshot == null
           ? const Center(child: CircularProgressIndicator())
@@ -218,13 +225,13 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
                                 fontSize: HHTypeScale.textXl,
                                 fontWeight: HHTypeScale.weightSemibold,
                                 fontStyle: fullName == null ? FontStyle.italic : FontStyle.normal,
-                                color: fullName == null ? HHColors.textMuted : HHColors.textHeading,
+                                color: fullName == null ? context.hh.textMuted : context.hh.textHeading,
                               ),
                             ),
                             const SizedBox(height: HHSpacing.space1),
                             Text(
                               snapshot?.user['mobileNumber'] as String? ?? '',
-                              style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textSm),
+                              style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textSm),
                             ),
                           ],
                         ),
@@ -247,7 +254,7 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
                           HHTextField(label: 'Full name', controller: _fullNameController),
                           if (controller.errorMessage != null) ...[
                             const SizedBox(height: HHSpacing.space2),
-                            Text(controller.errorMessage!, style: TextStyle(color: HHColors.danger700, fontSize: HHTypeScale.textSm)),
+                            Text(controller.errorMessage!, style: TextStyle(color: context.hh.danger700, fontSize: HHTypeScale.textSm)),
                           ],
                           const SizedBox(height: HHSpacing.space4),
                           Row(
@@ -304,12 +311,23 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
                     ),
                   ),
                   const SizedBox(height: HHSpacing.space7),
-                  HHSecondaryButton(
-                    label: 'Log out',
-                    icon: Icons.logout,
-                    isLoading: _loggingOut,
-                    onPressed: _loggingOut ? null : _logout,
+                  const HHSectionLabel('APPEARANCE'),
+                  const SizedBox(height: HHSpacing.space3),
+                  Consumer<ThemeController>(
+                    builder: (context, themeController, _) => HHThemeModeToggle(
+                      mode: themeController.mode,
+                      onChanged: themeController.setMode,
+                    ),
                   ),
+                  if (isAuthenticated) ...[
+                    const SizedBox(height: HHSpacing.space7),
+                    HHSecondaryButton(
+                      label: 'Log out',
+                      icon: Icons.logout,
+                      isLoading: _loggingOut,
+                      onPressed: _loggingOut ? null : _logout,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -321,7 +339,7 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: HHColors.textMuted)),
+        Text(label, style: TextStyle(color: context.hh.textMuted)),
         value,
       ],
     ),
@@ -353,7 +371,7 @@ class _Avatar extends StatelessWidget {
           Container(
             width: 64,
             height: 64,
-            decoration: const BoxDecoration(color: HHColors.surfaceNavyTint, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: context.hh.surfaceNavyTint, shape: BoxShape.circle),
             alignment: Alignment.center,
             clipBehavior: Clip.antiAlias,
             child: avatarUrl != null
@@ -362,9 +380,9 @@ class _Avatar extends StatelessWidget {
                     width: 64,
                     height: 64,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _fallback(),
+                    errorBuilder: (context, _, _) => _fallback(context),
                   )
-                : _fallback(),
+                : _fallback(context),
           ),
           if (isUploading)
             Positioned.fill(
@@ -389,9 +407,9 @@ class _Avatar extends StatelessWidget {
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: HHColors.actionPrimary,
+                color: context.hh.actionPrimary,
                 shape: BoxShape.circle,
-                border: Border.all(color: HHColors.surfacePage, width: 2),
+                border: Border.all(color: context.hh.surfacePage, width: 2),
               ),
               child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
             ),
@@ -401,10 +419,10 @@ class _Avatar extends StatelessWidget {
     );
   }
 
-  Widget _fallback() => initials != null
+  Widget _fallback(BuildContext context) => initials != null
       ? Text(
           initials!,
-          style: TextStyle(fontSize: HHTypeScale.textXl, fontWeight: HHTypeScale.weightSemibold, color: HHColors.navy700),
+          style: TextStyle(fontSize: HHTypeScale.textXl, fontWeight: HHTypeScale.weightSemibold, color: context.hh.textHeading),
         )
-      : Icon(Icons.person_outline_rounded, size: 32, color: HHColors.navy400);
+      : Icon(Icons.person_outline_rounded, size: 32, color: context.hh.textSubtle);
 }

@@ -4,8 +4,9 @@ import { isValidTransition } from '../lifecycle.service.js'
 
 /**
  * Unit test (testing-standards.md §5) — pure logic, no database. Exhaustive
- * coverage of every row in Technical Design §6.2's transition table,
- * positive and negative.
+ * coverage of every row in Technical Design §6.2's transition table, plus
+ * the SUSPENDED/DEACTIVATED → APPROVED_ACTIVE reactivation paths added on
+ * top of it (BDR-012), positive and negative.
  */
 
 const VALID_PAIRS = [
@@ -19,6 +20,8 @@ const VALID_PAIRS = [
   ['APPROVED_ACTIVE', 'DEACTIVATED'],
   ['APPROVED_ACTIVE', 'RESTRICTED_UNDER_REVIEW'],
   ['RESTRICTED_UNDER_REVIEW', 'APPROVED_ACTIVE'],
+  ['SUSPENDED', 'APPROVED_ACTIVE'],
+  ['DEACTIVATED', 'APPROVED_ACTIVE'],
 ]
 
 const ALL_STATUSES = [
@@ -40,9 +43,11 @@ describe('lifecycle.service — isValidTransition', () => {
     })
   }
 
-  // Every pair NOT in VALID_PAIRS must be rejected — including terminal
-  // states (WITHDRAWN, SUSPENDED, DEACTIVATED) and deliberately-absent
-  // reactivation paths (Technical Design §6).
+  // Every pair NOT in VALID_PAIRS must be rejected — including the one
+  // truly terminal state (WITHDRAWN) and every other deliberately-absent
+  // transition (Technical Design §6). SUSPENDED/DEACTIVATED are no longer
+  // terminal: each has a single reactivation path back to APPROVED_ACTIVE
+  // (BDR-012).
   for (const from of ALL_STATUSES) {
     for (const to of ALL_STATUSES) {
       const isListedValid = VALID_PAIRS.some(([f, t]) => f === from && t === to)

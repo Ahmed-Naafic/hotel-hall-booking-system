@@ -94,7 +94,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> {
     final hotel = _hotel;
     final isEditable = hotel != null && (hotel.status == 'APPROVED_ACTIVE' || hotel.status == 'REJECTED');
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(
         title: Text(hotel?.profileData?['name']?.toString().trim().isNotEmpty == true
             ? hotel!.profileData!['name'].toString()
@@ -117,7 +117,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> {
         return HHEmptyState(
           icon: Icons.error_outline,
           message: _errorMessage ?? 'Something went wrong.',
-          iconColor: HHColors.danger700,
+          iconColor: context.hh.danger700,
           actionLabel: 'Retry',
           onAction: _load,
         );
@@ -152,7 +152,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> {
               if (logo != null) ...[
                 Text(
                   'Hotel Logo',
-                  style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs),
+                  style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textXs),
                 ),
                 const SizedBox(height: HHSpacing.space3),
                 GestureDetector(
@@ -168,7 +168,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> {
               if (photos.isNotEmpty) ...[
                 Text(
                   'Hotel Photos',
-                  style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs),
+                  style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textXs),
                 ),
                 const SizedBox(height: HHSpacing.space3),
                 SizedBox(
@@ -218,7 +218,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> {
                       if (description != null && description.isNotEmpty) ...[
                         Text(
                           'Description',
-                          style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs),
+                          style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textXs),
                         ),
                         const SizedBox(height: HHSpacing.space2),
                         Text(description, style: TextStyle(fontSize: HHTypeScale.textMd, height: 1.4)),
@@ -241,7 +241,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> {
                             children: [
                               Text(
                                 ManagerFormatters.label(entry.key),
-                                style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs),
+                                style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textXs),
                               ),
                               Text(entry.value?.toString() ?? '', style: TextStyle(fontSize: HHTypeScale.textMd)),
                             ],
@@ -274,13 +274,13 @@ class _DetailRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: HHColors.actionPrimary),
+        Icon(icon, size: 18, color: context.hh.actionPrimary),
         const SizedBox(width: HHSpacing.space3),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textXs)),
+              Text(label, style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textXs)),
               const SizedBox(height: 2),
               Text(value, style: TextStyle(fontSize: HHTypeScale.textMd)),
             ],

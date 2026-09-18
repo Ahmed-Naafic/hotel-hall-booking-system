@@ -18,10 +18,10 @@ const CARDS = [
 ]
 
 const ACCENT_STYLES = {
-  navy: { fg: 'var(--navy-700)', bg: 'var(--navy-050)' },
-  teal: { fg: 'var(--teal-700)', bg: 'var(--teal-100)' },
+  navy: { fg: 'var(--text-heading)', bg: 'var(--surface-navy-tint)' },
+  teal: { fg: 'var(--text-accent)', bg: 'var(--surface-teal-tint)' },
   success: { fg: 'var(--success-700)', bg: 'var(--success-100)' },
-  gold: { fg: 'var(--gold-700)', bg: 'var(--gold-100)' },
+  gold: { fg: 'var(--text-gold)', bg: 'var(--surface-gold-tint)' },
 }
 
 export function HotelMetricCards({ counts, loadState, error, reload }) {

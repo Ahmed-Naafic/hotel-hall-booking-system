@@ -7,6 +7,7 @@ import 'nearby_hotel.dart';
 import 'popular_hotel.dart';
 
 typedef HallPage = ({List<BrowsableHall> halls, bool hasNext, String? nextCursor});
+typedef HotelPage = ({List<HotelSummary> hotels, bool hasNext, String? nextCursor});
 
 class DiscoveryRepository {
   DiscoveryRepository(this.apiClient);
@@ -20,6 +21,34 @@ class DiscoveryRepository {
               HotelSummary.fromJson((item as Map).cast<String, dynamic>()),
         )
         .toList();
+  }
+
+  /// Hotel Search (`BDR-020`) — the backend is authoritative: matching
+  /// happens server-side against every Approved/Active Hotel, never by
+  /// filtering a page already loaded on the device. Shares
+  /// `GET /hotels/public`'s existing cursor pagination with the unsearched
+  /// browse above — a searched result set pages exactly the same way.
+  Future<HotelPage> searchHotels({required String search, String? cursor}) async {
+    final response = await apiClient.getPaginated(
+      '/hotels/public',
+      query: {
+        'limit': '20',
+        'search': search,
+        if (cursor != null) 'cursor': cursor,
+      },
+    );
+    final hotels = (response.data as List)
+        .map(
+          (item) =>
+              HotelSummary.fromJson((item as Map).cast<String, dynamic>()),
+        )
+        .toList();
+    final pagination = response.pagination ?? const {};
+    return (
+      hotels: hotels,
+      hasNext: pagination['hasNext'] as bool? ?? false,
+      nextCursor: pagination['nextCursor'] as String?,
+    );
   }
 
   Future<HotelSummary> getHotel(String id) async {

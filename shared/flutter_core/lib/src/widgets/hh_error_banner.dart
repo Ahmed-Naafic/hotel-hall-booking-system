@@ -16,19 +16,19 @@ class HHErrorBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: HHSpacing.space4, vertical: HHSpacing.space3),
       margin: const EdgeInsets.only(bottom: HHSpacing.space4),
       decoration: BoxDecoration(
-        color: HHColors.danger100,
+        color: context.hh.danger100,
         borderRadius: BorderRadius.circular(HHRadii.control),
-        border: Border.all(color: HHColors.danger500.withValues(alpha: 0.35)),
+        border: Border.all(color: context.hh.danger500.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: HHColors.danger700, size: 20),
+          Icon(Icons.error_outline, color: context.hh.danger700, size: 20),
           const SizedBox(width: HHSpacing.space3),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: HHColors.danger700, fontSize: HHTypeScale.textSm),
+              style: TextStyle(color: context.hh.danger700, fontSize: HHTypeScale.textSm),
             ),
           ),
         ],

@@ -120,7 +120,7 @@ class _HotelLocationPickerScreenState extends State<HotelLocationPickerScreen> {
   Widget build(BuildContext context) {
     final center = _pin ?? _defaultCenter;
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('Hotel location')),
       body: SafeArea(
         child: Column(
@@ -150,7 +150,7 @@ class _HotelLocationPickerScreenState extends State<HotelLocationPickerScreen> {
                           child: Icon(
                             Icons.location_pin,
                             size: 48,
-                            color: HHColors.actionPrimary,
+                            color: context.hh.actionPrimary,
                           ),
                         ),
                       ],
@@ -172,7 +172,7 @@ class _HotelLocationPickerScreenState extends State<HotelLocationPickerScreen> {
                     children: [
                       Icon(
                         Icons.touch_app_outlined,
-                        color: HHColors.actionPrimary,
+                        color: context.hh.actionPrimary,
                       ),
                       const SizedBox(width: HHSpacing.space3),
                       Expanded(
@@ -189,7 +189,7 @@ class _HotelLocationPickerScreenState extends State<HotelLocationPickerScreen> {
                   if (_detectionFailed) ...[
                     Text(
                       "We couldn't automatically detect the address.",
-                      style: TextStyle(color: HHColors.warning700),
+                      style: TextStyle(color: context.hh.warning700),
                     ),
                     const SizedBox(height: HHSpacing.space3),
                   ],

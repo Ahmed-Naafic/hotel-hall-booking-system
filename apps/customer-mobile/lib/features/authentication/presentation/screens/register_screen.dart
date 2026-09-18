@@ -14,7 +14,7 @@ class RegisterScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('Create Account')),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -26,7 +26,7 @@ class RegisterScreen extends StatelessWidget {
                 'Register with your mobile number to start booking Halls.',
                 style: TextStyle(
                   fontSize: HHTypeScale.textMd,
-                  color: HHColors.textMuted,
+                  color: context.hh.textMuted,
                 ),
               ),
               const SizedBox(height: HHSpacing.space7),
@@ -42,11 +42,12 @@ class RegisterScreen extends StatelessWidget {
                     accountType: 'CUSTOMER',
                     fullName: fullName,
                   );
-                  // On success the app becomes authenticated-but-unverified;
-                  // pop back to the root so AuthGate can show VerifyScreen —
-                  // this pushed route would otherwise stay on top of it.
+                  // On success the app is authenticated-but-unverified. Pop
+                  // only this route, reporting success: whoever pushed the
+                  // sign-in flow resumes what the Customer was doing and
+                  // takes them through verification from there.
                   if (ok && context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.of(context).pop(true);
                   }
                   return ok;
                 },

@@ -1,4 +1,4 @@
-import { test, describe, before, after } from 'node:test'
+import { test, describe, before, after, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { createApp } from '../../../app.js'
 import { prisma } from '../../../shared/prismaClient.js'
@@ -23,6 +23,42 @@ let baseUrl
 let adminStubUserId
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+// The Popular Hotels endpoint defaults to a top-20 result and this test
+// suite runs against a real, never-truncated dev database that keeps
+// accumulating qualifying Hotels from every past test run — as of writing,
+// well over 100 of them. Every assertion below that needs to find its own
+// freshly created Hotel in the response therefore asks for a generously
+// large page (`?limit=1000`, far above any realistic accumulated pool) so
+// the result is never a ranking accident. This does not change production
+// behavior — `limit` is an existing, unbounded, caller-supplied query
+// parameter (`hotelValidation.validatePopularHotels`).
+const POPULAR_LIST_QUERY = '?limit=1000'
+
+// Isolation: every row this file creates (Bookings, Hotels — along with
+// their Halls, which the schema does not cascade-delete from Hotel — and
+// the Customer/Hotel Manager Users used to create them) is tracked here and
+// deleted in `afterEach`, so this suite stops contributing further to the
+// shared dev database's Popular Hotels pool on every run. The one exception
+// is `adminStubUserId`, shared by the whole file and cleaned up once in the
+// top-level `after()` instead. Deletion order matters and is enforced by
+// the schema's own foreign keys, not just convention: Bookings first (no
+// cascade from either Hotel or Hall), then Halls (no cascade from Hotel —
+// `HotelMedia`/`HotelApplication`/`Review` *do* cascade from Hotel, so
+// deleting the Hotel itself is enough for those), then Hotels, then Users.
+let createdBookingIds = []
+let createdHotelIds = []
+let createdUserIds = []
+
+afterEach(async () => {
+  await prisma.booking.deleteMany({ where: { id: { in: createdBookingIds } } })
+  await prisma.hall.deleteMany({ where: { hotelId: { in: createdHotelIds } } })
+  await prisma.hotel.deleteMany({ where: { id: { in: createdHotelIds } } })
+  await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } })
+  createdBookingIds = []
+  createdHotelIds = []
+  createdUserIds = []
+})
 
 function uniqueMobileNumber() {
   const suffix = Math.floor(100000000 + Math.random() * 899999999)
@@ -65,6 +101,7 @@ async function registerAndLoginHotelManager() {
   // BDR-019: Full Name is required at registration for a HOTEL_MANAGER account.
   await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'HOTEL_MANAGER', fullName: 'Test Manager' })
   const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
+  createdUserIds.push(loginRes.body.data.user.id)
   return loginRes.body.data
 }
 
@@ -101,6 +138,7 @@ async function approveHotel() {
   const { accessToken } = await registerAndLoginHotelManager()
   const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
   const hotelId = created.data.id
+  createdHotelIds.push(hotelId)
   await patch(`/api/v1/hotels/${hotelId}`, completeHotelProfile(), authHeader(accessToken))
   await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
   const hotel = await hotelService.getHotelById(hotelId)
@@ -128,9 +166,11 @@ async function eligibleHotel() {
 
 async function createCustomer() {
   const mobileNumber = uniqueMobileNumber()
-  return prisma.user.create({
+  const customer = await prisma.user.create({
     data: { mobileNumber, passwordHash: 'x', accountType: 'CUSTOMER', isVerified: true },
   })
+  createdUserIds.push(customer.id)
+  return customer
 }
 
 // Each Hall has a real, enforced non-overlap constraint on (hallId, period)
@@ -152,7 +192,7 @@ function nextSlot() {
  */
 async function createBookingDirect({ hotelId, hallId, customerUserId, status, updatedAt, completedAt }) {
   const { startsAt, endsAt } = nextSlot()
-  return prisma.booking.create({
+  const booking = await prisma.booking.create({
     data: {
       customerUserId,
       hotelId,
@@ -170,6 +210,8 @@ async function createBookingDirect({ hotelId, hallId, customerUserId, status, up
       updatedAt,
     },
   })
+  createdBookingIds.push(booking.id)
+  return booking
 }
 
 before(async () => {
@@ -184,6 +226,7 @@ before(async () => {
 })
 
 after(async () => {
+  await prisma.user.deleteMany({ where: { id: adminStubUserId } })
   await new Promise((resolve) => server.close(resolve))
 })
 
@@ -199,7 +242,7 @@ describe('GET /hotels/public/popular', () => {
       updatedAt: new Date(),
     })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.status, 200)
     const match = res.body.data.find((h) => h.id === hotelId)
     assert.ok(match, 'expected the Hotel to appear in Popular Hotels')
@@ -218,7 +261,7 @@ describe('GET /hotels/public/popular', () => {
       completedAt: new Date(),
     })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     const match = res.body.data.find((h) => h.id === hotelId)
     assert.ok(match, 'expected the Hotel to appear in Popular Hotels')
     assert.equal(match.bookingCount, 1)
@@ -238,7 +281,7 @@ describe('GET /hotels/public/popular', () => {
       completedAt: new Date(),
     })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     const match = res.body.data.find((h) => h.id === hotelId)
     assert.equal(match.bookingCount, 3)
   })
@@ -250,7 +293,7 @@ describe('GET /hotels/public/popular', () => {
       await createBookingDirect({ hotelId, hallId, customerUserId: customer.id, status, updatedAt: new Date() })
     }
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.body.data.some((h) => h.id === hotelId), false)
   })
 
@@ -265,7 +308,7 @@ describe('GET /hotels/public/popular', () => {
       updatedAt: new Date(Date.now() - 91 * DAY_MS),
     })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.body.data.some((h) => h.id === hotelId), false)
   })
 
@@ -282,7 +325,7 @@ describe('GET /hotels/public/popular', () => {
       updatedAt: new Date(Date.now() - 90 * DAY_MS + 60000),
     })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.body.data.some((h) => h.id === hotelId), true)
   })
 
@@ -299,7 +342,7 @@ describe('GET /hotels/public/popular', () => {
       await createBookingDirect({ hotelId, hallId: hallB.id, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: new Date() })
     }
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     const match = res.body.data.find((h) => h.id === hotelId)
     assert.equal(match.bookingCount, 12)
   })
@@ -308,6 +351,7 @@ describe('GET /hotels/public/popular', () => {
     const { accessToken } = await registerAndLoginHotelManager()
     const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
     const hotelId = created.data.id
+    createdHotelIds.push(hotelId)
     await patch(`/api/v1/hotels/${hotelId}`, completeHotelProfile(), authHeader(accessToken))
     await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
     // Deliberately not approved — stays UNDER_REVIEW.
@@ -316,7 +360,7 @@ describe('GET /hotels/public/popular', () => {
     const customer = await createCustomer()
     await createBookingDirect({ hotelId, hallId: hall.id, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: new Date() })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.body.data.some((h) => h.id === hotelId), false)
   })
 
@@ -331,7 +375,7 @@ describe('GET /hotels/public/popular', () => {
     await createBookingDirect({ hotelId, hallId: hall.id, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: new Date() })
     await prisma.hall.update({ where: { id: hall.id }, data: { deletedAt: new Date() } })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.body.data.some((h) => h.id === hotelId), false)
   })
 
@@ -342,7 +386,7 @@ describe('GET /hotels/public/popular', () => {
     const customer = await createCustomer()
     await createBookingDirect({ hotelId, hallId: hall.id, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: new Date() })
 
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.body.data.some((h) => h.id === hotelId), false)
   })
 
@@ -355,7 +399,7 @@ describe('GET /hotels/public/popular', () => {
     for (let i = 0; i < 9; i++) await createBookingDirect({ hotelId: high.hotelId, hallId: high.hallId, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: new Date() })
     for (let i = 0; i < 5; i++) await createBookingDirect({ hotelId: mid.hotelId, hallId: mid.hallId, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: new Date() })
 
-    const res = await get('/api/v1/hotels/public/popular?limit=100')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     const order = res.body.data.map((h) => h.id).filter((id) => [low.hotelId, high.hotelId, mid.hotelId].includes(id))
     assert.deepEqual(order, [high.hotelId, mid.hotelId, low.hotelId])
   })
@@ -373,7 +417,7 @@ describe('GET /hotels/public/popular', () => {
       await createBookingDirect({ hotelId: newer.hotelId, hallId: newer.hallId, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: newerTime })
     }
 
-    const res = await get('/api/v1/hotels/public/popular?limit=100')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     const olderIndex = res.body.data.findIndex((h) => h.id === older.hotelId)
     const newerIndex = res.body.data.findIndex((h) => h.id === newer.hotelId)
     assert.ok(newerIndex >= 0 && olderIndex >= 0);
@@ -381,7 +425,7 @@ describe('GET /hotels/public/popular', () => {
   })
 
   test('requires no authentication', async () => {
-    const res = await get('/api/v1/hotels/public/popular')
+    const res = await get('/api/v1/hotels/public/popular' + POPULAR_LIST_QUERY)
     assert.equal(res.status, 200)
   })
 

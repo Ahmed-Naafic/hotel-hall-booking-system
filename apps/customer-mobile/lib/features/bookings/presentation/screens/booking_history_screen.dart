@@ -40,7 +40,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('My Bookings')),
       body: SafeArea(
         child: RefreshIndicator(onRefresh: _load, child: _body()),
@@ -106,14 +106,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                 const SizedBox(height: HHSpacing.space1),
                 Text(
                   booking.hotel!.name!,
-                  style: TextStyle(color: HHColors.textMuted),
+                  style: TextStyle(color: context.hh.textMuted),
                 ),
               ],
               const SizedBox(height: HHSpacing.space3),
               Text(
                 '${booking.startsAt.toLocal()} – ${booking.endsAt.toLocal()}',
                 style: TextStyle(
-                  color: HHColors.textMuted,
+                  color: context.hh.textMuted,
                   fontSize: HHTypeScale.textSm,
                 ),
               ),
@@ -122,7 +122,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                 children: [
                   Text(
                     '${booking.numberOfGuests} guests • ${formatMoneyCents(booking.totalRentCents)}',
-                    style: TextStyle(color: HHColors.textMuted),
+                    style: TextStyle(color: context.hh.textMuted),
                   ),
                   const Spacer(),
                   HHStatusBadge(

@@ -5,6 +5,27 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hotel Hall Booking — Admin</title>
+    <script>
+      // Applies the theme before first paint, so a dark-mode admin never gets
+      // a white flash while the bundle loads. Mirrors the resolution in
+      // shared/theme/theme.js — keep the two in step.
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('hh-admin-theme')
+          var preference = stored === 'light' || stored === 'dark' ? stored : 'system'
+          var theme =
+            preference === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : preference
+          document.documentElement.setAttribute('data-theme', theme)
+          document.documentElement.style.colorScheme = theme
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

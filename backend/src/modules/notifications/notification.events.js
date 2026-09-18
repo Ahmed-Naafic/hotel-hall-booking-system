@@ -192,3 +192,79 @@ export function onHotelApplicationWithdrawn(application, hotel) {
     application,
   })
 }
+
+/** M4/M5 (`BDR-021`) — the Hotel Manager who registered the Hotel, never the whole admin role. */
+export function onHotelApplicationApproved(application, hotel) {
+  return notificationService.notify({
+    recipientUserId: hotel.registeredByUserId,
+    type: 'HOTEL_APPLICATION_APPROVED',
+    title: 'Hotel application approved',
+    body: `${applicationHotelName(hotel)}'s application has been approved. You can now list Halls and receive bookings.`,
+    hotelId: hotel.id,
+    hotelApplicationId: application.id,
+  })
+}
+
+export function onHotelApplicationRejected(application, hotel) {
+  const reasonSuffix = application.decisionReason ? ` Reason: ${application.decisionReason}` : ''
+  return notificationService.notify({
+    recipientUserId: hotel.registeredByUserId,
+    type: 'HOTEL_APPLICATION_REJECTED',
+    title: 'Hotel application rejected',
+    body: `${applicationHotelName(hotel)}'s application has been rejected.${reasonSuffix}`,
+    hotelId: hotel.id,
+    hotelApplicationId: application.id,
+  })
+}
+
+/** HM11, BR-HOTEL-09 — the Hotel Manager who registered the Hotel, never the whole admin role. */
+export function onHotelSuspended(hotel) {
+  return notificationService.notify({
+    recipientUserId: hotel.registeredByUserId,
+    type: 'HOTEL_SUSPENDED',
+    title: 'Hotel suspended',
+    body: `${applicationHotelName(hotel)} has been suspended by a Platform Administrator and is no longer operationally eligible.`,
+    hotelId: hotel.id,
+  })
+}
+
+export function onHotelDeactivated(hotel) {
+  return notificationService.notify({
+    recipientUserId: hotel.registeredByUserId,
+    type: 'HOTEL_DEACTIVATED',
+    title: 'Hotel deactivated',
+    body: `${applicationHotelName(hotel)} has been deactivated by a Platform Administrator and is no longer operationally eligible.`,
+    hotelId: hotel.id,
+  })
+}
+
+/** Reactivation out of SUSPENDED or DEACTIVATED (BDR-012). */
+export function onHotelReactivated(hotel) {
+  return notificationService.notify({
+    recipientUserId: hotel.registeredByUserId,
+    type: 'HOTEL_REACTIVATED',
+    title: 'Hotel reactivated',
+    body: `${applicationHotelName(hotel)} has been reactivated by a Platform Administrator. You can list Halls and receive bookings again.`,
+    hotelId: hotel.id,
+  })
+}
+
+/**
+ * Communication V1 (C9/M9) — `booking` here is the minimal
+ * `chat.repository.js#findBookingForParticipant` projection
+ * (`customerUserId`, `hotelId`, `hotel.registeredByUserId`), not the full
+ * Booking Management shape every other event function above receives; the
+ * recipient is whichever participant did not send the message.
+ */
+export function onChatMessageSent(message, booking) {
+  const recipientUserId = message.senderUserId === booking.customerUserId
+    ? booking.hotel.registeredByUserId
+    : booking.customerUserId
+  return notificationService.notify({
+    recipientUserId,
+    type: 'NEW_CHAT_MESSAGE',
+    title: 'New message',
+    body: message.body,
+    bookingId: booking.id,
+  })
+}

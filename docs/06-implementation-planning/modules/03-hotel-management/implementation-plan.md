@@ -6,8 +6,8 @@ status: Approved
 owner: Ahmed
 reviewer: Mohamed or Abukar (per documentation-architecture.md §4, no self-review)
 depends_on: ["docs/04-business/modules/03-hotel-management/business-specification.md", "docs/05-technical-design/modules/03-hotel-management/technical-design.md", "docs/04-business/business-decision-register.md", "docs/02-architecture/folder-structure.md", "docs/03-standards/coding-standards.md", "docs/03-standards/api-standards.md", "docs/03-standards/database-standards.md", "docs/03-standards/security-coding-standards.md", "docs/03-standards/naming-conventions.md", "docs/03-standards/testing-standards.md", "docs/03-standards/git-workflow-and-branching.md"]
-version: 1.1
-last_updated: 2026-08-10
+version: 1.2
+last_updated: 2026-09-10
 ---
 
 # Hotel Management — Implementation Plan
@@ -407,5 +407,6 @@ independently of them.
 
 | Version | Date | Author | Change |
 |---|---|---|---|
+| 1.2 | 2026-09-10 | Ahmed | **Post-completion amendment, `BDR-020`.** `GET /api/v1/hotels/public` gains a `search` query parameter (Technical Design v2.1) — matched server-side, case-insensitively, by partial substring, against Hotel Name and address, reusing the endpoint's existing cursor pagination and `APPROVED_ACTIVE`-only eligibility filter. Fixes a real reported gap: a Hotel beyond the endpoint's first page was unreachable by Customer search though correctly visible under Near You. No WBS task reopened — additive behavior on an already-`Done` endpoint. Customer Mobile's Discover screen search bar updated to call it instead of filtering a locally-loaded page. |
 | 1.1 | 2026-08-10 | Ahmed | Status changed `Draft` → `Approved`. All three governing documents for Hotel Management (Business Specification v1.1, Technical Design v1.3, this Implementation Plan) are now `Approved` — the feature moves to `Ready for Development` (`Team-Management.md` §7) and Round Robin assignment applies. Pending Business Decisions #4, #5, and #7 (§11) remain open task-level blockers for their specific sub-scopes — approval of this plan does not resolve them. |
 | 1.0 | 2026-08-10 | Ahmed | Initial draft Implementation Plan for Hotel Management, authored against the `Approved` Business Specification (v1.1) and Technical Design (v1.3). 14 WBS tasks across 4 milestones; three Pending Business Decisions (#4, #5, #7) identified as partial blockers on specific task sub-scopes, none blocking plan start. Not yet reviewed — see status. |

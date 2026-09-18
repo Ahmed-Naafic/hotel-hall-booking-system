@@ -15,7 +15,7 @@ export const listCustomer = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Bookings retrieved successfully.', data: result.bookings.map(toBooking), pagination: { limit, hasNext: result.hasNext, nextCursor: result.nextCursor } })
 })
 export const reportPayment = asyncHandler(async (req, res) => respond(res, 'Payment reported successfully.', await service.reportPayment({ bookingId: req.params.bookingId, customerUserId: req.identity.userId, amountCents: req.body.amountCents })))
-export const cancelCustomer = asyncHandler(async (req, res) => respond(res, 'Booking cancelled successfully.', await service.cancelCustomer({ bookingId: req.params.bookingId, customerUserId: req.identity.userId })))
+export const cancelCustomer = asyncHandler(async (req, res) => respond(res, 'Booking cancelled successfully.', await service.cancelCustomer({ bookingId: req.params.bookingId, customerUserId: req.identity.userId, reason: req.body?.reason })))
 
 async function ownHotel(req) { await hallService.assertOwnHotel(req.params.hotelId, req.identity.userId) }
 export const getHotel = asyncHandler(async (req, res) => { await ownHotel(req); respond(res, 'Booking retrieved successfully.', await service.getHotel({ bookingId: req.params.bookingId, hotelId: req.params.hotelId })) })
@@ -24,6 +24,10 @@ export const listHotel = asyncHandler(async (req, res) => {
   const limit = limitOf(req)
   const result = await service.listHotel({ hotelId: req.params.hotelId, status: req.query.status, cursor: req.query.cursor, limit })
   sendSuccess(res, { message: 'Bookings retrieved successfully.', data: result.bookings.map(toBooking), pagination: { limit, hasNext: result.hasNext, nextCursor: result.nextCursor } })
+})
+export const summary = asyncHandler(async (req, res) => {
+  await ownHotel(req)
+  sendSuccess(res, { message: 'Booking summary retrieved successfully.', data: await service.getHotelSummary({ hotelId: req.params.hotelId }) })
 })
 export const verifyPayment = asyncHandler(async (req, res) => { await ownHotel(req); respond(res, 'Payment report reviewed successfully.', await service.verifyPayment({ bookingId: req.params.bookingId, hotelId: req.params.hotelId, actorUserId: req.identity.userId, ...req.body })) })
 

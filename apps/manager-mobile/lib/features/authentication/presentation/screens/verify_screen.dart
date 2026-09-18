@@ -24,7 +24,7 @@ class VerifyScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(HHSpacing.space7),
@@ -36,7 +36,7 @@ class VerifyScreen extends StatelessWidget {
               const SizedBox(height: HHSpacing.space3),
               Text(
                 'We sent a 6-digit code to ${auth.currentUser?.mobileNumber ?? 'your mobile number'}.',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textMuted),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: HHSpacing.space10),

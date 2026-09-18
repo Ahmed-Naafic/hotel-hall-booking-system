@@ -72,8 +72,8 @@ export function listHotels({ status, page = 1, limit = 20 }) {
   ])
 }
 
-export async function listPublicHotels({ cursor, limit = 20 }) {
-  const results = await hotelRepository.listPublic({ cursor, take: limit + 1 })
+export async function listPublicHotels({ cursor, limit = 20, search }) {
+  const results = await hotelRepository.listPublic({ cursor, take: limit + 1, search })
   const hasNext = results.length > limit
   const hotels = hasNext ? results.slice(0, limit) : results
   return { hotels, hasNext, nextCursor: hasNext ? hotels[hotels.length - 1].id : null }

@@ -25,6 +25,7 @@ class HotelContextController extends ChangeNotifier {
   HotelContextStatus status = HotelContextStatus.unknown;
   Hotel? hotel;
   HotelApplication? latestApplication;
+  ReviewSummary? reviewSummary;
   String? errorMessage;
 
   Future<void> load() async {
@@ -35,6 +36,7 @@ class HotelContextController extends ChangeNotifier {
       final snapshot = await repository.getMyHotel();
       hotel = snapshot.hotel;
       latestApplication = snapshot.latestApplication;
+      reviewSummary = snapshot.reviewSummary;
       if (hotel == null) {
         await storage.delete(_hotelIdKey);
         status = HotelContextStatus.none;
@@ -83,6 +85,7 @@ class HotelContextController extends ChangeNotifier {
     await storage.delete(_hotelIdKey);
     hotel = null;
     latestApplication = null;
+    reviewSummary = null;
     status = HotelContextStatus.unknown;
   }
 
@@ -116,6 +119,7 @@ class HotelContextController extends ChangeNotifier {
       final snapshot = await repository.getMyHotel();
       hotel = snapshot.hotel;
       latestApplication = snapshot.latestApplication;
+      reviewSummary = snapshot.reviewSummary;
       isSubmittingApplication = false;
       notifyListeners();
       return true;

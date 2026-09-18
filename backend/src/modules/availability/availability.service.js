@@ -174,7 +174,10 @@ export async function createBlock({ hallId, date, startTime, endTime, reason, cr
       await lockHallSchedule(hallId, client)
       await assertPeriodIsFree({ hallId, startsAt, endsAt, client })
       return availabilityRepository.create({ hallId, startsAt, endsAt, reason, createdByUserId }, client)
-    })
+    // Same widened timeout as `authentication.service.js#register`, same
+    // reason (Neon serverless Postgres latency) — this transaction also
+    // does a schedule lock plus an overlap check before its write.
+    }, { maxWait: 10000, timeout: 10000 })
   } catch (error) {
     if (isExclusionViolation(error)) {
       throw new ConflictError('This period conflicts with an existing availability block.')
@@ -217,7 +220,9 @@ export async function updateBlock({ hallId, blockId, date, startTime, endTime, r
       await lockHallSchedule(hallId, client)
       await assertPeriodIsFree({ hallId, startsAt, endsAt, excludeBlockId: blockId, client })
       return availabilityRepository.update(blockId, { startsAt, endsAt, reason: reason ?? existing.reason }, client)
-    })
+    // Same widened timeout as `authentication.service.js#register` — see
+    // `createBlock` above for why.
+    }, { maxWait: 10000, timeout: 10000 })
   } catch (error) {
     if (isExclusionViolation(error)) {
       throw new ConflictError('This period conflicts with an existing availability block.')

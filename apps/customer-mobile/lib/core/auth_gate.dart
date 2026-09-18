@@ -86,7 +86,7 @@ class _AuthGateState extends State<AuthGate> {
     switch (auth.status) {
       case AuthStatus.unknown:
         return Scaffold(
-          backgroundColor: HHColors.surfacePage,
+          backgroundColor: context.hh.surfacePage,
           body: const Center(child: CircularProgressIndicator()),
         );
       case AuthStatus.unauthenticated:

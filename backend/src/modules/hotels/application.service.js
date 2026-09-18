@@ -48,7 +48,10 @@ export async function submitOrResubmitApplication(hotel) {
       const created = await applicationRepository.create(hotel.id, client)
       await lifecycleService.transition(hotel, 'UNDER_REVIEW', { client })
       return created
-    })
+    // Same widened timeout as `authentication.service.js#register`, same
+    // reason (Neon serverless Postgres latency) — this transaction is a
+    // read plus two writes, not a single query.
+    }, { maxWait: 10000, timeout: 10000 })
   } catch (error) {
     if (error?.code === 'P2002') {
       throw new ConflictError('This Hotel already has an application under review.')
@@ -79,7 +82,9 @@ export async function withdrawApplication(hotel, applicationId) {
     const updated = await applicationRepository.withdraw(application.id, client)
     await lifecycleService.transition(hotel, 'WITHDRAWN', { client })
     return updated
-  })
+  // Same widened timeout as `authentication.service.js#register` — see
+  // `submitOrResubmitApplication` above for why.
+  }, { maxWait: 10000, timeout: 10000 })
   recordAuditEvent('APPLICATION_WITHDRAWN', {
     hotelId: hotel.id,
     actorUserId: hotel.registeredByUserId,
@@ -112,12 +117,17 @@ export async function recordDecision(hotel, applicationId, decision, decidedByUs
     )
     await lifecycleService.transition(hotel, nextHotelStatus, { client })
     return updated
-  })
+  // Same widened timeout as `authentication.service.js#register` — see
+  // `submitOrResubmitApplication` above for why.
+  }, { maxWait: 10000, timeout: 10000 })
   recordAuditEvent(decision === 'APPROVED' ? 'APPLICATION_APPROVED' : 'APPLICATION_REJECTED', {
     hotelId: hotel.id,
     actorUserId: decidedByUserId,
     details: { applicationId: decided.id },
   })
+  await (decision === 'APPROVED'
+    ? notificationEvents.onHotelApplicationApproved(decided, hotel)
+    : notificationEvents.onHotelApplicationRejected(decided, hotel))
   return decided
 }
 

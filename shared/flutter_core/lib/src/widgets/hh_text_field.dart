@@ -40,7 +40,7 @@ class HHTextField extends StatelessWidget {
       autofillHints: autofillHints,
       enabled: enabled,
       maxLines: maxLines,
-      style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textBody),
+      style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textBody),
       decoration: InputDecoration(labelText: label),
     );
   }

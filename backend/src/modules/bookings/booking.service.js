@@ -26,15 +26,36 @@ function notifyExpired(expiredBookings) {
   return Promise.all(expiredBookings.map((booking) => notificationEvents.onBookingExpired(booking)))
 }
 
-async function expireAndFindCustomer(id, userId) {
-  await notifyExpired(await repository.expireOverdue({ customerUserId: userId }))
+/**
+ * How long after a Booking ends the Hotel Manager keeps the choice between
+ * Complete and No-show. Past it, the Booking completes on its own: a finished
+ * event is the ordinary outcome, and leaving it CONFIRMED forever — which is
+ * what happened before this existed — also permanently withholds the
+ * Customer's review, since only a COMPLETED Booking can be reviewed.
+ * Marking a No-show remains entirely the Manager's call inside this window.
+ */
+const COMPLETION_GRACE_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Brings one scope's Bookings up to date with the clock before it is read or
+ * acted on — overdue unpaid ones expire, ended ones complete. Both sweeps are
+ * scoped to the caller's own Bookings (one Customer, or one Hotel), never the
+ * whole table.
+ */
+async function advanceLifecycle(scope) {
+  await notifyExpired(await repository.expireOverdue(scope))
+  await repository.completeEnded(scope, new Date(), COMPLETION_GRACE_MS)
+}
+
+async function advanceAndFindCustomer(id, userId) {
+  await advanceLifecycle({ customerUserId: userId })
   const booking = await repository.findForCustomer(id, userId)
   if (!booking) throw new NotFoundError('Booking not found.')
   return booking
 }
 
-async function expireAndFindHotel(id, hotelId) {
-  await notifyExpired(await repository.expireOverdue({ hotelId }))
+async function advanceAndFindHotel(id, hotelId) {
+  await advanceLifecycle({ hotelId })
   const booking = await repository.findForHotel(id, hotelId)
   if (!booking) throw new NotFoundError('Booking not found.')
   return booking
@@ -51,6 +72,10 @@ export async function createBooking({ customerUserId, hallId, startsAt, endsAt, 
   if (!hall) throw new NotFoundError('Hall not found.')
   const eligibility = await hotelEligibility.getEligibility(hall.hotelId)
   if (!eligibility.eligible) throw new NotFoundError('Hall not found.')
+  // Same "don't leak existence" shape as the eligibility check above — a
+  // Manager-deactivated Hall isn't visible to a Customer at all, so it
+  // can't be distinguished from a nonexistent one.
+  if (!hall.isActive) throw new NotFoundError('Hall not found.')
   if (numberOfGuests > Number(hall.profileData?.capacity ?? 0)) throw new BusinessRuleError('The number of guests exceeds the Hall capacity.')
   if (!hall.rentAmountCents || hall.advancePaymentPercent === null) {
     throw new BusinessRuleError('This Hall does not have complete booking terms.')
@@ -70,7 +95,11 @@ export async function createBooking({ customerUserId, hallId, startsAt, endsAt, 
         advancePercentSnapshot: ADVANCE_PERCENT,
         requiredAdvanceCents: pricing.requiredAdvanceCents,
       }, client)
-    })
+    // Same widened timeout as `authentication.service.js#register`, same
+    // reason: this project's Postgres (Neon, serverless) can be slower than
+    // Prisma's 2s/5s defaults assume, and this transaction does a schedule
+    // lock plus an overlap check before its write, not just a single query.
+    }, { maxWait: 10000, timeout: 10000 })
   } catch (error) {
     const pgCode = error?.meta?.driverAdapterError?.cause?.code
     if (error?.code === 'P2039' || pgCode === '23P01') throw new ConflictError('This period conflicts with an existing booking.')
@@ -82,12 +111,12 @@ export async function createBooking({ customerUserId, hallId, startsAt, endsAt, 
 }
 
 export async function listCustomer({ customerUserId, cursor, limit }) {
-  await notifyExpired(await repository.expireOverdue({ customerUserId }))
+  await advanceLifecycle({ customerUserId })
   return paged(await repository.listForCustomer({ customerUserId, cursor, take: limit + 1 }), limit)
 }
 
 export async function listHotel({ hotelId, status, cursor, limit }) {
-  await notifyExpired(await repository.expireOverdue({ hotelId }))
+  await advanceLifecycle({ hotelId })
   return paged(await repository.listForHotel({ hotelId, status, cursor, take: limit + 1 }), limit)
 }
 
@@ -97,11 +126,17 @@ function paged(rows, limit) {
   return { bookings: data, hasNext, nextCursor: hasNext ? data.at(-1).id : null }
 }
 
-export const getCustomer = ({ bookingId, customerUserId }) => expireAndFindCustomer(bookingId, customerUserId)
-export const getHotel = ({ bookingId, hotelId }) => expireAndFindHotel(bookingId, hotelId)
+/** Manager Dashboard Overview (totalBookings, totalRevenueCents, pendingCount) — advances the Hotel's Bookings against the clock first, same as every other hotel-facing read in this module, so the counts are never stale. */
+export async function getHotelSummary({ hotelId }) {
+  await advanceLifecycle({ hotelId })
+  return repository.getSummary({ hotelId })
+}
+
+export const getCustomer = ({ bookingId, customerUserId }) => advanceAndFindCustomer(bookingId, customerUserId)
+export const getHotel = ({ bookingId, hotelId }) => advanceAndFindHotel(bookingId, hotelId)
 
 export async function reportPayment({ bookingId, customerUserId, amountCents }) {
-  const booking = await expireAndFindCustomer(bookingId, customerUserId)
+  const booking = await advanceAndFindCustomer(bookingId, customerUserId)
   assertTransition(booking, ['PENDING'], 'Payment cannot be reported for this booking.')
   if (!['UNPAID', 'REJECTED'].includes(booking.paymentStatus)) throw new ConflictError('A payment report is already active.')
   const updated = await repository.update(booking.id, { paymentStatus: 'CUSTOMER_REPORTED', reportedAmountCents: amountCents, paymentReportedAt: new Date(), paymentRejectionReason: null })
@@ -111,7 +146,7 @@ export async function reportPayment({ bookingId, customerUserId, amountCents }) 
 }
 
 export async function verifyPayment({ bookingId, hotelId, actorUserId, decision, reason }) {
-  const booking = await expireAndFindHotel(bookingId, hotelId)
+  const booking = await advanceAndFindHotel(bookingId, hotelId)
   assertTransition(booking, ['PENDING'], 'Payment cannot be reviewed for this booking.')
   if (booking.paymentStatus !== 'CUSTOMER_REPORTED') throw new ConflictError('There is no active payment report to review.')
   // A reported amount below the required advance is surfaced to the Hotel
@@ -148,7 +183,7 @@ async function assertConfirmable(booking) {
 }
 
 export async function transitionHotel({ bookingId, hotelId, actorUserId, action }) {
-  const booking = await expireAndFindHotel(bookingId, hotelId)
+  const booking = await advanceAndFindHotel(bookingId, hotelId)
   const now = new Date()
   if (action === 'CONFIRMED') {
     assertTransition(booking, ['PENDING'], 'Booking cannot be confirmed.')
@@ -184,10 +219,22 @@ export async function transitionHotel({ bookingId, hotelId, actorUserId, action 
   return updated
 }
 
-export async function cancelCustomer({ bookingId, customerUserId }) {
-  const booking = await expireAndFindCustomer(bookingId, customerUserId)
+export async function cancelCustomer({ bookingId, customerUserId, reason }) {
+  const booking = await advanceAndFindCustomer(bookingId, customerUserId)
   assertTransition(booking, ['PENDING', 'CONFIRMED'], 'Booking cannot be cancelled.')
-  const updated = await repository.update(booking.id, { status: 'CANCELLED', cancelledAt: new Date(), cancelledByUserId: customerUserId })
+  // BDR-024 — only a Confirmed Booking requires a reason (the Hotel already
+  // committed the Hall); a still-Pending one never has, and a Hotel
+  // Manager's own cancellation (`transitionHotel`/`cancelHotel`) is
+  // untouched by this rule.
+  if (booking.status === 'CONFIRMED' && (!reason || !reason.trim())) {
+    throw new BusinessRuleError('A reason is required to cancel a Confirmed booking.')
+  }
+  const updated = await repository.update(booking.id, {
+    status: 'CANCELLED',
+    cancelledAt: new Date(),
+    cancelledByUserId: customerUserId,
+    cancellationReason: reason?.trim() || null,
+  })
   recordBookingAudit('BOOKING_CANCELLED', { bookingId, actorUserId: customerUserId })
   await notificationEvents.onBookingCancelledByCustomer(updated)
   return updated

@@ -70,6 +70,25 @@ export function expireOverdue(where, now = new Date(), client) {
   })
 }
 
+/**
+ * Completes Bookings whose event ended longer ago than the No-show grace
+ * window — the counterpart to `expireOverdue` above, for the other end of the
+ * lifecycle. Without it a CONFIRMED Booking never finishes on its own: it
+ * waits indefinitely on a Manager remembering to tap Complete, and the
+ * Customer's review (which requires COMPLETED) stays out of reach.
+ *
+ * `updateMany`, not `updateManyAndReturn` — unlike expiry, COMPLETED has no
+ * Notification Catalog entry (booking.service.js#transitionHotel), so nothing
+ * needs the affected rows back. The `status: 'CONFIRMED'` guard makes this
+ * idempotent: a row can only be matched by whichever sweep reaches it first.
+ */
+export function completeEnded(where, now, graceMs, client) {
+  return db(client).booking.updateMany({
+    where: { ...where, status: 'CONFIRMED', endsAt: { lte: new Date(now.getTime() - graceMs) } },
+    data: { status: 'COMPLETED', completedAt: now },
+  })
+}
+
 export function listForCustomer({ customerUserId, cursor, take }) {
   return prisma.booking.findMany({
     where: { customerUserId }, include: includeDetails, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take,
@@ -83,4 +102,20 @@ export function listForHotel({ hotelId, status, cursor, take }) {
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
   })
+}
+
+/**
+ * Manager Dashboard Overview — three database-side aggregates, never every
+ * Booking loaded into memory just to count/sum it. Revenue counts only
+ * `CONFIRMED`/`COMPLETED` Bookings (an actual, materialized rent charge) —
+ * never `PENDING` (not yet earned) or a terminal non-charge status
+ * (`REJECTED`/`CANCELLED`/`NO_SHOW`/`EXPIRED`).
+ */
+export async function getSummary({ hotelId }) {
+  const [totalBookings, revenue, pendingCount] = await Promise.all([
+    prisma.booking.count({ where: { hotelId } }),
+    prisma.booking.aggregate({ where: { hotelId, status: { in: ['CONFIRMED', 'COMPLETED'] } }, _sum: { totalRentCents: true } }),
+    prisma.booking.count({ where: { hotelId, status: 'PENDING' } }),
+  ])
+  return { totalBookings, totalRevenueCents: revenue._sum.totalRentCents ?? 0, pendingCount }
 }

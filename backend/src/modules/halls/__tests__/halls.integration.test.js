@@ -88,10 +88,18 @@ async function prismaOpenApplicationId(hotelId) {
   return application.id
 }
 
+// Every Hotel this file creates, so `after` can remove it and its Halls
+// again. Halls left behind by a previous run stay visible to the
+// platform-wide browse and to Large Halls' unpaginated ranking, so without
+// this the shared database grows on every run and slowly breaks whichever
+// suite asserts inside a bounded window.
+const createdHotelIds = []
+
 /** Registers, completes, submits, and approves a Hotel — reaching APPROVED_ACTIVE. */
 async function createApprovedHotel(accessToken) {
   const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
   const hotelId = created.data.id
+  createdHotelIds.push(hotelId)
   await patch(`/api/v1/hotels/${hotelId}`, completeHotelProfile(), authHeader(accessToken))
   await post(`/api/v1/hotels/${hotelId}/applications`, undefined, authHeader(accessToken))
   const hotel = await hotelService.getHotelById(hotelId)
@@ -103,7 +111,7 @@ function completeHotelProfile() {
   return {
     name: 'Grand Test Hotel',
     description: 'A comfortable city hotel with flexible halls.',
-    location: 'Downtown',
+    location: { address: 'Downtown', latitude: 2.0469, longitude: 45.3182 },
     contactPhone: '+15550001111',
   }
 }
@@ -111,6 +119,7 @@ function completeHotelProfile() {
 /** Registers a Hotel that never reaches Approved/Active — remains REGISTERED. */
 async function createUnapprovedHotel(accessToken) {
   const { body: created } = await post('/api/v1/hotels', {}, authHeader(accessToken))
+  createdHotelIds.push(created.data.id)
   return created.data.id
 }
 
@@ -127,6 +136,17 @@ before(async () => {
 
 after(async () => {
   await new Promise((resolve) => server.close(resolve))
+
+  // Halls first: `Hall.hotel` is a required relation with no cascade, so a
+  // Hotel with Halls cannot be deleted. Everything else these tests hang
+  // off a Hotel (applications, media) cascades with it. Scoped strictly to
+  // ids this run recorded — never a blanket delete, since this database is
+  // shared with manual testing.
+  if (createdHotelIds.length > 0) {
+    await prisma.hall.deleteMany({ where: { hotelId: { in: createdHotelIds } } })
+    await prisma.hotel.deleteMany({ where: { id: { in: createdHotelIds } } })
+  }
+
   await prisma.$disconnect()
 })
 
@@ -562,5 +582,92 @@ describe('GET /api/v1/hotels/:hotelId/halls (WBS-05, Technical Design §11)', ()
     assert.ok('total' in res.body.pagination)
     assert.ok('totalPages' in res.body.pagination)
     assert.ok(!('nextCursor' in res.body.pagination), 'must not use cursor pagination fields')
+  })
+})
+
+describe('Hall Active/Inactive toggle (Manager\'s own on/off switch)', () => {
+  test('a newly created Hall is Active by default', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createUnapprovedHotel(accessToken)
+    const { body } = await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Test Hall', capacity: 50 } }, authHeader(accessToken))
+    assert.equal(body.data.isActive, true)
+  })
+
+  test('the owning Manager can deactivate and re-activate a Hall via PATCH', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createUnapprovedHotel(accessToken)
+    const { body: created } = await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Test Hall', capacity: 50 } }, authHeader(accessToken))
+
+    const deactivated = await patch(`/api/v1/hotels/${hotelId}/halls/${created.data.id}`, { isActive: false }, authHeader(accessToken))
+    assert.equal(deactivated.status, 200)
+    assert.equal(deactivated.body.data.isActive, false)
+
+    const reactivated = await patch(`/api/v1/hotels/${hotelId}/halls/${created.data.id}`, { isActive: true }, authHeader(accessToken))
+    assert.equal(reactivated.body.data.isActive, true)
+  })
+
+  test('rejects a non-boolean isActive (400)', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createUnapprovedHotel(accessToken)
+    const { body: created } = await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Test Hall', capacity: 50 } }, authHeader(accessToken))
+
+    const res = await patch(`/api/v1/hotels/${hotelId}/halls/${created.data.id}`, { isActive: 'yes' }, authHeader(accessToken))
+    assert.equal(res.status, 400)
+  })
+
+  test('an inactive Hall is hidden from a non-owner — both the single-Hall GET and the Hotel\'s own Hall list (visibility.service.js)', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createApprovedHotel(accessToken)
+    const { body: created } = await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Test Hall', capacity: 50 } }, authHeader(accessToken))
+    await patch(`/api/v1/hotels/${hotelId}/halls/${created.data.id}`, { isActive: false }, authHeader(accessToken))
+
+    const single = await get(`/api/v1/hotels/${hotelId}/halls/${created.data.id}`)
+    assert.equal(single.status, 404)
+
+    const list = await get(`/api/v1/hotels/${hotelId}/halls`)
+    assert.deepEqual(list.body.data, [])
+
+    const browse = await get(`/api/v1/halls?hotelId=${hotelId}`)
+    assert.deepEqual(browse.body.data, [])
+  })
+
+  test('the owning Manager still sees an inactive Hall, and can narrow their own list by status', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createUnapprovedHotel(accessToken)
+    const { body: active } = await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Active Hall', capacity: 50 } }, authHeader(accessToken))
+    const { body: inactive } = await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Inactive Hall', capacity: 50 } }, authHeader(accessToken))
+    await patch(`/api/v1/hotels/${hotelId}/halls/${inactive.data.id}`, { isActive: false }, authHeader(accessToken))
+
+    const single = await get(`/api/v1/hotels/${hotelId}/halls/${inactive.data.id}`, authHeader(accessToken))
+    assert.equal(single.status, 200)
+
+    const all = await get(`/api/v1/hotels/${hotelId}/halls`, authHeader(accessToken))
+    assert.equal(all.body.pagination.total, 2)
+
+    const activeOnly = await get(`/api/v1/hotels/${hotelId}/halls?status=active`, authHeader(accessToken))
+    assert.equal(activeOnly.body.pagination.total, 1)
+    assert.equal(activeOnly.body.data[0].id, active.data.id)
+
+    const inactiveOnly = await get(`/api/v1/hotels/${hotelId}/halls?status=inactive`, authHeader(accessToken))
+    assert.equal(inactiveOnly.body.pagination.total, 1)
+    assert.equal(inactiveOnly.body.data[0].id, inactive.data.id)
+  })
+
+  test('rejects an invalid status filter (400)', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createUnapprovedHotel(accessToken)
+    const res = await get(`/api/v1/hotels/${hotelId}/halls?status=sideways`, authHeader(accessToken))
+    assert.equal(res.status, 400)
+  })
+
+  test('search matches Hall name, case-insensitively, the same convention Hotel search already uses', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createUnapprovedHotel(accessToken)
+    await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Grand Ballroom', capacity: 50 } }, authHeader(accessToken))
+    await post(`/api/v1/hotels/${hotelId}/halls`, { profileData: { name: 'Garden Room', capacity: 50 } }, authHeader(accessToken))
+
+    const res = await get(`/api/v1/hotels/${hotelId}/halls?search=ballroom`, authHeader(accessToken))
+    assert.equal(res.body.pagination.total, 1)
+    assert.equal(res.body.data[0].profileData.name, 'Grand Ballroom')
   })
 })

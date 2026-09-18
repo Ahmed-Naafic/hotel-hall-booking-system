@@ -38,7 +38,7 @@ class HHEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: iconColor ?? HHColors.navy300, size: 40),
+            Icon(icon, color: iconColor ?? context.hh.textSubtle, size: 40),
             const SizedBox(height: HHSpacing.space5),
             if (title != null) ...[
               Text(title!, style: HHTypography.displaySm, textAlign: TextAlign.center),
@@ -47,7 +47,7 @@ class HHEmptyState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: HHColors.textMuted, fontSize: HHTypeScale.textMd),
+              style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textMd),
             ),
             if (actionLabel != null) ...[
               const SizedBox(height: HHSpacing.space6),

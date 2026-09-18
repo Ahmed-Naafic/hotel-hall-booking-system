@@ -92,14 +92,18 @@ void main() {
 
   group('HallListController.loadMore', () {
     test('appends the next page and updates hasNext', () async {
-      var callCount = 0;
+      // Branches on the actual query, not call order: `load()` now also
+      // fires its own (fire-and-forget) `limit: 1` chip-count requests
+      // alongside the real page fetch, so a naive "2nd call = page 2"
+      // assumption would race against them.
       final controller = _controller(handler: (r) async {
-        callCount += 1;
-        if (callCount == 1) {
-          return _pageResponse([_hall(id: 'hall-1')], page: 1, total: 2, hasNext: true, hasPrevious: false);
+        if (r.url.queryParameters['limit'] == '1') {
+          return _pageResponse([], page: 1, total: 0, hasNext: false, hasPrevious: false, limit: 1);
         }
-        expect(r.url.queryParameters['page'], '2');
-        return _pageResponse([_hall(id: 'hall-2')], page: 2, total: 2, hasNext: false, hasPrevious: true);
+        if (r.url.queryParameters['page'] == '2') {
+          return _pageResponse([_hall(id: 'hall-2')], page: 2, total: 2, hasNext: false, hasPrevious: true);
+        }
+        return _pageResponse([_hall(id: 'hall-1')], page: 1, total: 2, hasNext: true, hasPrevious: false);
       });
 
       await controller.load();
@@ -109,6 +113,75 @@ void main() {
 
       expect(controller.halls, hasLength(2));
       expect(controller.hasNext, false);
+    });
+  });
+
+  group('HallListController — search and status filter', () {
+    test('setSearch is debounced — no request until it settles, then sends `search`', () async {
+      final requests = <Uri>[];
+      final controller = _controller(handler: (r) async {
+        requests.add(r.url);
+        return _pageResponse([], page: 1, total: 0, hasNext: false, hasPrevious: false);
+      });
+
+      controller.setSearch('b');
+      controller.setSearch('ba');
+      controller.setSearch('ball');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(requests, isEmpty, reason: 'still within the debounce window');
+
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(requests.any((u) => u.queryParameters['search'] == 'ball'), true);
+    });
+
+    test('setStatusFilter reloads immediately (never debounced) with `status`', () async {
+      final requests = <Uri>[];
+      final controller = _controller(handler: (r) async {
+        requests.add(r.url);
+        return _pageResponse([], page: 1, total: 0, hasNext: false, hasPrevious: false);
+      });
+
+      controller.setStatusFilter('active');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(requests.any((u) => u.queryParameters['status'] == 'active'), true);
+    });
+
+    test('loadCounts derives inactiveCount from allCount - activeCount, from two limit:1 calls', () async {
+      final controller = _controller(handler: (r) async {
+        if (r.url.queryParameters['status'] == 'active') {
+          return _pageResponse([], page: 1, total: 6, hasNext: false, hasPrevious: false, limit: 1);
+        }
+        return _pageResponse([], page: 1, total: 8, hasNext: false, hasPrevious: false, limit: 1);
+      });
+
+      await controller.loadCounts();
+
+      expect(controller.allCount, 8);
+      expect(controller.activeCount, 6);
+      expect(controller.inactiveCount, 2);
+    });
+  });
+
+  group('HallListController.setHallActive', () {
+    test('PATCHes isActive then reloads the list', () async {
+      var patchedActive = <String, dynamic>{};
+      final controller = _controller(handler: (r) async {
+        if (r.method == 'PATCH') {
+          patchedActive = jsonDecode(r.body) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({'status': 'success', 'message': 'ok', 'data': _hall()}),
+            200,
+          );
+        }
+        return _pageResponse([_hall()], page: 1, total: 1, hasNext: false, hasPrevious: false);
+      });
+      await controller.load();
+
+      await controller.setHallActive(controller.halls.first, false);
+
+      expect(patchedActive, {'isActive': false});
+      expect(controller.status, HallListStatus.ready);
     });
   });
 }

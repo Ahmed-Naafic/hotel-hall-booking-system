@@ -17,7 +17,7 @@ class LoginScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(HHSpacing.space7),
@@ -33,14 +33,14 @@ class LoginScreen extends StatelessWidget {
                   fontSize: HHTypeScale.eyebrowSize,
                   letterSpacing: HHTypeScale.eyebrowTracking * HHTypeScale.eyebrowSize,
                   fontWeight: HHTypeScale.eyebrowWeight,
-                  color: HHColors.textGold,
+                  color: context.hh.textGold,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: HHSpacing.space4),
               Text(
                 'Log in to manage your Hotel',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: HHColors.textMuted),
+                style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textMuted),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: HHSpacing.space10),

@@ -121,7 +121,7 @@ class _HallAvailabilityView extends StatelessWidget {
     final controller = context.watch<AvailabilityController>();
 
     return Scaffold(
-      backgroundColor: HHColors.surfacePage,
+      backgroundColor: context.hh.surfacePage,
       appBar: AppBar(title: const Text('Availability')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreate(context),
@@ -148,7 +148,7 @@ class _HallAvailabilityView extends StatelessWidget {
         return HHEmptyState(
           icon: Icons.error_outline,
           message: controller.errorMessage ?? 'Something went wrong.',
-          iconColor: HHColors.danger700,
+          iconColor: context.hh.danger700,
           actionLabel: 'Retry',
           onAction: controller.load,
         );
@@ -195,10 +195,10 @@ class _DateSelector extends StatelessWidget {
         onTap: onTap,
         child: Row(
           children: [
-            Icon(Icons.event_outlined, color: HHColors.actionPrimary),
+            Icon(Icons.event_outlined, color: context.hh.actionPrimary),
             const SizedBox(width: HHSpacing.space3),
             Expanded(child: Text(label, style: TextStyle(fontWeight: HHTypeScale.weightSemibold, fontSize: HHTypeScale.textMd))),
-            Icon(Icons.expand_more, color: HHColors.textSubtle),
+            Icon(Icons.expand_more, color: context.hh.textSubtle),
           ],
         ),
       ),

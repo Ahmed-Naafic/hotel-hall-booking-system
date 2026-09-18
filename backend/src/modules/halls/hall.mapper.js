@@ -12,6 +12,7 @@ export function toPublicHall(hall) {
     id: hall.id,
     hotelId: hall.hotelId,
     profileData: hall.profileData,
+    isActive: hall.isActive,
     bookingTerms: {
       currency: 'USD',
       rentAmountCents: hall.rentAmountCents,

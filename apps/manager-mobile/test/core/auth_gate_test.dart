@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:manager_mobile/core/auth_gate.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/home_screen.dart';
+import 'package:manager_mobile/features/chat/application/chat_badge_controller.dart';
+import 'package:manager_mobile/features/chat/data/chat_repository.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/login_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/verify_screen.dart';
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
@@ -38,6 +40,9 @@ Widget _wrap(AuthController controller) {
       ),
       ChangeNotifierProvider(
         create: (_) => NotificationController(NotificationRepository(hotelClient)),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => ChatBadgeController(ChatRepository(hotelClient)),
       ),
     ],
     child: const MaterialApp(home: AuthGate()),

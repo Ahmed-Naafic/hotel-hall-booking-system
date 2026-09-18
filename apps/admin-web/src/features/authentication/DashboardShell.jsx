@@ -48,6 +48,7 @@ export function DashboardShell({ onPasswordChanged, onLogout }) {
           logout()
           onLogout?.()
         }}
+        onSelectHotel={isPlatformAdministrator ? openHotel : undefined}
       />
 
       <main style={{ padding: 'var(--space-6)', maxWidth: 1200, margin: '0 auto' }}>

@@ -8,6 +8,8 @@ import 'core/pending_action_controller.dart';
 import 'features/discovery/application/discovery_controller.dart';
 import 'features/discovery/application/popular_hotels_controller.dart';
 import 'features/discovery/data/discovery_repository.dart';
+import 'features/chat/application/chat_badge_controller.dart';
+import 'features/chat/data/chat_repository.dart';
 import 'features/favorites/application/favorites_controller.dart';
 import 'features/favorites/data/favorites_repository.dart';
 import 'features/notifications/application/notification_controller.dart';
@@ -25,6 +27,9 @@ class CustomerMobileApp extends StatelessWidget {
     late AuthController authController;
     return MultiProvider(
       providers: [
+        // App-wide: the chosen theme applies to every screen, including
+        // the ones shown before sign-in.
+        ChangeNotifierProvider(create: (_) => ThemeController()..load()),
         Provider<SessionStore>(create: (_) => SessionStore()),
         Provider<ApiClient>(
           create: (context) {
@@ -76,11 +81,24 @@ class CustomerMobileApp extends StatelessWidget {
             NotificationRepository(context.read<ApiClient>()),
           ),
         ),
+        // App-wide, same rationale as NotificationController above — a
+        // second, independent unread badge (Business Rule 8) that must
+        // agree wherever it's shown.
+        ChangeNotifierProvider(
+          create: (context) => ChatBadgeController(
+            ChatRepository(context.read<ApiClient>()),
+          ),
+        ),
       ],
-      child: MaterialApp(
-        title: 'Customer Mobile',
-        theme: buildHotelHallTheme(),
-        home: const AuthGate(),
+      child: Consumer<ThemeController>(
+        builder: (context, themeController, _) => MaterialApp(
+          title: 'Customer Mobile',
+          debugShowCheckedModeBanner: false,
+          theme: buildHotelHallTheme(),
+          darkTheme: buildHotelHallTheme(brightness: Brightness.dark),
+          themeMode: themeController.mode,
+          home: const AuthGate(),
+        ),
       ),
     );
   }

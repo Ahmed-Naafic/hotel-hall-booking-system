@@ -61,6 +61,14 @@ function collectStandardFieldErrors(fields, { requireName, requireCapacity }) {
   return details
 }
 
+function collectDirectFieldErrors(body) {
+  const details = []
+  if (body.isActive !== undefined && typeof body.isActive !== 'boolean') {
+    details.push({ field: 'isActive', message: 'isActive must be a boolean.' })
+  }
+  return details
+}
+
 function collectCommercialErrors(body, required) {
   const details = []
   const positiveInteger = (value) => Number.isInteger(value) && value > 0
@@ -83,6 +91,7 @@ export function validateCreateHall(req, res, next) {
 
   const details = collectStandardFieldErrors(profileData ?? {}, { requireName: true, requireCapacity: true })
   details.push(...collectCommercialErrors(req.body ?? {}, false))
+  details.push(...collectDirectFieldErrors(req.body ?? {}))
   if (details.length > 0) {
     throw new ValidationError('The request could not be processed due to invalid input.', details)
   }
@@ -104,6 +113,7 @@ export function validateUpdateHall(req, res, next) {
   // semantics, Technical Design §7/§8).
   const details = collectStandardFieldErrors(body, { requireName: false, requireCapacity: false })
   details.push(...collectCommercialErrors(body, false))
+  details.push(...collectDirectFieldErrors(body))
   if (details.length > 0) {
     throw new ValidationError('The request could not be processed due to invalid input.', details)
   }
@@ -112,7 +122,7 @@ export function validateUpdateHall(req, res, next) {
 }
 
 export function validateListHallsForHotel(req, res, next) {
-  const { page, limit } = req.query ?? {}
+  const { page, limit, status } = req.query ?? {}
   if (page !== undefined && (!Number.isInteger(Number(page)) || Number(page) < 1)) {
     throw new ValidationError('The request could not be processed due to invalid input.', [
       { field: 'page', message: 'page must be a positive integer.' },
@@ -121,6 +131,11 @@ export function validateListHallsForHotel(req, res, next) {
   if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
     throw new ValidationError('The request could not be processed due to invalid input.', [
       { field: 'limit', message: 'limit must be a positive integer.' },
+    ])
+  }
+  if (status !== undefined && !['active', 'inactive'].includes(status)) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'status', message: 'status must be "active" or "inactive".' },
     ])
   }
   next()

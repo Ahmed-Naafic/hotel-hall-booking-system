@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds get no INTERNET permission by default: Flutter only
+         injects it into the debug and profile manifests, so a release APK
+         without this line cannot reach the backend at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Nearby Hotels (Customer Mobile) — device GPS position, requested only
          when the Customer opens Nearby Hotels, never on app start. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
@@ -8,6 +12,7 @@
          prompt (PushNotificationService.initialize()) is granted. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
+        android:usesCleartextTraffic="true"
         android:label="customer_mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

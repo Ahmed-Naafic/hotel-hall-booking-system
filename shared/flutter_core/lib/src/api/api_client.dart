@@ -185,6 +185,10 @@ class ApiClient {
 
   bool _isAuthenticationEndpoint(String path) =>
       path == '/auth/login' ||
+      // The second step of login. Like the first, it runs before any session
+      // exists, so a 401 from it is the wrong code — never something to
+      // retry by refreshing a token there is none of.
+      path == '/auth/login/verify' ||
       path == '/auth/register' ||
       path == '/auth/refresh';
 

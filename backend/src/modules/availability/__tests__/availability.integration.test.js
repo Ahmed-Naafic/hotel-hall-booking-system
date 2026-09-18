@@ -42,7 +42,10 @@ async function registerAndLogin(accountType = 'HOTEL_MANAGER') {
   // HOTEL_MANAGER account.
   const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : accountType === 'HOTEL_MANAGER' ? 'Test Manager' : undefined
   await request('POST', '/api/v1/auth/register', { body: { mobileNumber, password, accountType, fullName } })
-  const response = await request('POST', '/api/v1/auth/login', { body: { mobileNumber, password } })
+  // Login answers with a texted code instead of a session now; the suite
+  // pins that code in scripts/testEnv.js.
+  await request('POST', '/api/v1/auth/login', { body: { mobileNumber, password } })
+  const response = await request('POST', '/api/v1/auth/login/verify', { body: { mobileNumber, code: '123456' } })
   return response.body.data
 }
 

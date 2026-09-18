@@ -8,7 +8,8 @@ import '../../../hotel/application/hotel_context_controller.dart';
 /// Mobile-number verification for a Hotel Manager account — same mechanism
 /// as Customer Mobile's C3 (BR-AUTH-02 applies identically to every
 /// self-registered account type). Rendered by `AuthGate` whenever the
-/// authenticated user's `isVerified` is `false`.
+/// authenticated user's `isVerified` is `false`, and during sign-in
+/// while the texted login code is outstanding.
 class VerifyScreen extends StatelessWidget {
   const VerifyScreen({super.key});
 
@@ -35,7 +36,7 @@ class VerifyScreen extends StatelessWidget {
               Text('Verify your mobile number', style: HHTypography.displaySm, textAlign: TextAlign.center),
               const SizedBox(height: HHSpacing.space3),
               Text(
-                'We sent a 6-digit code to ${auth.currentUser?.mobileNumber ?? 'your mobile number'}.',
+                'We sent a 6-digit code to ${auth.pendingMobileNumber ?? auth.currentUser?.mobileNumber ?? 'your mobile number'}.',
                 style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textMuted),
                 textAlign: TextAlign.center,
               ),

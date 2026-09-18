@@ -21,11 +21,38 @@ export const register = asyncHandler(async (req, res) => {
 })
 
 export const login = asyncHandler(async (req, res) => {
-  const { accessToken, refreshToken, user } = await authenticationService.login(req.body)
+  const result = await authenticationService.login(req.body)
+
+  // Two shapes, told apart by `verificationRequired` rather than by which
+  // fields happen to be present: an account that owes a code gets no token
+  // here at all, and must come back through `POST /auth/login/verify`.
+  if (result.verificationRequired) {
+    sendSuccess(res, {
+      statusCode: 200,
+      message: 'Verification code sent. Enter it to finish signing in.',
+      data: { verificationRequired: true },
+    })
+    return
+  }
+
   sendSuccess(res, {
     statusCode: 200,
     message: 'Login successful.',
-    data: { accessToken, refreshToken, user: toPublicUser(user) },
+    data: {
+      verificationRequired: false,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: toPublicUser(result.user),
+    },
+  })
+})
+
+export const completeLogin = asyncHandler(async (req, res) => {
+  const { accessToken, refreshToken, user } = await authenticationService.completeLogin(req.body)
+  sendSuccess(res, {
+    statusCode: 200,
+    message: 'Login successful.',
+    data: { verificationRequired: false, accessToken, refreshToken, user: toPublicUser(user) },
   })
 })
 

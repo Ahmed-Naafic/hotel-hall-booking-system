@@ -32,7 +32,7 @@ export class XaliyeSmsProvider {
           'Content-Type': 'application/json',
           ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
         },
-        body: JSON.stringify({ mobile: to, message: body }),
+        body: JSON.stringify({ mobile: toE164(to), message: body }),
         signal: abort,
       })
       const text = await response.text()
@@ -46,7 +46,11 @@ export class XaliyeSmsProvider {
       throw new Error('SMS delivery failed.', { cause: error })
     }
 
-    if (!response.ok) {
+    // The gateway answers 200 with `success: false` for a message it did not
+    // accept (an unreachable number, an exhausted balance), so HTTP status
+    // alone would report those as delivered.
+    const accepted = response.ok && payload?.success !== false
+    if (!accepted) {
       logger.error('[XaliyeSmsProvider] SMS gateway rejected the message', {
         to,
         status: response.status,
@@ -62,6 +66,36 @@ export class XaliyeSmsProvider {
   }
 }
 
+/**
+ * Somalia. Registration accepts a mobile number with or without a country
+ * code (`/^\+?[1-9]\d{6,14}$/`), so accounts exist in both shapes —
+ * `+252619490318` and a bare local `615008800` — and the gateway needs a
+ * dialable number either way.
+ */
+const DEFAULT_COUNTRY_CODE = '252'
+
+/**
+ * Widens whatever shape an account was registered in into the international
+ * form the gateway dials. Normalising here, at the boundary, rather than
+ * rewriting stored numbers: the stored value is what the Customer types to
+ * log in, and changing it would break sign-in for every existing account.
+ *
+ * A number that already carries a country code is left alone, so this never
+ * assumes Somalia for someone who registered from abroad.
+ */
+export function toE164(mobileNumber, countryCode = DEFAULT_COUNTRY_CODE) {
+  const cleaned = String(mobileNumber ?? '').replace(/[\s\-()./]/g, '')
+  if (cleaned === '') return cleaned
+
+  if (cleaned.startsWith('+')) return cleaned
+  // 00 is the other way of writing the international prefix.
+  if (cleaned.startsWith('00')) return `+${cleaned.slice(2)}`
+  if (cleaned.startsWith(countryCode)) return `+${cleaned}`
+  // A single leading 0 is the national trunk prefix, dropped in E.164.
+  if (cleaned.startsWith('0')) return `+${countryCode}${cleaned.slice(1)}`
+  return `+${countryCode}${cleaned}`
+}
+
 function safeJson(text) {
   try {
     return JSON.parse(text)
@@ -73,14 +107,20 @@ function safeJson(text) {
 }
 
 /**
- * The gateway's success payload is not a documented shape, so this takes
- * whichever id-like field is present and otherwise reports none, rather
- * than inventing one. Nothing in this system reads the id back — it exists
- * for tracing a delivery in the provider's own dashboard.
+ * The observed success payload nests the id as
+ * `{ success, data: { Data: { MessageID } } }` — the upstream carrier's
+ * envelope passed through. Flatter spellings are accepted too so a change
+ * in that envelope degrades to "no id" rather than throwing. Nothing in
+ * this system reads the id back; it exists for tracing a delivery in the
+ * provider's own dashboard.
  */
 function messageIdFrom(payload) {
-  if (payload && typeof payload === 'object') {
-    return payload.messageId ?? payload.id ?? payload.message_id ?? null
-  }
-  return null
+  if (!payload || typeof payload !== 'object') return null
+  return (
+    payload.data?.Data?.MessageID ??
+    payload.messageId ??
+    payload.id ??
+    payload.message_id ??
+    null
+  )
 }

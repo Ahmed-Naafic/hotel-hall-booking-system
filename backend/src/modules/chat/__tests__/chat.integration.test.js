@@ -95,7 +95,10 @@ async function registerAndLogin(accountType) {
   const password = 'correct-horse-battery-staple'
   const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : accountType === 'HOTEL_MANAGER' ? 'Test Manager' : undefined
   await post('/api/v1/auth/register', { mobileNumber, password, accountType, fullName })
-  const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
+  // Login answers with a texted code instead of a session now; the suite
+  // pins that code in scripts/testEnv.js.
+  await post('/api/v1/auth/login', { mobileNumber, password })
+  const loginRes = await post('/api/v1/auth/login/verify', { mobileNumber, code: '123456' })
   createdUserIds.push(loginRes.body.data.user.id)
   return loginRes.body.data
 }

@@ -3,6 +3,8 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
+import 'verify_screen.dart';
+
 /// C2 — Customer registration. `accountType` is fixed to `CUSTOMER`
 /// (BR-AUTH-03) — never user-chosen. Delegates to the shared `RegisterForm`
 /// (FE-03).
@@ -42,13 +44,21 @@ class RegisterScreen extends StatelessWidget {
                     accountType: 'CUSTOMER',
                     fullName: fullName,
                   );
-                  // On success the app is authenticated-but-unverified. Pop
-                  // only this route, reporting success: whoever pushed the
-                  // sign-in flow resumes what the Customer was doing and
-                  // takes them through verification from there.
-                  if (ok && context.mounted) {
-                    Navigator.of(context).pop(true);
+                  if (!ok || !context.mounted) return ok;
+                  // Registering no longer signs anyone in either: it ends at
+                  // the same texted code login does, so both flows meet on
+                  // the same screen and only report success once a session
+                  // exists.
+                  if (auth.awaitingLoginCode) {
+                    final verified = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(builder: (_) => const VerifyScreen()),
+                    );
+                    if (verified == true && context.mounted) {
+                      Navigator.of(context).pop(true);
+                    }
+                    return verified == true;
                   }
+                  Navigator.of(context).pop(true);
                   return ok;
                 },
               ),

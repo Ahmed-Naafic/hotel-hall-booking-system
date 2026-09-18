@@ -117,6 +117,17 @@ export function validateConfirmVerification(req, res, next) {
   next()
 }
 
+/**
+ * Second step of login. Carries the mobile number because there is no token
+ * yet to say who is confirming — the first step deliberately issues none.
+ */
+export function validateCompleteLogin(req, res, next) {
+  const { mobileNumber, code } = req.body ?? {}
+  assertMobileNumber(mobileNumber)
+  assertVerificationCode(code)
+  next()
+}
+
 export function validateRequestPasswordReset(req, res, next) {
   const { mobileNumber } = req.body ?? {}
   assertMobileNumber(mobileNumber)

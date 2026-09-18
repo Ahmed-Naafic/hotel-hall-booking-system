@@ -30,7 +30,7 @@ class VerifyScreen extends StatelessWidget {
               ),
               const SizedBox(height: HHSpacing.space3),
               Text(
-                'We sent a 6-digit code to ${auth.currentUser?.mobileNumber ?? 'your mobile number'}.',
+                'We sent a 6-digit code to ${auth.pendingMobileNumber ?? auth.currentUser?.mobileNumber ?? 'your mobile number'}.',
                 style: TextStyle(
                   fontSize: HHTypeScale.textMd,
                   color: context.hh.textMuted,

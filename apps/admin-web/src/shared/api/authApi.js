@@ -4,11 +4,21 @@ import { apiRequest } from './apiClient.js'
  * Authentication module's API client (backend Technical Design §10).
  * Admin Web only ever calls the endpoints A1-A3 need — no registration
  * (Platform Administrator accounts are provisioned internally, Business
- * Specification §3.2), no verification, no password reset.
+ * Specification §3.2), no password reset.
  */
 
+/**
+ * Validates the password. Answers `{ verificationRequired: true }` and no
+ * token — the session is issued by `completeLogin` once the texted code
+ * comes back, so a stolen password alone grants nothing.
+ */
 export function login({ mobileNumber, password }) {
   return apiRequest('/auth/login', { method: 'POST', body: { mobileNumber, password } })
+}
+
+/** Exchanges the texted code for the session. Unauthenticated by necessity. */
+export function completeLogin({ mobileNumber, code }) {
+  return apiRequest('/auth/login/verify', { method: 'POST', body: { mobileNumber, code } })
 }
 
 export function logout(accessToken) {

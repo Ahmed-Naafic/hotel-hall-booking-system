@@ -31,7 +31,12 @@ class AuthRepository {
   }
 
   /// `POST /auth/login` — C4, H7, A1.
-  Future<({String accessToken, String refreshToken, AppUser user})> login({
+  ///
+  /// Returns `null` when the backend answered with a texted code instead of
+  /// a session: a Customer or Hotel Manager owes that code before any token
+  /// exists, and [completeLogin] is what exchanges it. An account that signs
+  /// in without one (a Platform Administrator) gets its session here.
+  Future<({String accessToken, String refreshToken, AppUser user})?> login({
     required String mobileNumber,
     required String password,
   }) async {
@@ -39,12 +44,29 @@ class AuthRepository {
       'mobileNumber': mobileNumber,
       'password': password,
     }) as Map<String, dynamic>;
-    return (
-      accessToken: data['accessToken'] as String,
-      refreshToken: data['refreshToken'] as String,
-      user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
-    );
+    if (data['verificationRequired'] == true) return null;
+    return _session(data);
   }
+
+  /// `POST /auth/login/verify` — exchanges the texted code for a session.
+  /// Unauthenticated: the first step deliberately issued no token, so the
+  /// mobile number is what says who is signing in.
+  Future<({String accessToken, String refreshToken, AppUser user})> completeLogin({
+    required String mobileNumber,
+    required String code,
+  }) async {
+    final data = await _client.post('/auth/login/verify', body: {
+      'mobileNumber': mobileNumber,
+      'code': code,
+    }) as Map<String, dynamic>;
+    return _session(data);
+  }
+
+  ({String accessToken, String refreshToken, AppUser user}) _session(Map<String, dynamic> data) => (
+    accessToken: data['accessToken'] as String,
+    refreshToken: data['refreshToken'] as String,
+    user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
+  );
 
   /// `POST /auth/logout` — C5, A2, BR-AUTH-13. Requires the caller's own
   /// access token (already attached by `ApiClient`'s token provider).

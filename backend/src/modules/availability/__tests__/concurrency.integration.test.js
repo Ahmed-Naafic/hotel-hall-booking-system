@@ -40,7 +40,10 @@ async function registerAndLogin() {
   const password = 'correct-horse-battery-staple'
   // BDR-019: Full Name is required at registration for a HOTEL_MANAGER account.
   await request('POST', '/api/v1/auth/register', { body: { mobileNumber, password, accountType: 'HOTEL_MANAGER', fullName: 'Test Manager' } })
-  const response = await request('POST', '/api/v1/auth/login', { body: { mobileNumber, password } })
+  // Login answers with a texted code instead of a session now; the suite
+  // pins that code in scripts/testEnv.js.
+  await request('POST', '/api/v1/auth/login', { body: { mobileNumber, password } })
+  const response = await request('POST', '/api/v1/auth/login/verify', { body: { mobileNumber, code: '123456' } })
   return response.body.data
 }
 

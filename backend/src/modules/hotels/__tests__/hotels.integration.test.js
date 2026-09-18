@@ -66,7 +66,10 @@ async function registerAndLoginHotelManager() {
   const password = 'correct-horse-battery-staple'
   // BDR-019: Full Name is required at registration for a HOTEL_MANAGER account.
   await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'HOTEL_MANAGER', fullName: 'Test Manager' })
-  const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
+  // Login answers with a texted code instead of a session now; the suite
+  // pins that code in scripts/testEnv.js.
+  await post('/api/v1/auth/login', { mobileNumber, password })
+  const loginRes = await post('/api/v1/auth/login/verify', { mobileNumber, code: '123456' })
   return loginRes.body.data
 }
 
@@ -87,9 +90,15 @@ async function createAndLoginPlatformAdministrator() {
   const admin = await createPlatformAdministrator()
   // password set in createPlatformAdministrator's hash is fixed above —
   // re-derive it here rather than threading it through, since it never varies.
-  const loginRes = await post('/api/v1/auth/login', {
+  // An administrator owes a texted code like every other account type now;
+  // the suite pins that code in scripts/testEnv.js.
+  await post('/api/v1/auth/login', {
     mobileNumber: admin.mobileNumber,
     password: 'correct-horse-battery-staple',
+  })
+  const loginRes = await post('/api/v1/auth/login/verify', {
+    mobileNumber: admin.mobileNumber,
+    code: '123456',
   })
   return loginRes.body.data
 }
@@ -106,7 +115,10 @@ async function registerAndLoginCustomer() {
   const password = 'correct-horse-battery-staple'
   // BDR-018: Full Name is required at registration for a CUSTOMER account.
   await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
-  const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
+  // Login answers with a texted code instead of a session now; the suite
+  // pins that code in scripts/testEnv.js.
+  await post('/api/v1/auth/login', { mobileNumber, password })
+  const loginRes = await post('/api/v1/auth/login/verify', { mobileNumber, code: '123456' })
   return loginRes.body.data
 }
 

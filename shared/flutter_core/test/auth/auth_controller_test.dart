@@ -89,7 +89,7 @@ void main() {
   });
 
   group('AuthController.registerAndRequestVerification', () {
-    test('registers, logs in, and requests a verification code with the new session\'s token', () async {
+    test('registers then signs in, which ends at the texted code rather than a session', () async {
       final calls = <String>[];
       final controller = _buildController((request) async {
         calls.add('${request.method} ${request.url.path}');
@@ -97,11 +97,7 @@ void main() {
           return _success(_user(), status: 201);
         }
         if (request.url.path.endsWith('/auth/login')) {
-          return _success({'accessToken': 'tok', 'refreshToken': 'ref', 'user': _user()});
-        }
-        if (request.url.path.endsWith('/auth/verifications')) {
-          expect(request.headers['Authorization'], 'Bearer tok');
-          return _success({});
+          return _success({'verificationRequired': true});
         }
         throw StateError('unexpected call: ${request.url.path}');
       });
@@ -113,13 +109,103 @@ void main() {
       );
 
       expect(result, true);
-      expect(calls, [
-        'POST /api/v1/auth/register',
-        'POST /api/v1/auth/login',
-        'POST /api/v1/auth/verifications',
-      ]);
+      // No separate /auth/verifications call any more — logging in is what
+      // issues the code, so registration and sign-in meet at the same step.
+      expect(calls, ['POST /api/v1/auth/register', 'POST /api/v1/auth/login']);
+      expect(controller.awaitingLoginCode, true);
+      expect(controller.pendingMobileNumber, '+15551234567');
+      expect(controller.status, isNot(AuthStatus.authenticated));
+    });
+  });
+
+  group('AuthController login second factor', () {
+    test('a correct password alone leaves the app signed out, holding the code step', () async {
+      final controller = _buildController((request) async {
+        if (request.url.path.endsWith('/auth/login')) {
+          return _success({'verificationRequired': true});
+        }
+        throw StateError('unexpected call: ${request.url.path}');
+      });
+
+      expect(await controller.login(mobileNumber: '+15551234567', password: 'password123'), true);
+      expect(controller.awaitingLoginCode, true);
+      expect(controller.status, isNot(AuthStatus.authenticated));
+      expect(await controller.sessionStore.accessToken, isNull);
+    });
+
+    test('confirming the code exchanges it for the session', () async {
+      final calls = <String>[];
+      final controller = _buildController((request) async {
+        calls.add(request.url.path);
+        if (request.url.path.endsWith('/auth/login')) {
+          return _success({'verificationRequired': true});
+        }
+        if (request.url.path.endsWith('/auth/login/verify')) {
+          return _success({'accessToken': 'tok', 'refreshToken': 'ref', 'user': _user()});
+        }
+        throw StateError('unexpected call: ${request.url.path}');
+      });
+
+      await controller.login(mobileNumber: '+15551234567', password: 'password123');
+      expect(await controller.confirmVerification('123456'), true);
+
+      expect(calls.last, '/api/v1/auth/login/verify');
       expect(controller.status, AuthStatus.authenticated);
-      expect(controller.currentUser?.isVerified, false);
+      expect(controller.awaitingLoginCode, false, reason: 'the step is done');
+      expect(await controller.sessionStore.accessToken, 'tok');
+    });
+
+    test('resending during sign-in re-runs login, since there is no token to present', () async {
+      final calls = <String>[];
+      final controller = _buildController((request) async {
+        calls.add(request.url.path);
+        if (request.url.path.endsWith('/auth/login')) {
+          return _success({'verificationRequired': true});
+        }
+        throw StateError('unexpected call: ${request.url.path}');
+      });
+
+      await controller.login(mobileNumber: '+15551234567', password: 'password123');
+      expect(await controller.resendVerificationCode(), true);
+
+      expect(calls, ['/api/v1/auth/login', '/api/v1/auth/login']);
+      expect(controller.awaitingLoginCode, true);
+    });
+
+    test('an account that signs in without a code still gets its session directly', () async {
+      final controller = _buildController((request) async {
+        if (request.url.path.endsWith('/auth/login')) {
+          return _success({
+            'verificationRequired': false,
+            'accessToken': 'tok',
+            'refreshToken': 'ref',
+            'user': _user(),
+          });
+        }
+        throw StateError('unexpected call: ${request.url.path}');
+      });
+
+      expect(await controller.login(mobileNumber: '+15551234567', password: 'password123'), true);
+      expect(controller.status, AuthStatus.authenticated);
+      expect(controller.awaitingLoginCode, false);
+    });
+
+    test('logging out abandons a half-finished sign-in', () async {
+      final controller = _buildController((request) async {
+        if (request.url.path.endsWith('/auth/login')) {
+          return _success({'verificationRequired': true});
+        }
+        if (request.url.path.endsWith('/auth/logout')) {
+          return _success({});
+        }
+        throw StateError('unexpected call: ${request.url.path}');
+      });
+
+      await controller.login(mobileNumber: '+15551234567', password: 'password123');
+      await controller.logout();
+
+      expect(controller.awaitingLoginCode, false);
+      expect(controller.pendingMobileNumber, isNull);
     });
   });
 

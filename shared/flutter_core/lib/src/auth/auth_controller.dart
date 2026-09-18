@@ -36,6 +36,24 @@ class AuthController extends ChangeNotifier {
   bool isBusy = false;
   String? errorMessage;
 
+  /// True between proving the password and entering the texted code — the
+  /// window where the backend has issued no token at all.
+  ///
+  /// Deliberately not a fourth [AuthStatus]: the account is simply not
+  /// signed in yet, and every screen that switches on status already treats
+  /// that correctly. This only tells the sign-in screens which step to show.
+  bool get awaitingLoginCode => _pendingLogin != null;
+
+  /// The number the code went to, for the "we sent a code to…" line.
+  String? get pendingMobileNumber => _pendingLogin?.mobileNumber;
+
+  /// Held only for the life of the sign-in attempt, so "Resend" can ask for
+  /// a new code without making the Customer type their password again —
+  /// re-running login is the only way to get one, and requiring the password
+  /// is what stops the endpoint being an SMS-flood button. Cleared the
+  /// moment a session exists, and on logout.
+  ({String mobileNumber, String password})? _pendingLogin;
+
   /// Called once at app start (`main.dart`) — restores a session from
   /// secure storage, if one exists, by re-fetching the current user
   /// (`GET /auth/me`) rather than trusting a possibly-stale cached copy.
@@ -78,10 +96,11 @@ class AuthController extends ChangeNotifier {
       fullName: fullName,
     );
     await _authenticate(mobileNumber: mobileNumber, password: password);
-    await repository.requestVerification();
   });
 
-  /// `POST /auth/login` — C4, H7, A1.
+  /// `POST /auth/login` — C4, H7, A1. Succeeding here does not necessarily
+  /// mean signed in: check [awaitingLoginCode], which is set when the
+  /// backend texted a code instead of issuing a session.
   Future<bool> login({
     required String mobileNumber,
     required String password,
@@ -96,21 +115,48 @@ class AuthController extends ChangeNotifier {
       mobileNumber: mobileNumber,
       password: password,
     );
+    if (result == null) {
+      _pendingLogin = (mobileNumber: mobileNumber, password: password);
+      return;
+    }
+    await _adoptSession(result);
+  }
+
+  Future<void> _adoptSession(
+    ({String accessToken, String refreshToken, AppUser user}) result,
+  ) async {
     await sessionStore.save(
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     );
     currentUser = result.user;
     status = AuthStatus.authenticated;
+    _pendingLogin = null;
   }
 
-  /// `POST /auth/verifications` — resend, reusing the same request the
-  /// initial registration flow already calls.
-  Future<bool> resendVerificationCode() =>
-      _run(() => repository.requestVerification());
+  /// Asks for another code. Which call that is depends on where the code was
+  /// owed from: signing in has no token to present, so it re-runs login;
+  /// an already-signed-in account uses the C3 endpoint.
+  Future<bool> resendVerificationCode() => _run(() async {
+    final pending = _pendingLogin;
+    if (pending != null) {
+      await _authenticate(mobileNumber: pending.mobileNumber, password: pending.password);
+      return;
+    }
+    await repository.requestVerification();
+  });
 
-  /// `POST /auth/verifications/confirm` — C3.
+  /// Confirms a texted code, from whichever flow asked for one — the two
+  /// are the same code to the person typing it, so the screens do not have
+  /// to know which endpoint applies.
   Future<bool> confirmVerification(String code) => _run(() async {
+    final pending = _pendingLogin;
+    if (pending != null) {
+      await _adoptSession(
+        await repository.completeLogin(mobileNumber: pending.mobileNumber, code: code),
+      );
+      return;
+    }
     currentUser = await repository.confirmVerification(code);
   });
 
@@ -126,6 +172,8 @@ class AuthController extends ChangeNotifier {
     await sessionStore.clear();
     currentUser = null;
     status = AuthStatus.unauthenticated;
+    // Any half-finished sign-in belongs to the session that just ended.
+    _pendingLogin = null;
     notifyListeners();
   }
 
@@ -133,6 +181,8 @@ class AuthController extends ChangeNotifier {
     await sessionStore.clear();
     currentUser = null;
     status = AuthStatus.unauthenticated;
+    // Any half-finished sign-in belongs to the session that just ended.
+    _pendingLogin = null;
     notifyListeners();
   }
 

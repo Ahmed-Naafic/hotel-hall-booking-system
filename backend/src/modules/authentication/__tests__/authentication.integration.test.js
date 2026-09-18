@@ -72,8 +72,30 @@ async function registerAndLogin(overrides = {}) {
     fullName: 'Test Customer',
     ...overrides,
   })
-  const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
+  // Login answers with a texted code instead of a session now; the suite
+  // pins that code in scripts/testEnv.js.
+  await post('/api/v1/auth/login', { mobileNumber, password })
+  const loginRes = await post('/api/v1/auth/login/verify', { mobileNumber, code: '123456' })
   return { mobileNumber, password, ...loginRes.body.data }
+}
+
+/**
+ * An authenticated Customer whose account is still unverified — the state
+ * the C3 endpoints exist for.
+ *
+ * Reached by unsetting the flag after signing in, because signing in now
+ * *is* a verification: the login code proves the same possession of the
+ * number that C3 does, so `completeLogin` marks the account verified and
+ * there is no longer any route through the API to a session on an
+ * unverified account.
+ */
+async function registerAndLoginUnverified(overrides) {
+  const session = await registerAndLogin(overrides)
+  await prisma.user.update({
+    where: { mobileNumber: session.mobileNumber },
+    data: { isVerified: false },
+  })
+  return session
 }
 
 before(async () => {
@@ -184,6 +206,52 @@ describe('Authentication — registration (C2, H1, BR-AUTH-02)', () => {
     const { status, body } = await post('/api/v1/auth/register', payload)
     assert.equal(status, 422)
     assert.equal(body.error, 'BUSINESS_RULE_VIOLATION')
+    assert.match(body.message, /already registered as a Customer/)
+  })
+
+  test('says which account type holds the number, so the other app is findable', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    await post('/api/v1/auth/register', {
+      mobileNumber,
+      password: 'correct-horse-battery-staple',
+      accountType: 'HOTEL_MANAGER',
+      fullName: 'Test Manager',
+    })
+
+    // Someone trying to sign up on Customer Mobile with the number they
+    // already manage a Hotel with: "already registered" alone leaves them
+    // with nothing to do about it.
+    const { status, body } = await post('/api/v1/auth/register', {
+      mobileNumber,
+      password: 'correct-horse-battery-staple',
+      accountType: 'CUSTOMER',
+      fullName: 'Test Customer',
+    })
+    assert.equal(status, 422)
+    assert.match(body.message, /already registered as a Hotel Manager/)
+  })
+
+  test('never names a Platform Administrator account to an anonymous caller', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const argon2 = await import('argon2')
+    await prisma.user.create({
+      data: {
+        mobileNumber,
+        passwordHash: await argon2.hash('correct-horse-battery-staple'),
+        accountType: 'PLATFORM_ADMINISTRATOR',
+        isVerified: true,
+      },
+    })
+
+    const { status, body } = await post('/api/v1/auth/register', {
+      mobileNumber,
+      password: 'correct-horse-battery-staple',
+      accountType: 'CUSTOMER',
+      fullName: 'Test Customer',
+    })
+    assert.equal(status, 422)
+    assert.equal(body.message, 'This mobile number is already registered.')
+    assert.equal(/Administrator/i.test(body.message), false)
   })
 
   test('rejects Staff and Platform Administrator self-registration with 400 (Business Specification §3)', async () => {
@@ -204,7 +272,7 @@ describe('Authentication — registration (C2, H1, BR-AUTH-02)', () => {
 })
 
 describe('Authentication — login (C4, H7, A1)', () => {
-  test('logs in with correct credentials and receives access + refresh tokens', async () => {
+  test('a correct password alone yields a texted code, never a session', async () => {
     const mobileNumber = uniqueMobileNumber()
     const password = 'correct-horse-battery-staple'
     await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
@@ -212,9 +280,89 @@ describe('Authentication — login (C4, H7, A1)', () => {
     const { status, body } = await post('/api/v1/auth/login', { mobileNumber, password })
 
     assert.equal(status, 200)
+    assert.equal(body.data.verificationRequired, true)
+    // The whole point: a stolen password gets nothing usable on its own.
+    assert.equal(body.data.accessToken, undefined)
+    assert.equal(body.data.refreshToken, undefined)
+    assert.ok(codeSentTo(mobileNumber), 'a code should have been texted')
+  })
+
+  test('the texted code exchanges for access + refresh tokens', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const password = 'correct-horse-battery-staple'
+    await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
+    await post('/api/v1/auth/login', { mobileNumber, password })
+    const code = codeSentTo(mobileNumber)
+
+    const { status, body } = await post('/api/v1/auth/login/verify', { mobileNumber, code })
+
+    assert.equal(status, 200)
     assert.ok(body.data.accessToken)
     assert.ok(body.data.refreshToken)
     assert.equal(body.data.user.mobileNumber, mobileNumber)
+  })
+
+  test('signing in verifies the account, so a code is never owed twice', async () => {
+    const { accessToken } = await registerAndLogin()
+
+    const me = await get('/api/v1/auth/me', { Authorization: `Bearer ${accessToken}` })
+    assert.equal(me.body.data.isVerified, true)
+  })
+
+  test('a wrong code yields no session', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const password = 'correct-horse-battery-staple'
+    await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
+    await post('/api/v1/auth/login', { mobileNumber, password })
+
+    const { status, body } = await post('/api/v1/auth/login/verify', { mobileNumber, code: '000000' })
+    assert.equal(status, 422)
+    assert.equal(body.data, undefined)
+  })
+
+  test('a code cannot be claimed without first proving the password', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const password = 'correct-horse-battery-staple'
+    await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
+
+    // No login step, so no code was ever issued.
+    const { status } = await post('/api/v1/auth/login/verify', { mobileNumber, code: '123456' })
+    assert.equal(status, 422)
+  })
+
+  test('an unknown number fails the second step exactly like a wrong code (no enumeration)', async () => {
+    const unknown = await post('/api/v1/auth/login/verify', {
+      mobileNumber: uniqueMobileNumber(),
+      code: '123456',
+    })
+    assert.equal(unknown.status, 422)
+    assert.equal(unknown.body.error, 'BUSINESS_RULE_VIOLATION')
+  })
+
+  test('a Platform Administrator owes a code too — the account that decides every Hotel', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const password = 'correct-horse-battery-staple'
+    const argon2 = await import('argon2')
+    await prisma.user.create({
+      data: {
+        mobileNumber,
+        passwordHash: await argon2.hash(password),
+        accountType: 'PLATFORM_ADMINISTRATOR',
+        isVerified: true,
+      },
+    })
+
+    const first = await post('/api/v1/auth/login', { mobileNumber, password })
+    assert.equal(first.status, 200)
+    assert.equal(first.body.data.verificationRequired, true)
+    assert.equal(first.body.data.accessToken, undefined)
+
+    const { status, body } = await post('/api/v1/auth/login/verify', {
+      mobileNumber,
+      code: codeSentTo(mobileNumber),
+    })
+    assert.equal(status, 200)
+    assert.ok(body.data.accessToken)
   })
 
   test('rejects an unregistered mobile number the same way as a wrong password (BR-AUTH-09, no enumeration)', async () => {
@@ -341,7 +489,7 @@ describe('Authentication — account summary (C8)', () => {
 
 describe('Authentication — identity verification (C3, BR-AUTH-02)', () => {
   test('full flow: request, receive via MockSmsProvider, confirm', async () => {
-    const { accessToken, mobileNumber } = await registerAndLogin()
+    const { accessToken, mobileNumber } = await registerAndLoginUnverified()
 
     const requestRes = await post('/api/v1/auth/verifications', undefined, {
       Authorization: `Bearer ${accessToken}`,
@@ -360,7 +508,7 @@ describe('Authentication — identity verification (C3, BR-AUTH-02)', () => {
   })
 
   test('rejects an incorrect code with 422', async () => {
-    const { accessToken } = await registerAndLogin()
+    const { accessToken } = await registerAndLoginUnverified()
     await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
 
     const { status, body } = await post(
@@ -373,7 +521,7 @@ describe('Authentication — identity verification (C3, BR-AUTH-02)', () => {
   })
 
   test('a used code cannot be confirmed a second time', async () => {
-    const { accessToken, mobileNumber } = await registerAndLogin()
+    const { accessToken, mobileNumber } = await registerAndLoginUnverified()
     await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
     const code = codeSentTo(mobileNumber)
     await post('/api/v1/auth/verifications/confirm', { code }, { Authorization: `Bearer ${accessToken}` })
@@ -387,7 +535,7 @@ describe('Authentication — identity verification (C3, BR-AUTH-02)', () => {
   })
 
   test('rejects a second request while one is still active with 409', async () => {
-    const { accessToken } = await registerAndLogin()
+    const { accessToken } = await registerAndLoginUnverified()
     await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
 
     const { status, body } = await post('/api/v1/auth/verifications', undefined, {
@@ -398,7 +546,7 @@ describe('Authentication — identity verification (C3, BR-AUTH-02)', () => {
   })
 
   test('rejects a request for an already-verified account with 422', async () => {
-    const { accessToken, mobileNumber } = await registerAndLogin()
+    const { accessToken, mobileNumber } = await registerAndLoginUnverified()
     await post('/api/v1/auth/verifications', undefined, { Authorization: `Bearer ${accessToken}` })
     const code = codeSentTo(mobileNumber)
     await post('/api/v1/auth/verifications/confirm', { code }, { Authorization: `Bearer ${accessToken}` })

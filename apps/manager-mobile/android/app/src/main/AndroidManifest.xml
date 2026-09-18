@@ -1,9 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds get no INTERNET permission by default: Flutter only
+         injects it into the debug and profile manifests, so a release APK
+         without this line cannot reach the backend at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Notification V1 (ADR-0001) — Android 13+ (API 33+) blocks all
          notifications for an app until this is declared and the runtime
          prompt (PushNotificationService.initialize()) is granted. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
+        android:usesCleartextTraffic="true"
         android:label="manager_mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

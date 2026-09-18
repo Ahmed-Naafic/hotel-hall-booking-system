@@ -13,11 +13,33 @@ import { BusinessRuleError } from '../../shared/errors/errorTypes.js'
  * collected, only stores what it's given.
  */
 
+/**
+ * How an occupied number is described back to whoever tried to reuse it.
+ *
+ * Only the two self-registerable types are named. A Platform Administrator
+ * is deliberately absent: those accounts are provisioned internally, never
+ * through this endpoint, so naming one would tell an anonymous caller that
+ * a given number belongs to an administrator — and the generic message
+ * below is already true and already enough to stop the registration.
+ */
+const ACCOUNT_TYPE_LABELS = {
+  CUSTOMER: 'a Customer',
+  HOTEL_MANAGER: 'a Hotel Manager',
+}
+
 export async function registerIdentity({ mobileNumber, passwordHash, accountType, fullName }, client) {
   const existing = await identityRepository.findByMobileNumber(mobileNumber)
   if (existing) {
     // BR-AUTH-02: registration fails if the identifier is already registered.
-    throw new BusinessRuleError('This mobile number is already registered.')
+    // Naming the account type is what tells someone whether to sign in
+    // instead, or that the number is on the other app — the common real
+    // cases, and both unactionable from "already registered" alone.
+    const label = ACCOUNT_TYPE_LABELS[existing.accountType]
+    throw new BusinessRuleError(
+      label
+        ? `This mobile number is already registered as ${label}. Log in instead, or use a different number.`
+        : 'This mobile number is already registered.',
+    )
   }
   return identityRepository.create({ mobileNumber, passwordHash, accountType, fullName }, client)
 }

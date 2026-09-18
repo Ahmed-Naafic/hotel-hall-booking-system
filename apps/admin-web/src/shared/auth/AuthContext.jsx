@@ -16,11 +16,20 @@ export function AuthProvider({ children }) {
   // 'loading' while restoring a session from a stored refresh token, so the
   // app doesn't flash the login screen before that check resolves.
   const [status, setStatus] = useState('loading')
+  // Set between proving the password and entering the texted code — the
+  // window where the backend has issued no token at all. Holds the
+  // credentials only for that window so "Resend" can ask for another code
+  // without a re-typed password; re-running login is the only way to get
+  // one, and requiring the password is what stops the endpoint being an
+  // SMS-flood button.
+  const [pendingLogin, setPendingLogin] = useState(null)
 
   const clearSession = useCallback(() => {
     setAccessToken(null)
     setUser(null)
     localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+    // Any half-finished sign-in belongs to the session that just ended.
+    setPendingLogin(null)
     setStatus('unauthenticated')
   }, [])
 
@@ -47,13 +56,48 @@ export function AuthProvider({ children }) {
       })
   }, [clearSession])
 
-  const login = useCallback(async (mobileNumber, password) => {
-    const result = await authApi.login({ mobileNumber, password })
+  const adoptSession = useCallback((result) => {
     localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, result.refreshToken)
     setAccessToken(result.accessToken)
     setUser(result.user)
+    setPendingLogin(null)
     setStatus('authenticated')
   }, [])
+
+  /**
+   * Step one. Resolves to `true` when a code was texted and the session is
+   * still owed, so the caller knows to show the code form.
+   */
+  const login = useCallback(
+    async (mobileNumber, password) => {
+      const result = await authApi.login({ mobileNumber, password })
+      if (result.verificationRequired) {
+        setPendingLogin({ mobileNumber, password })
+        return true
+      }
+      adoptSession(result)
+      return false
+    },
+    [adoptSession],
+  )
+
+  /** Step two — exchanges the texted code for the session. */
+  const completeLogin = useCallback(
+    async (code) => {
+      if (!pendingLogin) throw new Error('No sign-in is waiting for a code.')
+      adoptSession(await authApi.completeLogin({ mobileNumber: pendingLogin.mobileNumber, code }))
+    },
+    [pendingLogin, adoptSession],
+  )
+
+  /** Asks for another code by re-running step one with the same credentials. */
+  const resendLoginCode = useCallback(async () => {
+    if (!pendingLogin) throw new Error('No sign-in is waiting for a code.')
+    await authApi.login(pendingLogin)
+  }, [pendingLogin])
+
+  /** Abandons a half-finished sign-in and returns to the password form. */
+  const cancelLogin = useCallback(() => setPendingLogin(null), [])
 
   const logout = useCallback(async () => {
     try {
@@ -81,8 +125,23 @@ export function AuthProvider({ children }) {
   )
 
   const value = useMemo(
-    () => ({ status, user, accessToken, login, logout, changePassword }),
-    [status, user, accessToken, login, logout, changePassword],
+    () => ({
+      status,
+      user,
+      accessToken,
+      login,
+      logout,
+      changePassword,
+      completeLogin,
+      resendLoginCode,
+      cancelLogin,
+      awaitingLoginCode: pendingLogin !== null,
+      pendingMobileNumber: pendingLogin?.mobileNumber ?? null,
+    }),
+    [
+      status, user, accessToken, login, logout, changePassword,
+      completeLogin, resendLoginCode, cancelLogin, pendingLogin,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -4,6 +4,7 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import 'register_screen.dart';
+import 'verify_screen.dart';
 
 /// C4 — Customer login. Delegates entirely to the shared `LoginForm`
 /// (FE-04); this screen only supplies Customer-specific chrome/copy and
@@ -48,9 +49,21 @@ class LoginScreen extends StatelessWidget {
                     mobileNumber: mobileNumber,
                     password: password,
                   );
-                  if (ok && context.mounted) {
-                    Navigator.of(context).pop(true);
+                  if (!ok || !context.mounted) return ok;
+                  // A correct password no longer signs anyone in on its own:
+                  // the backend texts a code and issues nothing until it
+                  // comes back, so this hands over to the code screen and
+                  // only reports success once a session actually exists.
+                  if (auth.awaitingLoginCode) {
+                    final verified = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(builder: (_) => const VerifyScreen()),
+                    );
+                    if (verified == true && context.mounted) {
+                      Navigator.of(context).pop(true);
+                    }
+                    return verified == true;
                   }
+                  Navigator.of(context).pop(true);
                   return ok;
                 },
               ),

@@ -90,16 +90,34 @@ async function registerAndLogin(accountType) {
   // HOTEL_MANAGER account.
   const fullName = accountType === 'CUSTOMER' ? 'Test Customer' : accountType === 'HOTEL_MANAGER' ? 'Test Manager' : undefined
   await post('/api/v1/auth/register', { mobileNumber, password, accountType, fullName })
-  const loginRes = await post('/api/v1/auth/login', { mobileNumber, password })
+  // Login answers with a texted code instead of a session now; the suite
+  // pins that code in scripts/testEnv.js.
+  await post('/api/v1/auth/login', { mobileNumber, password })
+  const loginRes = await post('/api/v1/auth/login/verify', { mobileNumber, code: '123456' })
   return { mobileNumber, password, ...loginRes.body.data }
 }
 
-/** A Customer who has completed identity verification (BR-AUTH-02) — only these may book. */
+/**
+ * A Customer who has completed identity verification (BR-AUTH-02) — only
+ * these may book. Signing in is itself that verification now (the login code
+ * proves the same possession C3 does), so this is just a signed-in Customer.
+ */
 async function registerVerifiedCustomer() {
+  return registerAndLogin('CUSTOMER')
+}
+
+/**
+ * A signed-in Customer whose account is *not* verified — the state
+ * BR-AUTH-05 refuses a booking for. Reached by unsetting the flag after
+ * signing in, because there is no longer any route through the API to a
+ * session on an unverified account.
+ */
+async function registerUnverifiedCustomer() {
   const customer = await registerAndLogin('CUSTOMER')
-  await post('/api/v1/auth/verifications', undefined, authHeader(customer.accessToken))
-  const code = codeSentTo(customer.mobileNumber)
-  await post('/api/v1/auth/verifications/confirm', { code }, authHeader(customer.accessToken))
+  await prisma.user.update({
+    where: { mobileNumber: customer.mobileNumber },
+    data: { isVerified: false },
+  })
   return customer
 }
 
@@ -247,7 +265,7 @@ describe('POST /api/v1/bookings — creation', () => {
   })
 
   test('an unverified Customer is rejected (422)', async () => {
-    const customer = await registerAndLogin('CUSTOMER') // never completes verification
+    const customer = await registerUnverifiedCustomer()
     const manager = await registerAndLogin('HOTEL_MANAGER')
     const hotelId = await createApprovedHotel(manager.accessToken)
     const hall = await createHall(hotelId)

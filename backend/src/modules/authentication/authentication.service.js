@@ -3,6 +3,7 @@ import * as credentialService from './credential.service.js'
 import * as tokenService from './token.service.js'
 import * as sessionService from './session.service.js'
 import * as authorizationService from './authorization.service.js'
+import * as verificationService from './verification.service.js'
 import * as customerService from '../customers/customer.service.js'
 import { prisma } from '../../shared/prismaClient.js'
 import { AuthenticationError, BusinessRuleError } from '../../shared/errors/errorTypes.js'
@@ -70,6 +71,37 @@ export async function login({ mobileNumber, password }) {
     throw new AuthenticationError('This account is inactive.')
   }
 
+  if (requiresLoginCode(user)) {
+    // A password alone stops here: no session is started and no token is
+    // issued until the code that was just texted comes back through
+    // `completeLogin`, so a stolen password on its own grants nothing.
+    await verificationService.sendLoginCode(user)
+    return { verificationRequired: true }
+  }
+
+  return { verificationRequired: false, ...(await grantSession(user)) }
+}
+
+/**
+ * Who has to enter a code to sign in — every account type that signs in at
+ * all. Customers and Hotel Managers self-register against a mobile number
+ * they own (BDR-018/BDR-019); a Platform Administrator is provisioned with
+ * one (`scripts/create-platform-admin.js` takes `--mobile`), and an
+ * administrator is the account most worth a second factor, since it decides
+ * every Hotel's eligibility.
+ *
+ * The cost of including administrators is real and worth stating: platform
+ * access now depends on the SMS gateway, so a carrier outage locks out the
+ * people who would fix it. `scripts/create-platform-admin.js` remains the
+ * way back in — it writes directly to the database and needs no SMS.
+ */
+const LOGIN_CODE_ACCOUNT_TYPES = ['CUSTOMER', 'HOTEL_MANAGER', 'PLATFORM_ADMINISTRATOR']
+
+function requiresLoginCode(user) {
+  return LOGIN_CODE_ACCOUNT_TYPES.includes(user.accountType)
+}
+
+async function grantSession(user) {
   const { session, rawRefreshToken } = await sessionService.startSession(user.id)
   const roleClaim = authorizationService.resolveRoleClaim(user)
   const accessToken = tokenService.issueAccessToken({
@@ -79,6 +111,32 @@ export async function login({ mobileNumber, password }) {
   })
 
   return { accessToken, refreshToken: rawRefreshToken, user }
+}
+
+/**
+ * Second step of login — exchanges the texted code for a session.
+ *
+ * Unauthenticated by necessity (there is no token yet), so it is reachable
+ * with a mobile number and a guess. Every failure is therefore the same
+ * one: an unknown number, an expired code and a wrong code are
+ * indistinguishable, exactly as `confirmVerification` already treats them,
+ * so this cannot be used to enumerate who has an account.
+ *
+ * Confirming here also marks the account verified, so a Customer who
+ * registered and never completed C3 finishes that the first time they sign
+ * in rather than carrying an unverified account around.
+ */
+export async function completeLogin({ mobileNumber, code }) {
+  const user = await identityService.findIdentityByMobileNumber(mobileNumber)
+  if (!user || !requiresLoginCode(user)) {
+    throw new BusinessRuleError('Invalid or expired verification request.')
+  }
+  if (!user.isActive) {
+    throw new AuthenticationError('This account is inactive.')
+  }
+
+  const verified = await verificationService.confirmLoginCode(user.id, code)
+  return grantSession(verified)
 }
 
 /**

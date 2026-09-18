@@ -23,6 +23,15 @@ authenticationRouter.post(
   authenticationController.login,
 )
 
+// Second step of login — unauthenticated by necessity: the first step
+// issues no token for a Customer or Hotel Manager, so there is nothing to
+// present here but the number and the code.
+authenticationRouter.post(
+  '/login/verify',
+  authenticationValidation.validateCompleteLogin,
+  authenticationController.completeLogin,
+)
+
 authenticationRouter.post('/logout', authenticate, authenticationController.logout)
 
 authenticationRouter.post(

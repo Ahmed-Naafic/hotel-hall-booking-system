@@ -92,7 +92,11 @@ class _AuthGateState extends State<AuthGate> {
           body: const Center(child: CircularProgressIndicator()),
         );
       case AuthStatus.unauthenticated:
-        return const LoginScreen();
+        // A correct password now buys a texted code, not a session, so
+        // there is a step between the login form and being signed in. It
+        // belongs here rather than as a pushed route: this gate is already
+        // what decides which screen the account's state calls for.
+        return auth.awaitingLoginCode ? const VerifyScreen() : const LoginScreen();
       case AuthStatus.authenticated:
         return auth.currentUser?.isVerified == true ? const HomeScreen() : const VerifyScreen();
     }

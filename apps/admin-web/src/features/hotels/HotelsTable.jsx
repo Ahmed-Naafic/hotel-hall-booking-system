@@ -64,15 +64,21 @@ export function HotelsTable({ hotels, loadState, getAction, caption }) {
                 style={{
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 'var(--radius-lg)',
-                  padding: 'var(--space-4)',
+                  padding: 'var(--space-5)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 8,
+                  gap: 'var(--space-4)',
                 }}
               >
-                <Skeleton height={14} width="60%" />
-                <Skeleton height={12} width="35%" />
-                <Skeleton height={12} width="45%" />
+                {/* Mirrors the real card's shape — name, badge, date pair,
+                    action — so the layout does not jump when data lands. */}
+                <Skeleton height={16} width="70%" />
+                <Skeleton height={20} width={110} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+                  <Skeleton height={28} />
+                  <Skeleton height={28} />
+                </div>
+                <Skeleton height={36} />
               </div>
             ))
           : hotels.map((hotel) => {
@@ -83,27 +89,61 @@ export function HotelsTable({ hotels, loadState, getAction, caption }) {
                   style={{
                     border: '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-lg)',
-                    padding: 'var(--space-4)',
+                    padding: 'var(--space-5)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 'var(--space-2)',
+                    gap: 'var(--space-4)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
-                    <HotelIdentity hotel={hotel} />
+                  {/* The name owns its own line. It used to share a
+                      space-between row with the badge, which is nowrap
+                      uppercase and runs past 200px on "Restricted Under
+                      Review" — on a phone that crushed the name it was
+                      meant to sit beside. */}
+                  <HotelIdentity hotel={hotel} />
+
+                  <div>
                     <StatusBadge status={hotel.status} />
                   </div>
-                  <dl style={{ margin: 0, display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', fontSize: 'var(--text-xs)' }}>
-                    <div>
-                      <dt style={{ color: 'var(--text-muted)' }}>Registered</dt>
-                      <dd style={{ margin: 0, color: 'var(--text-body)' }}>{new Date(hotel.createdAt).toLocaleDateString()}</dd>
-                    </div>
-                    <div>
-                      <dt style={{ color: 'var(--text-muted)' }}>Last updated</dt>
-                      <dd style={{ margin: 0, color: 'var(--text-body)' }}>{new Date(hotel.updatedAt).toLocaleDateString()}</dd>
-                    </div>
+
+                  {/* Two fixed columns rather than a wrapping flex row, so
+                      the dates line up instead of reflowing into a ragged
+                      pair at arbitrary widths. */}
+                  <dl
+                    style={{
+                      margin: 0,
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 'var(--space-4)',
+                      paddingTop: 'var(--space-4)',
+                      borderTop: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    {[
+                      { label: 'Registered', value: hotel.createdAt },
+                      { label: 'Last updated', value: hotel.updatedAt },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ minWidth: 0 }}>
+                        <dt
+                          style={{
+                            fontSize: 'var(--text-2xs)',
+                            letterSpacing: 'var(--tracking-wider)',
+                            textTransform: 'uppercase',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {label}
+                        </dt>
+                        <dd style={{ margin: '4px 0 0', fontSize: 'var(--text-sm)', color: 'var(--text-body)' }}>
+                          {new Date(value).toLocaleDateString()}
+                        </dd>
+                      </div>
+                    ))}
                   </dl>
-                  <Button variant="secondary" size="sm" onClick={action.onClick} aria-label={action.ariaLabel} style={{ alignSelf: 'flex-start' }}>
+
+                  {/* Full width: a phone wants a real target, not a
+                      small-size button parked at the left edge. */}
+                  <Button variant="secondary" onClick={action.onClick} aria-label={action.ariaLabel} fullWidth>
                     {action.label}
                   </Button>
                 </div>

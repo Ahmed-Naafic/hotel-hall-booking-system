@@ -13,9 +13,26 @@ import { logger } from '../../config/logger.js'
 export class MockSmsProvider {
   constructor() {
     this.sentMessages = []
+    this._failNextSend = false
+  }
+
+  /**
+   * Test helper — makes the next send throw, the way a real gateway does
+   * when it is unreachable or refuses the message. Mirrors
+   * `MockStorageProvider.failNextUpload`, and exists for the same reason:
+   * the failure path is a real one (a Customer cannot sign in without a
+   * code) and deserves to be exercised rather than assumed.
+   */
+  failNextSend() {
+    this._failNextSend = true
   }
 
   async sendSms({ to, body }) {
+    if (this._failNextSend) {
+      this._failNextSend = false
+      logger.warn('[MockSmsProvider] Simulated SMS delivery failure', { to })
+      throw new Error('Simulated SMS delivery failure.')
+    }
     const message = { to, body, sentAt: new Date() }
     this.sentMessages.push(message)
     logger.info('[MockSmsProvider] SMS not actually sent (no SMS provider configured)', {
@@ -32,5 +49,6 @@ export class MockSmsProvider {
   /** Test helper — clears history between test runs. */
   reset() {
     this.sentMessages = []
+    this._failNextSend = false
   }
 }

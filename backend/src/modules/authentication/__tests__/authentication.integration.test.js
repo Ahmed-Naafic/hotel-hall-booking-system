@@ -309,6 +309,42 @@ describe('Authentication — login (C4, H7, A1)', () => {
     assert.equal(me.body.data.isVerified, true)
   })
 
+  test('a gateway failure says so and invites a retry, never a bare 500', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const password = 'correct-horse-battery-staple'
+    await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
+
+    smsProvider.failNextSend()
+    const { status, body } = await post('/api/v1/auth/login', { mobileNumber, password })
+
+    // 500 would say the fault is ours and retrying is pointless; it is
+    // neither, and login now depends on this working.
+    assert.equal(status, 503)
+    assert.equal(body.error, 'SERVICE_UNAVAILABLE')
+    assert.match(body.message, /try again/i)
+  })
+
+  test('a failed send leaves no request behind to block the retry', async () => {
+    const mobileNumber = uniqueMobileNumber()
+    const password = 'correct-horse-battery-staple'
+    await post('/api/v1/auth/register', { mobileNumber, password, accountType: 'CUSTOMER', fullName: 'Test Customer' })
+
+    smsProvider.failNextSend()
+    await post('/api/v1/auth/login', { mobileNumber, password })
+
+    const user = await prisma.user.findUnique({ where: { mobileNumber } })
+    assert.equal(
+      await prisma.verificationRequest.count({ where: { userId: user.id, confirmedAt: null } }),
+      0,
+      'the undelivered code must not survive as an active request',
+    )
+
+    // ...so the very next attempt works rather than being refused.
+    const retry = await post('/api/v1/auth/login', { mobileNumber, password })
+    assert.equal(retry.status, 200)
+    assert.equal(retry.body.data.verificationRequired, true)
+  })
+
   test('a wrong code yields no session', async () => {
     const mobileNumber = uniqueMobileNumber()
     const password = 'correct-horse-battery-staple'

@@ -9,6 +9,25 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 
 void main() {
   group('ApiClient', () {
+
+    test('a request that never answers fails instead of hanging forever', () async {
+      // A stalled connection — packets sent, nothing back — raises neither
+      // SocketException nor HttpException, so before the timeout existed the
+      // future simply never completed and the screen span with no error.
+      final mock = MockClient((request) => Completer<http.Response>().future);
+      final client = ApiClient(httpClient: mock, baseUrl: 'http://test/api/v1');
+
+      await expectLater(
+        client.get('/hotels/public'),
+        throwsA(
+          isA<NetworkException>().having(
+            (e) => e.message,
+            'message',
+            contains('too long'),
+          ),
+        ),
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
     test('GET returns the envelope\'s data field on success', () async {
       final mock = MockClient((request) async {
         expect(request.method, 'GET');

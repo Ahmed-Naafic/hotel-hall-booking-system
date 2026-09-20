@@ -2,7 +2,6 @@ import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { createApp } from '../../../app.js'
 import { prisma } from '../../../shared/prismaClient.js'
-import { smsProvider } from '../../../shared/providers/smsProvider.js'
 import * as hotelService from '../../hotels/hotel.service.js'
 import * as applicationService from '../../hotels/application.service.js'
 import * as lifecycleService from '../../hotels/lifecycle.service.js'
@@ -71,16 +70,6 @@ const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0
 
 function authHeader(token) {
   return { Authorization: `Bearer ${token}` }
-}
-
-// No Twilio credentials are configured for the test run, so `smsProvider`
-// is MockSmsProvider (same convention as authentication.integration.test.js).
-function codeSentTo(mobileNumber) {
-  const message = smsProvider.getLastMessageTo(mobileNumber)
-  assert.ok(message, `expected a message to have been sent to ${mobileNumber}`)
-  const match = message.body.match(/\d{6}/)
-  assert.ok(match, `expected a 6-digit code in the message body: ${message.body}`)
-  return match[0]
 }
 
 async function registerAndLogin(accountType) {

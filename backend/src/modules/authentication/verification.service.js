@@ -5,7 +5,8 @@ import { sha256Hex } from '../../shared/utils/hash.js'
 import { smsProvider } from '../../shared/providers/smsProvider.js'
 import { MockSmsProvider } from '../../shared/providers/mockSmsProvider.js'
 import { env } from '../../config/env.js'
-import { BusinessRuleError, ConflictError } from '../../shared/errors/errorTypes.js'
+import { logger } from '../../config/logger.js'
+import { BusinessRuleError, ConflictError, ServiceUnavailableError } from '../../shared/errors/errorTypes.js'
 
 /**
  * Verification Component (Technical Design §4, §7.5) — manages the
@@ -44,11 +45,36 @@ async function issueCode(user) {
     : generateVerificationCode()
 
   const expiresAt = new Date(Date.now() + env.auth.verificationCodeTtlMinutes * 60 * 1000)
-  await verificationRepository.create({ userId: user.id, codeHash: sha256Hex(code), expiresAt })
-  await smsProvider.sendSms({
-    to: user.mobileNumber,
-    body: `Your verification code is ${code}. It expires in ${env.auth.verificationCodeTtlMinutes} minutes.`,
+  const request = await verificationRepository.create({
+    userId: user.id,
+    codeHash: sha256Hex(code),
+    expiresAt,
   })
+
+  try {
+    await smsProvider.sendSms({
+      to: user.mobileNumber,
+      body: `Your verification code is ${code}. It expires in ${env.auth.verificationCodeTtlMinutes} minutes.`,
+    })
+  } catch (error) {
+    // The code is stored before it is sent (a code that reached a handset
+    // but was never recorded would be worse), so a failed send has to undo
+    // that write — otherwise the unusable request counts as "active" and
+    // blocks a retry for the whole TTL.
+    await verificationRepository.remove(request.id).catch(() => {})
+
+    // The caller did nothing wrong and retrying may well work, which is
+    // what 503 says and 500 does not. Since login now depends on this,
+    // the generic "an unexpected error occurred" left a Customer unable to
+    // sign in with nothing explaining why.
+    logger.error('[verification] Could not deliver a verification code', {
+      userId: user.id,
+      error: error.message,
+    })
+    throw new ServiceUnavailableError(
+      'We could not send your verification code right now. Please try again shortly.',
+    )
+  }
 }
 
 /**

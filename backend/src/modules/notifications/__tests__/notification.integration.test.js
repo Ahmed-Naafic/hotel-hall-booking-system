@@ -67,15 +67,6 @@ async function patch(path, body, headers = {}) {
   return { status: res.status, body: text ? JSON.parse(text) : undefined }
 }
 
-async function del(path, body, headers = {}) {
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  return { status: res.status }
-}
-
 function authHeader(token) {
   return { Authorization: `Bearer ${token}` }
 }

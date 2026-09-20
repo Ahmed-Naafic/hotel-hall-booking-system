@@ -55,3 +55,16 @@ export class TooManyRequestsError extends AppError {
     super({ statusCode: 429, errorCode: 'TOO_MANY_REQUESTS', message })
   }
 }
+
+/**
+ * 503 — the request was valid and the caller did nothing wrong; an external
+ * dependency this platform relies on could not be reached. Distinct from a
+ * 500, which says the fault is ours and retrying is unlikely to help: this
+ * says retry, and it is what the caller should be told when, say, the SMS
+ * gateway is down and no verification code can be sent.
+ */
+export class ServiceUnavailableError extends AppError {
+  constructor(message = 'That service is temporarily unavailable. Please try again shortly.') {
+    super({ statusCode: 503, errorCode: 'SERVICE_UNAVAILABLE', message })
+  }
+}

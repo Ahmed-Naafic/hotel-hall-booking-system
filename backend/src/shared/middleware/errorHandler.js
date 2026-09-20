@@ -26,11 +26,15 @@ export function errorHandler(err, req, res, next) {
       : 'An unexpected error occurred. Please try again later.'
 
   if (statusCode >= 500) {
-    logger.error('Unhandled error', {
+    // A 5xx we threw on purpose (a dependency being down, say) is not an
+    // unhandled fault and has nothing useful in its stack — the throw site
+    // is already named by its own log line. Calling it "unhandled" and
+    // dumping a trace buries the genuine crashes this line exists for.
+    logger.error(isAppError ? 'Dependency unavailable' : 'Unhandled error', {
       requestId: req.requestId,
       path: req.originalUrl,
       method: req.method,
-      error: err.stack || err.message,
+      error: isAppError ? err.message : err.stack || err.message,
     })
   }
 

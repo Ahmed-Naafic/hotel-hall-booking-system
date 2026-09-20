@@ -14,6 +14,16 @@ export function findActiveForUser(userId) {
   })
 }
 
+/**
+ * Removes a request whose code never reached anyone, so a failed send does
+ * not leave an "active" request behind — that row would otherwise make
+ * `requestVerification` refuse a retry for the whole TTL, locking someone
+ * out over a transient gateway failure.
+ */
+export function remove(id) {
+  return prisma.verificationRequest.delete({ where: { id } })
+}
+
 export function markConfirmed(id) {
   return prisma.verificationRequest.update({
     where: { id },

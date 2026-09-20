@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -167,11 +168,28 @@ class ApiClient {
     return _parse(response);
   }
 
+  /// How long a single request may hang before the app gives up on it.
+  ///
+  /// Without this a stalled connection never resolves: an unreachable host
+  /// on a different network, a captive portal, or a firewall dropping
+  /// packets silently raises neither SocketException nor HttpException, so
+  /// the request simply never completes and the screen spins forever with
+  /// nothing to show the user.
+  ///
+  /// Generous on purpose — signing in waits on the backend's own SMS
+  /// gateway call (itself capped at 15s) on top of a database round trip,
+  /// so a tighter limit would abandon requests that were going to succeed.
+  static const _requestTimeout = Duration(seconds: 30);
+
   Future<http.Response> _sendWithNetworkHandling(
     Future<http.Response> Function() send,
   ) async {
     try {
-      return await send();
+      return await send().timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const NetworkException(
+        'The server took too long to respond. Check your connection and try again.',
+      );
     } on SocketException {
       throw const NetworkException(
         'Could not reach the server. Check your connection and try again.',

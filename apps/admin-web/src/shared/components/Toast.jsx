@@ -12,7 +12,8 @@ export function Toast({ title, message, tone = "info", action, onDismiss, style,
       role="status"
       style={{
         display: "flex", alignItems: "flex-start", gap: 12,
-        minWidth: 300, maxWidth: 420,
+        // Bounded by the viewport: a 300px floor overflows a narrow phone.
+        minWidth: "min(300px, 100%)", maxWidth: 420,
         background: t.bg, color: t.fg,
         borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)",
         padding: "14px 16px",

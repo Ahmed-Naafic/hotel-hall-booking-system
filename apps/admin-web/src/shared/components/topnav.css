@@ -11,9 +11,35 @@
   display: none;
 }
 
+/* The account's own number, shown beside the avatar. Identifying enough to
+   be worth ~140px on a desktop header, not worth pushing the whole header
+   past a phone's width. */
+.hh-topnav-user-label {
+  display: inline;
+}
+
+/* The theme control moves into the hamburger panel on narrow screens rather
+   than competing with the notification, profile and menu buttons for the
+   same row. */
+.hh-topnav-theme-header {
+  display: flex;
+}
+.hh-topnav-theme-panel {
+  display: none;
+}
+
 @media (max-width: 879px) {
   .hh-topnav-links {
     display: none;
+  }
+  .hh-topnav-user-label {
+    display: none;
+  }
+  .hh-topnav-theme-header {
+    display: none;
+  }
+  .hh-topnav-theme-panel {
+    display: flex;
   }
   .hh-topnav-toggle {
     display: inline-flex;

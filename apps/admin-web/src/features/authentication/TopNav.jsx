@@ -70,7 +70,9 @@ export function TopNav({ activeView, onNavigate, user, onChangePassword, onLogou
         </nav>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '0 0 auto' }}>
-          <ThemeToggle preference={preference} onChange={setPreference} />
+          <div className="hh-topnav-theme-header">
+            <ThemeToggle preference={preference} onChange={setPreference} />
+          </div>
           <NotificationsMenu onSelectHotel={onSelectHotel} />
           <ProfileMenu user={user} onChangePassword={onChangePassword} onLogout={onLogout} />
           <button
@@ -110,6 +112,13 @@ export function TopNav({ activeView, onNavigate, user, onChangePassword, onLogou
             {item.label}
           </button>
         ))}
+
+        <div
+          className="hh-topnav-theme-panel"
+          style={{ paddingTop: 'var(--space-3)', marginTop: 'var(--space-2)', borderTop: '1px solid rgba(255,255,255,0.12)' }}
+        >
+          <ThemeToggle preference={preference} onChange={setPreference} />
+        </div>
       </div>
     </header>
   )

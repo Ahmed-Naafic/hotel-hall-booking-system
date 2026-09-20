@@ -61,7 +61,7 @@ export function ProfileMenu({ user, onChangePassword, onLogout }) {
         >
           <IconUser size={14} />
         </span>
-        <span style={{ fontSize: 'var(--text-sm)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span className="hh-topnav-user-label" style={{ fontSize: 'var(--text-sm)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {user?.mobileNumber}
         </span>
         <IconChevronDown size={14} />
@@ -74,7 +74,7 @@ export function ProfileMenu({ user, onChangePassword, onLogout }) {
             position: 'absolute',
             top: 'calc(100% + 8px)',
             right: 0,
-            minWidth: 220,
+            minWidth: 'min(220px, calc(100vw - var(--space-6)))',
             background: 'var(--surface-card)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-lg)',

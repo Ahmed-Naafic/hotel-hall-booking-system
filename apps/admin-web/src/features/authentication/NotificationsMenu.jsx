@@ -92,7 +92,8 @@ export function NotificationsMenu({ onSelectHotel }) {
             position: 'absolute',
             top: 'calc(100% + 8px)',
             right: 0,
-            width: 320,
+            // Never wider than the screen it is pinned to.
+            width: 'min(320px, calc(100vw - var(--space-6)))',
             maxHeight: 420,
             overflowY: 'auto',
             background: 'var(--surface-card)',

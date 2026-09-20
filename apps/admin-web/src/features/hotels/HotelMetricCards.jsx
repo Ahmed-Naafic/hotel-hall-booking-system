@@ -45,57 +45,75 @@ export function HotelMetricCards({ counts, loadState, error, reload }) {
           <div
             key={key}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-4)',
+              position: 'relative',
+              overflow: 'hidden',
               background: 'var(--surface-card)',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-lg)',
               boxShadow: 'var(--shadow-sm)',
-              padding: 'var(--card-pad)',
+              padding: 'var(--space-7)',
             }}
           >
+            {/* The icon retreats to a quiet mark in the corner rather than
+                competing with the number for the eye. The count is the
+                point of a stat tile; everything else is a label for it. */}
             <span
+              aria-hidden="true"
               style={{
+                position: 'absolute',
+                top: 'var(--space-5)',
+                right: 'var(--space-5)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 40,
-                height: 40,
-                flex: '0 0 auto',
+                width: 32,
+                height: 32,
                 borderRadius: 'var(--radius-md)',
                 background: tone.bg,
                 color: tone.fg,
               }}
             >
-              <Icon size={20} />
+              <Icon size={16} />
             </span>
-            <div style={{ minWidth: 0 }}>
+
+            <p
+              className="hh-eyebrow"
+              style={{ margin: 0, color: 'var(--text-muted)', paddingRight: 44 }}
+            >
+              {label}
+            </p>
+
+            {loadState === 'loading' ? (
+              <div style={{ marginTop: 'var(--space-4)' }}>
+                <Skeleton width={56} height={34} />
+              </div>
+            ) : (
               <p
                 style={{
-                  margin: '0 0 2px',
-                  fontSize: 'var(--text-xs)',
-                  letterSpacing: 'var(--tracking-wide)',
-                  color: 'var(--text-muted)',
+                  margin: 'var(--space-3) 0 0',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'var(--display-md)',
+                  lineHeight: 'var(--display-leading)',
+                  letterSpacing: 'var(--display-tracking)',
+                  color: 'var(--text-heading)',
                 }}
               >
-                {label}
+                {counts[key]}
               </p>
-              {loadState === 'loading' ? (
-                <Skeleton width={44} height={26} />
-              ) : (
-                <p
-                  style={{
-                    margin: 0,
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 'var(--display-sm)',
-                    color: 'var(--text-heading)',
-                  }}
-                >
-                  {counts[key]}
-                </p>
-              )}
-            </div>
+            )}
+
+            {/* A gold hairline, the brand's rule device, sitting under the
+                figure the way it sits under a section title. */}
+            <div
+              aria-hidden="true"
+              style={{
+                height: 1,
+                width: 28,
+                marginTop: 'var(--space-4)',
+                background: 'var(--border-rule-gold)',
+                opacity: 0.6,
+              }}
+            />
           </div>
         )
       })}

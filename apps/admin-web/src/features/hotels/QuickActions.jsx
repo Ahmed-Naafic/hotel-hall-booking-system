@@ -40,11 +40,16 @@ function QuickActionButton({ label, description, Icon, onClick }) {
         padding: 'var(--space-4)',
         borderWidth: '1px',
         borderStyle: 'solid',
-        borderColor: hover ? 'var(--teal-600)' : 'var(--border-subtle)',
+        borderColor: hover ? 'var(--border-strong)' : 'var(--border-subtle)',
         borderRadius: 'var(--radius-lg)',
         background: hover ? 'var(--surface-teal-tint)' : 'var(--surface-card)',
+        // The system's own card-hover: lift 2px, shadow to md, border to
+        // strong, over 220ms with the decelerating brand easing. A colour
+        // swap alone read as a flat state change on an otherwise still page.
+        boxShadow: hover ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+        transform: hover ? 'translateY(-2px)' : 'translateY(0)',
+        transition: 'transform var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), background var(--dur-base) var(--ease-standard)',
         cursor: 'pointer',
-        transition: 'var(--transition-control)',
         fontFamily: 'var(--font-sans)',
       }}
     >

@@ -68,9 +68,39 @@ export function countByHotelId(hotelId, { activeFilter, search } = {}) {
  * (architecture-principles.md §5 — this repository never reaches into
  * Hotel Management's table to pre-filter).
  */
-export function listCandidatesForBrowse({ hotelId, cursor, take }) {
+/**
+ * Unlike `hallListWhere` above (a single Hotel Manager's own Hotel, so only
+ * the Hall's own name is worth matching), this is a platform-wide browse —
+ * a Customer typing a familiar Hotel name should find its Halls too, so
+ * this matches either.
+ */
+function browseSearchWhere(search) {
+  if (!search) return {}
+  return {
+    OR: [
+      { profileData: { path: ['name'], string_contains: search, mode: 'insensitive' } },
+      { hotel: { profileData: { path: ['name'], string_contains: search, mode: 'insensitive' } } },
+    ],
+  }
+}
+
+/**
+ * `minPriceCents`/`maxPriceCents` (Advanced Filters, Customer Mobile) apply
+ * at the database level — `rentAmountCents` is a real column, unlike
+ * capacity (Hall's flexible `profileData`, filtered in-memory by
+ * `visibility.service.js` instead, the same place it already reads
+ * capacity for Large Halls).
+ */
+export function listCandidatesForBrowse({ hotelId, cursor, take, minPriceCents, maxPriceCents, search }) {
   return prisma.hall.findMany({
-    where: { deletedAt: null, ...(hotelId ? { hotelId } : {}) },
+    where: {
+      deletedAt: null,
+      ...(hotelId ? { hotelId } : {}),
+      ...(minPriceCents !== undefined || maxPriceCents !== undefined
+        ? { rentAmountCents: { ...(minPriceCents !== undefined ? { gte: minPriceCents } : {}), ...(maxPriceCents !== undefined ? { lte: maxPriceCents } : {}) } }
+        : {}),
+      ...browseSearchWhere(search),
+    },
     take,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     orderBy: { createdAt: 'desc' },

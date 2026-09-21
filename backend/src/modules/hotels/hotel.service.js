@@ -8,6 +8,24 @@ import { haversineDistanceKm } from '../../shared/utils/geo.js'
 const NEARBY_RADIUS_KM = 5
 
 /**
+ * In-memory equivalent of `hotel.repository.js#searchWhere`'s own two
+ * fields (name, address) — never used for the plain "list every Hotel"
+ * case BDR-020 itself covers (that stays a database-level filter, per its
+ * own "Options Considered"), only for Nearby/Popular, which already load
+ * their full candidate set into memory for distance/ranking before this
+ * ever runs — one more predicate here doesn't change their existing
+ * scaling characteristics.
+ */
+function hotelMatchesSearch(hotel, search) {
+  if (!search) return true
+  const needle = search.toLowerCase()
+  const name = hotel.profileData?.name
+  const address = hotel.profileData?.location?.address
+  return (typeof name === 'string' && name.toLowerCase().includes(needle)) ||
+    (typeof address === 'string' && address.toLowerCase().includes(needle))
+}
+
+/**
  * Popular Hotels (approved business rules) — a Booking counts toward
  * popularity only in the status it is in when this list is read (CONFIRMED
  * or COMPLETED), using whichever timestamp represents when it most
@@ -96,10 +114,11 @@ export async function getPublicHotelById(id) {
  * latitude/longitude (legacy pre-BDR-017 plain-string shape, or an
  * incomplete profile) is excluded rather than treated as a match.
  */
-export async function listNearbyPublicHotels({ latitude, longitude }) {
+export async function listNearbyPublicHotels({ latitude, longitude, search }) {
   const hotels = await hotelRepository.findAllApprovedActive()
 
   return hotels
+    .filter((hotel) => hotelMatchesSearch(hotel, search))
     .map((hotel) => {
       const location = hotel.profileData?.location
       const hotelLatitude = location?.latitude
@@ -126,7 +145,7 @@ export async function listNearbyPublicHotels({ latitude, longitude }) {
  * qualifying Halls is summed exactly once per Booking, never per Hall — no
  * double counting is possible because each Booking row is aggregated once.
  */
-export async function listPopularPublicHotels({ limit = 20 } = {}) {
+export async function listPopularPublicHotels({ limit = 20, search } = {}) {
   const since = new Date(Date.now() - POPULAR_WINDOW_DAYS * 24 * 60 * 60 * 1000)
 
   const aggregatesByTransition = await Promise.all(
@@ -158,7 +177,9 @@ export async function listPopularPublicHotels({ limit = 20 } = {}) {
   return hotels
     .filter(
       (hotel) =>
-        hotel.halls.length > 0 && (hotel.media ?? []).some((media) => media.type === 'PHOTO'),
+        hotel.halls.length > 0 &&
+        (hotel.media ?? []).some((media) => media.type === 'PHOTO') &&
+        hotelMatchesSearch(hotel, search),
     )
     .map((hotel) => ({ hotel, ...summaryByHotelId.get(hotel.id) }))
     .sort((a, b) => {

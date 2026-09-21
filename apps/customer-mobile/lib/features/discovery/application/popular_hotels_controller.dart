@@ -15,6 +15,7 @@ class PopularHotelsController extends ChangeNotifier {
   PopularHotelsState state = PopularHotelsState.loading;
   List<PopularHotel> hotels = [];
   String? errorMessage;
+  String _search = '';
 
   // Ranking here is driven by qualifying (CONFIRMED/COMPLETED) Booking
   // counts (approved V1 business rules) — the one Discover ranking that a
@@ -37,7 +38,7 @@ class PopularHotelsController extends ChangeNotifier {
     isStale = false;
     notifyListeners();
     try {
-      hotels = await repository.getPopularHotels();
+      hotels = await repository.getPopularHotels(search: _search);
       state = hotels.isEmpty ? PopularHotelsState.empty : PopularHotelsState.loaded;
     } catch (_) {
       errorMessage = 'Could not load popular Hotels. Please try again.';
@@ -45,5 +46,13 @@ class PopularHotelsController extends ChangeNotifier {
     } finally {
       notifyListeners();
     }
+  }
+
+  /// Narrows the popularity ranking by Hotel name/address — a full `load()`
+  /// under the hood (never a separate lighter path) since Popular has no
+  /// per-device state like Nearby's own cached coordinates to preserve.
+  Future<void> search(String query) {
+    _search = query;
+    return load();
   }
 }

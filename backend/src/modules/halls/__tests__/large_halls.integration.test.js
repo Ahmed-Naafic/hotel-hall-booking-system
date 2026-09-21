@@ -157,6 +157,22 @@ describe('GET /halls/large-capacity', () => {
     assert.equal(res.status, 400)
   })
 
+  test('rejects a search string over 200 characters (400)', async () => {
+    const res = await get(`/api/v1/halls/large-capacity?search=${'a'.repeat(201)}`)
+    assert.equal(res.status, 400)
+  })
+
+  test('search narrows the ranking by Hall name (case-insensitive)', async () => {
+    const hotelId = await createApprovedHotel()
+    const match = await createHallDirect(hotelId, 90070, { name: 'The Grand Ballroom' })
+    const other = await createHallDirect(hotelId, 90070)
+
+    const res = await get('/api/v1/halls/large-capacity?limit=1000&search=ballroom')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.some((h) => h.id === match.id), true)
+    assert.equal(res.body.data.some((h) => h.id === other.id), false)
+  })
+
   test('the largest Hall appears first among several of differing capacity', async () => {
     // Capacities well above anything else on the platform, so all three stay
     // inside the top-`limit` window this ranking returns regardless of what

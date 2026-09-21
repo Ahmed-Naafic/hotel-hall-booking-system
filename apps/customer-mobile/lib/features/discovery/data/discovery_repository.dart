@@ -63,12 +63,14 @@ class DiscoveryRepository {
   Future<List<NearbyHotel>> getNearbyHotels({
     required double latitude,
     required double longitude,
+    String? search,
   }) async {
     final data = await apiClient.get(
       '/hotels/public/nearby',
       query: {
         'latitude': latitude.toString(),
         'longitude': longitude.toString(),
+        if (search != null && search.isNotEmpty) 'search': search,
       },
     );
     return (data as List)
@@ -79,8 +81,11 @@ class DiscoveryRepository {
   /// Popular Hotels (approved V1 business rules) — the backend is
   /// authoritative for the qualifying-booking count and ranking; this only
   /// parses the already-ranked result. No authentication, no location.
-  Future<List<PopularHotel>> getPopularHotels() async {
-    final data = await apiClient.get('/hotels/public/popular');
+  Future<List<PopularHotel>> getPopularHotels({String? search}) async {
+    final data = await apiClient.get(
+      '/hotels/public/popular',
+      query: {if (search != null && search.isNotEmpty) 'search': search},
+    );
     return (data as List)
         .map((item) => PopularHotel.fromJson((item as Map).cast<String, dynamic>()))
         .toList();
@@ -89,8 +94,11 @@ class DiscoveryRepository {
   /// Large Halls (approved V1 business rules) — the backend is
   /// authoritative for the capacity ranking; Customer Mobile never sorts
   /// this itself. No authentication, no location.
-  Future<List<LargeHall>> getLargeHalls() async {
-    final data = await apiClient.get('/halls/large-capacity');
+  Future<List<LargeHall>> getLargeHalls({String? search}) async {
+    final data = await apiClient.get(
+      '/halls/large-capacity',
+      query: {if (search != null && search.isNotEmpty) 'search': search},
+    );
     return (data as List)
         .map((item) => LargeHall.fromJson((item as Map).cast<String, dynamic>()))
         .toList();
@@ -102,12 +110,22 @@ class DiscoveryRepository {
   /// is not a new endpoint, just called without a `hotelId` filter. Flutter
   /// only ever asks for one page at a time — it never loads the whole
   /// Hall table into memory.
-  Future<HallPage> getAllHalls({String? cursor}) async {
+  Future<HallPage> getAllHalls({
+    String? cursor,
+    int? minCapacity,
+    int? minPriceCents,
+    int? maxPriceCents,
+    String? search,
+  }) async {
     final response = await apiClient.getPaginated(
       '/halls',
       query: {
         'limit': '20',
         if (cursor != null) 'cursor': cursor,
+        if (minCapacity != null) 'minCapacity': '$minCapacity',
+        if (minPriceCents != null) 'minPriceCents': '$minPriceCents',
+        if (maxPriceCents != null) 'maxPriceCents': '$maxPriceCents',
+        if (search != null && search.isNotEmpty) 'search': search,
       },
     );
     final halls = (response.data as List)

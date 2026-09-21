@@ -193,7 +193,8 @@ export const getPublicHotel = asyncHandler(async (req, res) => {
 export const listNearbyPublicHotels = asyncHandler(async (req, res) => {
   const latitude = Number(req.query.latitude)
   const longitude = Number(req.query.longitude)
-  const results = await hotelService.listNearbyPublicHotels({ latitude, longitude })
+  const search = req.query.search?.trim() || undefined
+  const results = await hotelService.listNearbyPublicHotels({ latitude, longitude, search })
   sendSuccess(res, {
     message: 'Nearby Hotels retrieved successfully.',
     data: results.map(({ hotel, distanceKm }) => toNearbyHotel(hotel, distanceKm)),
@@ -202,7 +203,8 @@ export const listNearbyPublicHotels = asyncHandler(async (req, res) => {
 
 export const listPopularPublicHotels = asyncHandler(async (req, res) => {
   const limit = req.query.limit ? Number(req.query.limit) : 20
-  const results = await hotelService.listPopularPublicHotels({ limit })
+  const search = req.query.search?.trim() || undefined
+  const results = await hotelService.listPopularPublicHotels({ limit, search })
   sendSuccess(res, {
     message: 'Popular Hotels retrieved successfully.',
     data: results.map(({ hotel, count }) => toPopularHotel(hotel, count)),

@@ -11,6 +11,16 @@ import { ValidationError } from '../../shared/errors/errorTypes.js'
  * `profileData`'s shape.
  */
 
+// BDR-020's own bound, mirrored here (`hotel.validation.js` carries the
+// canonical comment) — Hall search is free text too, only length-bounded.
+const MAX_SEARCH_LENGTH = 200
+
+function validateSearchLength(search, details) {
+  if (search !== undefined && (typeof search !== 'string' || search.length > MAX_SEARCH_LENGTH)) {
+    details.push({ field: 'search', message: `search must be a string of ${MAX_SEARCH_LENGTH} characters or fewer.` })
+  }
+}
+
 function assertPlainObject(value, field) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new ValidationError('The request could not be processed due to invalid input.', [
@@ -143,8 +153,20 @@ export function validateListHallsForHotel(req, res, next) {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/** A non-negative integer query parameter, or `undefined` if not supplied — `fail` on anything else (a negative number, a non-numeric string). */
+function nonNegativeIntOrFail(value, field) {
+  if (value === undefined) return undefined
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field, message: `${field} must be a non-negative integer.` },
+    ])
+  }
+  return parsed
+}
+
 export function validateBrowseHalls(req, res, next) {
-  const { hotelId, limit, cursor } = req.query ?? {}
+  const { hotelId, limit, cursor, search } = req.query ?? {}
   if (hotelId !== undefined && !UUID_PATTERN.test(hotelId)) {
     throw new ValidationError('The request could not be processed due to invalid input.', [
       { field: 'hotelId', message: 'hotelId must be a valid identifier.' },
@@ -160,15 +182,36 @@ export function validateBrowseHalls(req, res, next) {
       { field: 'cursor', message: 'cursor must be a valid identifier.' },
     ])
   }
+  const searchDetails = []
+  validateSearchLength(search, searchDetails)
+  if (searchDetails.length > 0) {
+    throw new ValidationError('The request could not be processed due to invalid input.', searchDetails)
+  }
+  // Advanced Filters (Customer Mobile, All Halls) — capacity lives in the
+  // Hall's own flexible `profileData` (Pending Business Decision #2 on
+  // required Hall content, same reason `visibility.service.js#hallCapacity`
+  // already reads it defensively rather than as a real column); price is
+  // the real `rentAmountCents` column.
+  nonNegativeIntOrFail(req.query?.minCapacity, 'minCapacity')
+  const minPriceCents = nonNegativeIntOrFail(req.query?.minPriceCents, 'minPriceCents')
+  const maxPriceCents = nonNegativeIntOrFail(req.query?.maxPriceCents, 'maxPriceCents')
+  if (minPriceCents !== undefined && maxPriceCents !== undefined && minPriceCents > maxPriceCents) {
+    throw new ValidationError('The request could not be processed due to invalid input.', [
+      { field: 'maxPriceCents', message: 'maxPriceCents must be greater than or equal to minPriceCents.' },
+    ])
+  }
   next()
 }
 
 export function validateLargeHalls(req, res, next) {
-  const { limit } = req.query ?? {}
+  const { limit, search } = req.query ?? {}
+  const details = []
   if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
-    throw new ValidationError('The request could not be processed due to invalid input.', [
-      { field: 'limit', message: 'limit must be a positive integer.' },
-    ])
+    details.push({ field: 'limit', message: 'limit must be a positive integer.' })
+  }
+  validateSearchLength(search, details)
+  if (details.length > 0) {
+    throw new ValidationError('The request could not be processed due to invalid input.', details)
   }
   next()
 }

@@ -101,6 +101,50 @@ void main() {
     expect(requestCount, 1, reason: 'loadMore must not fetch when hasMore is false');
   });
 
+  test('applyFilters sends the filter query params and reloads from the first page', () async {
+    final requestedQueries = <Map<String, String>>[];
+    final client = ApiClient(
+      httpClient: MockClient((request) async {
+        requestedQueries.add(request.url.queryParameters);
+        return _paginatedResponse([_hallJson('h1')], hasNext: false);
+      }),
+      baseUrl: 'http://test/api/v1',
+    );
+    final controller = AllHallsController(DiscoveryRepository(client));
+    await controller.load();
+
+    await controller.applyFilters(
+      const AdvancedHallFilters(minCapacity: 200, minPriceCents: 20000, maxPriceCents: 100000),
+    );
+
+    expect(controller.state, AllHallsState.loaded);
+    final lastQuery = requestedQueries.last;
+    expect(lastQuery['minCapacity'], '200');
+    expect(lastQuery['minPriceCents'], '20000');
+    expect(lastQuery['maxPriceCents'], '100000');
+  });
+
+  test('loadMore carries the active filters onto the next page request', () async {
+    final requestedQueries = <Map<String, String>>[];
+    final client = ApiClient(
+      httpClient: MockClient((request) async {
+        requestedQueries.add(request.url.queryParameters);
+        if (request.url.queryParameters['cursor'] == null) {
+          return _paginatedResponse([_hallJson('h1')], hasNext: true, nextCursor: 'h1');
+        }
+        return _paginatedResponse([_hallJson('h2')], hasNext: false);
+      }),
+      baseUrl: 'http://test/api/v1',
+    );
+    final controller = AllHallsController(DiscoveryRepository(client));
+    await controller.applyFilters(const AdvancedHallFilters(minCapacity: 200));
+
+    await controller.loadMore();
+
+    expect(requestedQueries.last['minCapacity'], '200');
+    expect(requestedQueries.last['cursor'], 'h1');
+  });
+
   test('a backend/network failure on the first load is a retryable error', () async {
     final client = ApiClient(
       httpClient: MockClient(

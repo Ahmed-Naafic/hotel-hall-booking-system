@@ -231,6 +231,22 @@ describe('GET /hotels/public/nearby', () => {
     assert.ok(Math.abs(match.distanceKm - expected) < 0.05)
   })
 
+  test('search narrows nearby results by Hotel name (case-insensitive)', async () => {
+    const matchId = await approveHotelAt(pointNorthOfBase(1))
+    await prisma.hotel.update({ where: { id: matchId }, data: { profileData: { ...(await hotelService.getHotelById(matchId)).profileData, name: 'The Grand Palazzo' } } })
+    const otherId = await approveHotelAt(pointNorthOfBase(2))
+
+    const res = await get(`/api/v1/hotels/public/nearby?latitude=${BASE.latitude}&longitude=${BASE.longitude}&search=palazzo`)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.some((h) => h.id === matchId), true)
+    assert.equal(res.body.data.some((h) => h.id === otherId), false)
+  })
+
+  test('rejects a search string over 200 characters (400)', async () => {
+    const res = await get(`/api/v1/hotels/public/nearby?latitude=${BASE.latitude}&longitude=${BASE.longitude}&search=${'a'.repeat(201)}`)
+    assert.equal(res.status, 400)
+  })
+
   test('existing GET /hotels/public behavior is unaffected by this feature', async () => {
     const hotelId = await approveHotelAt(pointNorthOfBase(1))
     const res = await get('/api/v1/hotels/public')

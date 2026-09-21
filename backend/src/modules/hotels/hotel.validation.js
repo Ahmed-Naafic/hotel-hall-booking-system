@@ -5,6 +5,19 @@ import { ValidationError } from '../../shared/errors/errorTypes.js'
  * controller logic. Business-rule validation belongs in the service layer
  * (api-standards.md §14).
  */
+// BDR-020 — search is free text, not an identifier; only bounded so an
+// unreasonably long query can't be sent, never restricted in character set.
+// Shared by every public browse/search endpoint this module has (Public,
+// Nearby, Popular) so "search means the same thing everywhere" holds at the
+// validation layer too, not just in each service's own matching logic.
+const MAX_SEARCH_LENGTH = 200
+
+function validateSearchLength(search, details) {
+  if (search !== undefined && (typeof search !== 'string' || search.length > MAX_SEARCH_LENGTH)) {
+    details.push({ field: 'search', message: `search must be a string of ${MAX_SEARCH_LENGTH} characters or fewer.` })
+  }
+}
+
 const HOTEL_STATUS_VALUES = [
   'REGISTERED',
   'PROFILE_COMPLETE',
@@ -89,7 +102,7 @@ function queryCoordinate(value) {
 }
 
 export function validateNearbyHotels(req, res, next) {
-  const { latitude, longitude } = req.query ?? {}
+  const { latitude, longitude, search } = req.query ?? {}
   const details = []
   if (!validCoordinate(queryCoordinate(latitude), -90, 90)) {
     details.push({ field: 'latitude', message: 'latitude must be a number between -90 and 90.' })
@@ -97,6 +110,7 @@ export function validateNearbyHotels(req, res, next) {
   if (!validCoordinate(queryCoordinate(longitude), -180, 180)) {
     details.push({ field: 'longitude', message: 'longitude must be a number between -180 and 180.' })
   }
+  validateSearchLength(search, details)
   if (details.length > 0) {
     throw new ValidationError('The request could not be processed due to invalid input.', details)
   }
@@ -104,11 +118,14 @@ export function validateNearbyHotels(req, res, next) {
 }
 
 export function validatePopularHotels(req, res, next) {
-  const { limit } = req.query ?? {}
+  const { limit, search } = req.query ?? {}
+  const details = []
   if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
-    throw new ValidationError('The request could not be processed due to invalid input.', [
-      { field: 'limit', message: 'limit must be a positive integer.' },
-    ])
+    details.push({ field: 'limit', message: 'limit must be a positive integer.' })
+  }
+  validateSearchLength(search, details)
+  if (details.length > 0) {
+    throw new ValidationError('The request could not be processed due to invalid input.', details)
   }
   next()
 }
@@ -124,26 +141,18 @@ export function validateHotelId(req, res, next) {
   next()
 }
 
-// BDR-020 — search is free text, not an identifier; only bounded so an
-// unreasonably long query can't be sent, never restricted in character set.
-const MAX_SEARCH_LENGTH = 200
-
 export function validatePublicHotels(req, res, next) {
   const { limit, cursor, search } = req.query ?? {}
+  const details = []
   if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1)) {
-    throw new ValidationError('The request could not be processed due to invalid input.', [
-      { field: 'limit', message: 'limit must be a positive integer.' },
-    ])
+    details.push({ field: 'limit', message: 'limit must be a positive integer.' })
   }
   if (cursor !== undefined && !UUID_PATTERN.test(cursor)) {
-    throw new ValidationError('The request could not be processed due to invalid input.', [
-      { field: 'cursor', message: 'cursor must be a valid identifier.' },
-    ])
+    details.push({ field: 'cursor', message: 'cursor must be a valid identifier.' })
   }
-  if (search !== undefined && (typeof search !== 'string' || search.length > MAX_SEARCH_LENGTH)) {
-    throw new ValidationError('The request could not be processed due to invalid input.', [
-      { field: 'search', message: `search must be a string of ${MAX_SEARCH_LENGTH} characters or fewer.` },
-    ])
+  validateSearchLength(search, details)
+  if (details.length > 0) {
+    throw new ValidationError('The request could not be processed due to invalid input.', details)
   }
   next()
 }

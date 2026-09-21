@@ -89,11 +89,26 @@ export async function filterVisible(halls, resolveIsOwner) {
  * (before visibility filtering), so pagination correctly continues scanning
  * forward even when some candidates on a page are Hidden and filtered out.
  */
-export async function browseVisibleHalls({ hotelId, cursor, limit }) {
-  const candidates = await hallRepository.listCandidatesForBrowse({ hotelId, cursor, take: limit + 1 })
+/**
+ * `minCapacity`/`minPriceCents`/`maxPriceCents` (Advanced Filters, Customer
+ * Mobile "All Halls") narrow the same candidate page visibility already
+ * filters — never a separate query. Price is pushed to the database
+ * (`hallRepository.listCandidatesForBrowse`, a real column); capacity is
+ * applied here, in-memory, the same way `listLargeHalls` below already
+ * reads it from Hall's flexible `profileData` (no real column exists yet —
+ * Pending Business Decision #2). Like the existing visibility filter, this
+ * can return fewer than `limit` results on a page without `hasNext` being
+ * false — the candidate page itself, not the filtered result, decides
+ * pagination, so a Customer scrolling for a rare combination keeps making
+ * forward progress via `loadMore` rather than getting stuck on a
+ * technically-non-empty but filtered-to-nothing page.
+ */
+export async function browseVisibleHalls({ hotelId, cursor, limit, minCapacity, minPriceCents, maxPriceCents, search }) {
+  const candidates = await hallRepository.listCandidatesForBrowse({ hotelId, cursor, take: limit + 1, minPriceCents, maxPriceCents, search })
   const hasNext = candidates.length > limit
   const page = hasNext ? candidates.slice(0, limit) : candidates
-  const halls = await filterVisible(page, () => false)
+  const visible = await filterVisible(page, () => false)
+  const halls = minCapacity === undefined ? visible : visible.filter((hall) => hallCapacity(hall) >= minCapacity)
   const nextCursor = hasNext ? page[page.length - 1].id : null
   return { halls, hasNext, nextCursor }
 }
@@ -101,6 +116,21 @@ export async function browseVisibleHalls({ hotelId, cursor, limit }) {
 function hallCapacity(hall) {
   const value = Number(hall.profileData?.capacity)
   return Number.isFinite(value) ? value : 0
+}
+
+/**
+ * Hall-name-only (not Hotel name) — unlike `browseVisibleHalls` below,
+ * `findAllCandidatesForRanking`'s own doc comment explains why it
+ * deliberately selects only the columns ranking/visibility need, no Hotel
+ * join, to avoid pulling every media row on the platform into memory for a
+ * query that already scans the whole table. Adding a Hotel-name match here
+ * would mean joining that back in for every candidate, not just the
+ * `limit` winners this function already hydrates separately.
+ */
+function hallMatchesSearch(hall, search) {
+  if (!search) return true
+  const name = hall.profileData?.name
+  return typeof name === 'string' && name.toLowerCase().includes(search.toLowerCase())
 }
 
 /**
@@ -112,10 +142,11 @@ function hallCapacity(hall) {
  * (not required for V1); a single bounded, ranked list, sorted in the
  * backend so Customer Mobile never computes the ranking itself.
  */
-export async function listLargeHalls({ limit }) {
+export async function listLargeHalls({ limit, search }) {
   const candidates = await hallRepository.findAllCandidatesForRanking()
   const visible = await filterVisible(candidates, () => false)
   const ranked = visible
+    .filter((hall) => hallMatchesSearch(hall, search))
     .sort((a, b) => {
       const diff = hallCapacity(b) - hallCapacity(a)
       if (diff !== 0) return diff

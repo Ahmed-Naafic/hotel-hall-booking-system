@@ -236,6 +236,93 @@ describe('Platform-wide browse (GET /api/v1/halls, WBS-06, BR-HALL-08)', () => {
     const res = await get('/api/v1/halls?hotelId=not-a-uuid')
     assert.equal(res.status, 400)
   })
+
+  describe('Advanced Filters (minCapacity, minPriceCents, maxPriceCents)', () => {
+    test('minCapacity excludes a Hall below it and includes one at or above it', async () => {
+      const { accessToken } = await registerAndLoginHotelManager()
+      const hotelId = await createApprovedHotel(accessToken)
+      const small = await hallService.createHall({ hotelId, profileData: { name: 'Small Hall', capacity: 50 } })
+      const large = await hallService.createHall({ hotelId, profileData: { name: 'Large Hall', capacity: 500 } })
+
+      const res = await get(`/api/v1/halls?hotelId=${hotelId}&minCapacity=200`)
+      assert.equal(res.status, 200)
+      const ids = res.body.data.map((h) => h.id)
+      assert.ok(!ids.includes(small.id))
+      assert.ok(ids.includes(large.id))
+    })
+
+    test('minPriceCents/maxPriceCents narrow to Halls within the price range', async () => {
+      const { accessToken } = await registerAndLoginHotelManager()
+      const hotelId = await createApprovedHotel(accessToken)
+      const cheap = await hallService.createHall({ hotelId, profileData: { name: 'Cheap Hall' }, commercialData: { rentAmountCents: 10000 } })
+      const midRange = await hallService.createHall({ hotelId, profileData: { name: 'Mid Hall' }, commercialData: { rentAmountCents: 50000 } })
+      const expensive = await hallService.createHall({ hotelId, profileData: { name: 'Expensive Hall' }, commercialData: { rentAmountCents: 200000 } })
+
+      const res = await get(`/api/v1/halls?hotelId=${hotelId}&minPriceCents=20000&maxPriceCents=100000`)
+      assert.equal(res.status, 200)
+      const ids = res.body.data.map((h) => h.id)
+      assert.ok(!ids.includes(cheap.id))
+      assert.ok(ids.includes(midRange.id))
+      assert.ok(!ids.includes(expensive.id))
+    })
+
+    test('minCapacity and a price range combine (both must match)', async () => {
+      const { accessToken } = await registerAndLoginHotelManager()
+      const hotelId = await createApprovedHotel(accessToken)
+      const bigButExpensive = await hallService.createHall({ hotelId, profileData: { name: 'Big Expensive Hall', capacity: 500 }, commercialData: { rentAmountCents: 200000 } })
+      const bigAndAffordable = await hallService.createHall({ hotelId, profileData: { name: 'Big Affordable Hall', capacity: 500 }, commercialData: { rentAmountCents: 30000 } })
+
+      const res = await get(`/api/v1/halls?hotelId=${hotelId}&minCapacity=200&maxPriceCents=50000`)
+      assert.equal(res.status, 200)
+      const ids = res.body.data.map((h) => h.id)
+      assert.ok(!ids.includes(bigButExpensive.id))
+      assert.ok(ids.includes(bigAndAffordable.id))
+    })
+
+    test('rejects a negative minCapacity (400)', async () => {
+      const res = await get('/api/v1/halls?minCapacity=-1')
+      assert.equal(res.status, 400)
+    })
+
+    test('rejects maxPriceCents below minPriceCents (400)', async () => {
+      const res = await get('/api/v1/halls?minPriceCents=50000&maxPriceCents=10000')
+      assert.equal(res.status, 400)
+    })
+  })
+
+  describe('search', () => {
+    test('rejects a search string over 200 characters (400)', async () => {
+      const res = await get(`/api/v1/halls?search=${'a'.repeat(201)}`)
+      assert.equal(res.status, 400)
+    })
+
+    test('matches by the Hall\'s own name (case-insensitive)', async () => {
+      const { accessToken } = await registerAndLoginHotelManager()
+      const hotelId = await createApprovedHotel(accessToken)
+      const match = await hallService.createHall({ hotelId, profileData: { name: 'The Grand Ballroom' } })
+      const other = await hallService.createHall({ hotelId, profileData: { name: 'Conference Room' } })
+
+      const res = await get(`/api/v1/halls?hotelId=${hotelId}&search=ballroom`)
+      assert.equal(res.status, 200)
+      const ids = res.body.data.map((h) => h.id)
+      assert.ok(ids.includes(match.id))
+      assert.ok(!ids.includes(other.id))
+    })
+
+    test('also matches by the owning Hotel\'s name, not just the Hall\'s own', async () => {
+      const { accessToken } = await registerAndLoginHotelManager()
+      const hotelId = await createApprovedHotel(accessToken)
+      await prisma.hotel.update({
+        where: { id: hotelId },
+        data: { profileData: { ...(await hotelService.getHotelById(hotelId)).profileData, name: 'The Grand Palazzo' } },
+      })
+      const hall = await hallService.createHall({ hotelId, profileData: { name: 'Unrelated Hall Name' } })
+
+      const res = await get(`/api/v1/halls?hotelId=${hotelId}&search=palazzo`)
+      assert.equal(res.status, 200)
+      assert.ok(res.body.data.some((h) => h.id === hall.id))
+    })
+  })
 })
 
 describe('POST /api/v1/hotels/:hotelId/halls (WBS-05, HL1/HL2, BR-HALL-02)', () => {

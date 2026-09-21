@@ -214,6 +214,42 @@ void main() {
     expect(find.widgetWithText(TextField, 'Guuleed'), findsNothing);
   });
 
+  testWidgets(
+    'typing also searches Popular, Large Halls, and All Halls in the background, not just All Hotels',
+    (tester) async {
+      final searchedPaths = <String>{};
+      await tester.pumpWidget(
+        _wrapDiscover(
+          handler: (request) async {
+            if (request.url.path.endsWith('/favorites/hotels')) return _envelope(<String>[]);
+            if (request.url.queryParameters['search'] == 'Guuleed') {
+              searchedPaths.add(request.url.path);
+            }
+            if (request.url.path.endsWith('/halls')) {
+              return _envelope([], pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null});
+            }
+            return _envelope([]);
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Guuleed');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(
+        searchedPaths,
+        containsAll(<String>{
+          '/api/v1/hotels/public',
+          '/api/v1/hotels/public/popular',
+          '/api/v1/halls/large-capacity',
+          '/api/v1/halls',
+        }),
+      );
+    },
+  );
+
   testWidgets('a search result page with more results shows the pagination footer', (tester) async {
     await tester.pumpWidget(
       _wrapDiscover(

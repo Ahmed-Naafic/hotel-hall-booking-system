@@ -15,13 +15,14 @@ class LargeHallsController extends ChangeNotifier {
   LargeHallsState state = LargeHallsState.loading;
   List<LargeHall> halls = [];
   String? errorMessage;
+  String _search = '';
 
   Future<void> load() async {
     state = LargeHallsState.loading;
     errorMessage = null;
     notifyListeners();
     try {
-      halls = await repository.getLargeHalls();
+      halls = await repository.getLargeHalls(search: _search);
       state = halls.isEmpty ? LargeHallsState.empty : LargeHallsState.loaded;
     } catch (_) {
       errorMessage = 'Could not load large Halls. Please try again.';
@@ -29,5 +30,12 @@ class LargeHallsController extends ChangeNotifier {
     } finally {
       notifyListeners();
     }
+  }
+
+  /// Narrows the capacity ranking by Hall name — a full `load()` under the
+  /// hood, the same shape `PopularHotelsController.search` uses.
+  Future<void> search(String query) {
+    _search = query;
+    return load();
   }
 }

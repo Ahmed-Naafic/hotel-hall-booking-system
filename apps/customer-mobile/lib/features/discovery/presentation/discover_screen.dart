@@ -20,6 +20,7 @@ import '../../notifications/application/notification_controller.dart';
 import '../../notifications/presentation/screens/notification_center_screen.dart';
 import '../application/all_halls_controller.dart';
 import '../application/discovery_controller.dart';
+import 'widgets/advanced_filters_sheet.dart';
 import '../application/large_halls_controller.dart';
 import '../application/nearby_hotels_controller.dart';
 import '../application/popular_hotels_controller.dart';
@@ -49,6 +50,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   final ScrollController _scrollController = ScrollController();
 
   String _search = '';
+
+  /// Empty states have two meanings and were only telling one of them: a
+  /// list can be empty because nothing exists yet, or because the search
+  /// excluded everything. Saying "none within 5 km yet" to someone who just
+  /// typed a name reads as a broken feature rather than no matches.
+  String _emptyMessage(String whenSearching, String whenBrowsing) =>
+      _search.trim().isEmpty ? whenBrowsing : whenSearching;
   // BDR-020 — debounced so every keystroke doesn't fire a request; a new
   // keystroke cancels whichever search request is still pending.
   Timer? _searchDebounce;
@@ -114,6 +122,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   AllHallsController get _allHalls =>
       _allHallsController ??= AllHallsController(_repository)..load();
+
+  /// The Discover screen's filter icon — narrows All Halls by guest
+  /// capacity and/or price range (the two Hall attributes `GET /halls`
+  /// already supports filtering by). Applying switches to the All Halls
+  /// tab automatically, since filters that only affect Halls would
+  /// otherwise silently do nothing on, say, "Popular".
+  Future<void> _openAdvancedFilters() async {
+    final result = await showAdvancedFiltersSheet(context, initial: _allHalls.filters);
+    if (result == null) return;
+    await _allHalls.applyFilters(result);
+    if (mounted) setState(() => _selectedFilter = 3);
+  }
 
   @override
   void initState() {
@@ -224,11 +244,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       setState(() => _search = value);
                       _searchDebounce?.cancel();
                       _searchDebounce = Timer(_searchDebounceDuration, () {
-                        // If the customer switched away from "All Hotels"
-                        // while typing, the search still runs (so results
-                        // are ready when they switch back) but never forces
-                        // a tab switch.
+                        // Every category searches in the background,
+                        // whichever is currently selected — so results are
+                        // ready the moment the customer switches tabs,
+                        // never forcing a tab switch itself. "All Hotels"
+                        // already worked this way; Near You/Popular/Large
+                        // Halls/All Halls now match it rather than silently
+                        // ignoring the search box.
                         context.read<DiscoveryController>().search(value);
+                        _nearby.search(value);
+                        _popular.search(value);
+                        _largeHalls.search(value);
+                        _allHalls.search(value);
                       });
                     },
                     onClear: () {
@@ -236,7 +263,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       _searchController.clear();
                       setState(() => _search = '');
                       context.read<DiscoveryController>().loadHotels();
+                      _nearby.search('');
+                      _popular.search('');
+                      _largeHalls.search('');
+                      _allHalls.search('');
                     },
+                    onOpenFilters: _openAdvancedFilters,
+                    // Reads the already-created controller only — opening
+                    // the sheet (and thus ever having filters at all) is
+                    // what lazily creates it in the first place, so "not
+                    // created yet" and "no filters" mean the same thing.
+                    filtersActive: !(_allHallsController?.filters.isEmpty ?? true),
                   ),
                 ),
               ),
@@ -356,7 +393,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 hasScrollBody: false,
                 child: _SectionStatus(
                   icon: Icons.map_outlined,
-                  message: 'No Hotels within 5 km of your location yet.',
+                  message: _emptyMessage(
+                    'No Hotels near you match "$_search".',
+                    'No Hotels within 5 km of your location yet.',
+                  ),
                   actionLabel: 'Refresh',
                   onAction: controller.load,
                 ),
@@ -409,7 +449,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 hasScrollBody: false,
                 child: _SectionStatus(
                   icon: Icons.local_fire_department_outlined,
-                  message: 'No popular Hotels yet — check back soon.',
+                  message: _emptyMessage(
+                    'No popular Hotels match "$_search".',
+                    'No popular Hotels yet — check back soon.',
+                  ),
                   actionLabel: 'Refresh',
                   onAction: controller.load,
                 ),
@@ -462,7 +505,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 hasScrollBody: false,
                 child: _SectionStatus(
                   icon: Icons.meeting_room_outlined,
-                  message: 'No Halls are available yet.',
+                  message: _emptyMessage(
+                    'No Halls match "$_search".',
+                    'No Halls are available yet.',
+                  ),
                   actionLabel: 'Refresh',
                   onAction: controller.load,
                 ),
@@ -515,7 +561,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 hasScrollBody: false,
                 child: _SectionStatus(
                   icon: Icons.meeting_room_outlined,
-                  message: 'No Halls are available yet.',
+                  message: _emptyMessage(
+                    'No Halls match "$_search".',
+                    'No Halls are available yet.',
+                  ),
                   actionLabel: 'Refresh',
                   onAction: controller.load,
                 ),
@@ -868,11 +917,18 @@ class _SearchField extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.onClear,
+    required this.onOpenFilters,
+    required this.filtersActive,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final VoidCallback onOpenFilters;
+  // Whether at least one Advanced Filter is currently applied — shown as a
+  // small dot on the filter button so switching tabs and back never hides
+  // that a filter is still narrowing All Halls.
+  final bool filtersActive;
 
   @override
   Widget build(BuildContext context) {
@@ -918,14 +974,37 @@ class _SearchField extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        Container(
-          height: 54,
-          width: 54,
-          decoration: BoxDecoration(
-            color: scheme.primary,
-            borderRadius: BorderRadius.circular(17),
-          ),
-          child: Icon(Icons.tune_rounded, color: scheme.onPrimary),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Material(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(17),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(17),
+                onTap: onOpenFilters,
+                child: SizedBox(
+                  height: 54,
+                  width: 54,
+                  child: Icon(Icons.tune_rounded, color: scheme.onPrimary),
+                ),
+              ),
+            ),
+            if (filtersActive)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: context.hh.danger700,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: scheme.primary, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );

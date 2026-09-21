@@ -111,6 +111,12 @@ export const browseHalls = asyncHandler(async (req, res) => {
     hotelId: req.query.hotelId,
     cursor: req.query.cursor,
     limit,
+    // Advanced Filters (Customer Mobile, All Halls) — each is optional and
+    // independent; already shape-checked by `validateBrowseHalls`.
+    minCapacity: req.query.minCapacity !== undefined ? Number(req.query.minCapacity) : undefined,
+    minPriceCents: req.query.minPriceCents !== undefined ? Number(req.query.minPriceCents) : undefined,
+    maxPriceCents: req.query.maxPriceCents !== undefined ? Number(req.query.maxPriceCents) : undefined,
+    search: req.query.search?.trim() || undefined,
   })
   sendSuccess(res, {
     statusCode: 200,
@@ -127,7 +133,8 @@ export const browseHalls = asyncHandler(async (req, res) => {
  */
 export const listLargeHalls = asyncHandler(async (req, res) => {
   const limit = req.query.limit ? Math.min(Number(req.query.limit), 100) : 20
-  const halls = await visibilityService.listLargeHalls({ limit })
+  const search = req.query.search?.trim() || undefined
+  const halls = await visibilityService.listLargeHalls({ limit, search })
   sendSuccess(res, {
     statusCode: 200,
     message: 'Halls retrieved successfully.',

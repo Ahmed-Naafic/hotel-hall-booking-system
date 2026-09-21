@@ -437,6 +437,29 @@ describe('GET /hotels/public/popular', () => {
     assert.equal(res.status, 400)
   })
 
+  test('rejects a search string over 200 characters (400)', async () => {
+    const res = await get(`/api/v1/hotels/public/popular?search=${'a'.repeat(201)}`)
+    assert.equal(res.status, 400)
+  })
+
+  test('search narrows the ranking by Hotel name (case-insensitive)', async () => {
+    const match = await eligibleHotel()
+    await prisma.hotel.update({
+      where: { id: match.hotelId },
+      data: { profileData: { ...(await hotelService.getHotelById(match.hotelId)).profileData, name: 'The Grand Palazzo' } },
+    })
+    const other = await eligibleHotel()
+    const customer = await createCustomer()
+    for (const { hotelId, hallId } of [match, other]) {
+      await createBookingDirect({ hotelId, hallId, customerUserId: customer.id, status: 'CONFIRMED', updatedAt: new Date() })
+    }
+
+    const res = await get('/api/v1/hotels/public/popular?search=palazzo' + '&limit=1000')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.some((h) => h.id === match.hotelId), true)
+    assert.equal(res.body.data.some((h) => h.id === other.hotelId), false)
+  })
+
   test('existing GET /hotels/public behavior is unaffected by this feature', async () => {
     const { hotelId } = await eligibleHotel()
     const res = await get('/api/v1/hotels/public')

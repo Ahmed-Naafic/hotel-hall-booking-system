@@ -3,7 +3,8 @@ import { useAuth } from '../../shared/auth/useAuth.js'
 import { ApiError } from '../../shared/api/apiClient.js'
 import { Button } from '../../shared/components/Button.jsx'
 import { Input } from '../../shared/components/Input.jsx'
-import logoFull from '../../shared/design-system/assets/logo-full.png'
+import logoMark from '../../shared/design-system/assets/logo-mark.png'
+import './login.css'
 
 /**
  * A1 (Business Specification §7.3) — Platform Administrator login, in two
@@ -31,7 +32,11 @@ export function LoginPage({ notice }) {
  * unexpected fault and says so.
  */
 function messageFor(error) {
-  if (error instanceof ApiError && (error.status === 401 || error.status === 422)) {
+  // 403 is the "wrong app" refusal raised by AuthContext when the account
+  // that just authenticated is not a Platform Administrator; showing the
+  // generic fault message instead would leave them guessing why correct
+  // credentials bounced.
+  if (error instanceof ApiError && [401, 403, 422].includes(error.status)) {
     return error.message
   }
   return 'Something went wrong. Please try again.'
@@ -214,65 +219,95 @@ function ErrorLine({ message }) {
 
 function Shell({ notice, children }) {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--surface-page)',
-        padding: 'var(--space-6)',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 400,
-          background: 'var(--surface-card)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-sm)',
-          padding: 'var(--space-8)',
-        }}
-      >
-        <img
-          src={logoFull}
-          alt="Hotel Hall"
-          style={{ display: 'block', width: 96, height: 96, margin: '0 auto var(--space-6)' }}
-        />
-        <p className="hh-eyebrow" style={{ textAlign: 'center', marginBottom: 'var(--space-2)' }}>
-          PLATFORM ADMINISTRATION
-        </p>
-        <h1
-          style={{
-            fontFamily: 'var(--font-display)',
-            textTransform: 'uppercase',
-            textAlign: 'center',
-            fontSize: 'var(--text-xl)',
-            letterSpacing: 'var(--tracking-wide)',
-            color: 'var(--text-heading)',
-            margin: '0 0 var(--space-6)',
-          }}
-        >
-          Sign in
-        </h1>
+    <div className="hh-login">
+      <aside className="hh-login__brand">
+        <div className="hh-login__arch" aria-hidden="true" />
+        <div className="hh-login__arch hh-login__arch--inner" aria-hidden="true" />
 
-        {notice ? (
-          <p
-            role="status"
+        <div className="hh-login__brandInner hh-rise hh-rise--1">
+          <img
+            src={logoMark}
+            alt=""
+            width={44}
+            height={44}
+            style={{ display: 'block', borderRadius: 'var(--radius-md)' }}
+          />
+        </div>
+
+        <div className="hh-login__brandInner">
+          <p className="hh-eyebrow hh-rise hh-rise--2" style={{ margin: '0 0 var(--space-5)' }}>
+            BOOK • STAY • CELEBRATE
+          </p>
+          <h1
+            className="hh-rise hh-rise--3"
             style={{
-              color: 'var(--success-700)',
-              fontSize: 'var(--text-sm)',
-              textAlign: 'center',
-              marginBottom: 'var(--space-4)',
+              fontSize: 'var(--display-md)',
+              color: 'var(--white)',
+              margin: '0 0 var(--space-5)',
             }}
           >
-            {notice}
+            Platform
+            <br />
+            Administration
+          </h1>
+          <p
+            className="hh-login__tagline hh-rise hh-rise--4"
+            style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: 'var(--serif-md)',
+              lineHeight: 'var(--serif-leading)',
+              color: 'var(--text-on-navy)',
+              opacity: 0.8,
+              margin: 0,
+            }}
+          >
+            Stay comfortable, celebrate memorable.
           </p>
-        ) : null}
+        </div>
 
-        {children}
-      </div>
+        <p
+          className="hh-login__tagline"
+          style={{ position: 'relative', zIndex: 1, margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-on-navy)', opacity: 0.55 }}
+        >
+          Every Hotel, application and decision on the Platform.
+        </p>
+      </aside>
+
+      <main className="hh-login__form">
+        <div className="hh-login__formInner">
+          <div className="hh-rise hh-rise--2">
+            <h2
+              style={{
+                fontSize: 'var(--display-sm)',
+                color: 'var(--text-heading)',
+                margin: '0 0 var(--space-3)',
+              }}
+            >
+              Sign in
+            </h2>
+            <div
+              aria-hidden="true"
+              style={{ height: 1, width: 40, background: 'var(--border-rule-gold)', opacity: 0.6, marginBottom: 'var(--space-6)' }}
+            />
+          </div>
+
+          {notice ? (
+            <p
+              role="status"
+              className="hh-rise hh-rise--3"
+              style={{
+                color: 'var(--success-700)',
+                fontSize: 'var(--text-sm)',
+                marginBottom: 'var(--space-5)',
+              }}
+            >
+              {notice}
+            </p>
+          ) : null}
+
+          <div className="hh-rise hh-rise--3">{children}</div>
+        </div>
+      </main>
     </div>
   )
 }

@@ -1,0 +1,148 @@
+/* Platform Administration sign-in.
+   Two panels, not a card floating in the middle of an empty page: a navy
+   brand side and an ivory form side. Navy is the system's structural
+   colour (~70% of brand ink) and a flat navy panel is one of the four
+   sanctioned backgrounds, so the weight belongs on the brand half and the
+   form sits against calm ivory. */
+
+.hh-login {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  /* The brand panel takes the larger share on a wide screen; the form
+     column is fixed enough that the fields never stretch past a
+     comfortable measure. */
+  grid-template-columns: 1.15fr 1fr;
+  background: var(--surface-page);
+}
+
+.hh-login__brand {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-11) var(--space-10);
+  background: var(--surface-navy-deep);
+  color: var(--text-on-navy);
+}
+
+/* The arch from the venue archway in the logo — the system's one permitted
+   motif, and the reason this panel reads as Hotel Hall rather than as a
+   generic dark sidebar. A gold hairline traces its inner edge. */
+.hh-login__arch {
+  position: absolute;
+  top: -12%;
+  right: -18%;
+  width: 78%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--arch-top);
+  border: 1px solid var(--border-gold);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.hh-login__arch--inner {
+  top: -4%;
+  right: -10%;
+  width: 62%;
+  opacity: 0.12;
+}
+
+.hh-login__brandInner {
+  position: relative;
+  z-index: 1;
+  max-width: 34ch;
+}
+
+/* The form column. Deliberately not centred in the viewport: it is aligned
+   to the start of its own column and sits slightly above the optical
+   middle, which is where the eye expects a form to begin. */
+.hh-login__form {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-10) var(--space-10);
+}
+
+.hh-login__formInner {
+  width: 100%;
+  max-width: 380px;
+}
+
+/* Entrances are fade + 8px rise in this system — 220ms for reveals, on the
+   decelerating brand easing. No bounce, no spring. */
+@keyframes hh-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hh-rise {
+  animation: hh-rise var(--dur-base) var(--ease-standard) both;
+}
+
+/* Staggered so the panel resolves as a sequence rather than a single
+   jump — each step is one 80ms beat after the last. */
+.hh-rise--1 { animation-delay: 60ms; }
+.hh-rise--2 { animation-delay: 140ms; }
+.hh-rise--3 { animation-delay: 220ms; }
+.hh-rise--4 { animation-delay: 300ms; }
+
+/* The arch drifts in more slowly and further, as scenery behind the
+   content rather than part of the reading order. */
+@keyframes hh-arch-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+}
+
+.hh-login__arch {
+  animation: hh-arch-in var(--dur-slower) var(--ease-standard) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hh-rise,
+  .hh-login__arch {
+    animation: none;
+  }
+}
+
+/* One column below the breakpoint: the brand panel becomes a compact
+   masthead and the form takes the rest, so neither is squeezed. */
+@media (max-width: 899px) {
+  .hh-login {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .hh-login__brand {
+    padding: var(--space-8) var(--space-6) var(--space-9);
+  }
+
+  .hh-login__arch {
+    top: -30%;
+    right: -30%;
+    width: 70%;
+  }
+
+  .hh-login__form {
+    padding: var(--space-9) var(--space-6) var(--space-10);
+    justify-content: flex-start;
+  }
+
+  .hh-login__formInner {
+    max-width: none;
+  }
+
+  .hh-login__tagline {
+    display: none;
+  }
+}

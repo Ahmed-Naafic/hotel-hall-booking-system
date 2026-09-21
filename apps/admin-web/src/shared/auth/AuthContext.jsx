@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as authApi from '../api/authApi.js'
+import { ApiError } from '../api/apiClient.js'
 import { AuthContext } from './authContext.js'
 
 /**
@@ -9,6 +10,25 @@ import { AuthContext } from './authContext.js'
  * reload doesn't force a fresh login every time.
  */
 const REFRESH_TOKEN_STORAGE_KEY = 'hh_admin_refresh_token'
+
+/**
+ * This console serves one account type. A Customer or Hotel Manager holds
+ * valid credentials for the same backend, so without this check they sign
+ * in here perfectly well and land on a console with nothing in it — every
+ * endpoint behind it refuses them (`requireAccountType`), which is a
+ * confusing way to learn you are in the wrong app.
+ *
+ * Refusing at the door is a UX boundary, not the security one: the server
+ * remains the authority on what any token may do.
+ */
+const ADMIN_ACCOUNT_TYPE = 'PLATFORM_ADMINISTRATOR'
+
+const WRONG_APP_MESSAGE =
+  'That account is not a Platform Administrator. This console is for Platform Administration only.'
+
+function isAdministrator(user) {
+  return user?.accountType === ADMIN_ACCOUNT_TYPE
+}
 
 export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(null)
@@ -45,6 +65,13 @@ export function AuthProvider({ children }) {
       .then(async ({ accessToken: newAccessToken, refreshToken: newRefreshToken }) => {
         localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, newRefreshToken)
         const currentUser = await authApi.getCurrentUser(newAccessToken)
+        if (!isAdministrator(currentUser)) {
+          // Same door, different entrance: a token left behind by the wrong
+          // account type must not restore a console session either.
+          await authApi.logout(newAccessToken).catch(() => {})
+          clearSession()
+          return
+        }
         setAccessToken(newAccessToken)
         setUser(currentUser)
         setStatus('authenticated')
@@ -56,7 +83,19 @@ export function AuthProvider({ children }) {
       })
   }, [clearSession])
 
-  const adoptSession = useCallback((result) => {
+  const adoptSession = useCallback(async (result) => {
+    if (!isAdministrator(result.user)) {
+      // End the session that was just created rather than abandoning a live
+      // one server-side, then report it as the refusal it is.
+      try {
+        await authApi.logout(result.accessToken)
+      } catch {
+        // Best effort — the session is never adopted here either way.
+      }
+      setPendingLogin(null)
+      throw new ApiError({ status: 403, error: 'AUTHORIZATION_ERROR', message: WRONG_APP_MESSAGE })
+    }
+
     localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, result.refreshToken)
     setAccessToken(result.accessToken)
     setUser(result.user)
@@ -75,7 +114,7 @@ export function AuthProvider({ children }) {
         setPendingLogin({ mobileNumber, password })
         return true
       }
-      adoptSession(result)
+      await adoptSession(result)
       return false
     },
     [adoptSession],
@@ -85,7 +124,7 @@ export function AuthProvider({ children }) {
   const completeLogin = useCallback(
     async (code) => {
       if (!pendingLogin) throw new Error('No sign-in is waiting for a code.')
-      adoptSession(await authApi.completeLogin({ mobileNumber: pendingLogin.mobileNumber, code }))
+      await adoptSession(await authApi.completeLogin({ mobileNumber: pendingLogin.mobileNumber, code }))
     },
     [pendingLogin, adoptSession],
   )

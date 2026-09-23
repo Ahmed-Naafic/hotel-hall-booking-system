@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 
 import '../../widgets/hh_error_banner.dart';
-import '../../widgets/hh_primary_button.dart';
+import '../../widgets/hh_gold_button.dart';
 import '../../widgets/hh_text_field.dart';
 
 /// Mobile-number verification form — C3, BR-AUTH-02. A 6-digit code, per
@@ -65,7 +65,7 @@ class _VerifyFormState extends State<VerifyForm> {
             },
           ),
           const SizedBox(height: HHSpacing.space7),
-          HHPrimaryButton(label: 'Verify', isLoading: widget.isBusy, onPressed: _submit),
+          HHGoldButton(label: 'Verify', isLoading: widget.isBusy, onPressed: _submit),
           const SizedBox(height: HHSpacing.space4),
           TextButton(
             onPressed: widget.isResending ? null : () => widget.onResend(),

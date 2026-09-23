@@ -52,7 +52,7 @@ class AuthController extends ChangeNotifier {
   /// re-running login is the only way to get one, and requiring the password
   /// is what stops the endpoint being an SMS-flood button. Cleared the
   /// moment a session exists, and on logout.
-  ({String mobileNumber, String password})? _pendingLogin;
+  ({String mobileNumber, String password, bool rememberMe})? _pendingLogin;
 
   /// Called once at app start (`main.dart`) — restores a session from
   /// secure storage, if one exists, by re-fetching the current user
@@ -95,39 +95,49 @@ class AuthController extends ChangeNotifier {
       accountType: accountType,
       fullName: fullName,
     );
-    await _authenticate(mobileNumber: mobileNumber, password: password);
+    // Registering never shows a "Remember me" choice — always remembered,
+    // same as every session before this feature existed.
+    await _authenticate(mobileNumber: mobileNumber, password: password, rememberMe: true);
   });
 
   /// `POST /auth/login` — C4, H7, A1. Succeeding here does not necessarily
   /// mean signed in: check [awaitingLoginCode], which is set when the
   /// backend texted a code instead of issuing a session.
+  ///
+  /// [rememberMe] (Login screen's own checkbox) controls whether the session
+  /// survives a cold start: unchecked, the tokens stay in memory only for
+  /// this run and the next launch lands back on the Login screen.
   Future<bool> login({
     required String mobileNumber,
     required String password,
+    bool rememberMe = true,
   }) =>
-      _run(() => _authenticate(mobileNumber: mobileNumber, password: password));
+      _run(() => _authenticate(mobileNumber: mobileNumber, password: password, rememberMe: rememberMe));
 
   Future<void> _authenticate({
     required String mobileNumber,
     required String password,
+    required bool rememberMe,
   }) async {
     final result = await repository.login(
       mobileNumber: mobileNumber,
       password: password,
     );
     if (result == null) {
-      _pendingLogin = (mobileNumber: mobileNumber, password: password);
+      _pendingLogin = (mobileNumber: mobileNumber, password: password, rememberMe: rememberMe);
       return;
     }
-    await _adoptSession(result);
+    await _adoptSession(result, rememberMe: rememberMe);
   }
 
   Future<void> _adoptSession(
-    ({String accessToken, String refreshToken, AppUser user}) result,
-  ) async {
+    ({String accessToken, String refreshToken, AppUser user}) result, {
+    required bool rememberMe,
+  }) async {
     await sessionStore.save(
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
+      remember: rememberMe,
     );
     currentUser = result.user;
     status = AuthStatus.authenticated;
@@ -140,7 +150,11 @@ class AuthController extends ChangeNotifier {
   Future<bool> resendVerificationCode() => _run(() async {
     final pending = _pendingLogin;
     if (pending != null) {
-      await _authenticate(mobileNumber: pending.mobileNumber, password: pending.password);
+      await _authenticate(
+        mobileNumber: pending.mobileNumber,
+        password: pending.password,
+        rememberMe: pending.rememberMe,
+      );
       return;
     }
     await repository.requestVerification();
@@ -154,6 +168,7 @@ class AuthController extends ChangeNotifier {
     if (pending != null) {
       await _adoptSession(
         await repository.completeLogin(mobileNumber: pending.mobileNumber, code: code),
+        rememberMe: pending.rememberMe,
       );
       return;
     }

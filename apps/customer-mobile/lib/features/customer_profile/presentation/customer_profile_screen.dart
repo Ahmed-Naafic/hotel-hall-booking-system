@@ -192,11 +192,17 @@ class _CustomerProfileViewState extends State<_CustomerProfileView> {
       body: controller.isLoading && snapshot == null
           ? const Center(child: CircularProgressIndicator())
           : controller.errorMessage != null && snapshot == null
-          ? Center(
-              child: TextButton(
-                onPressed: controller.load,
-                child: const Text('Retry'),
-              ),
+          // The shared error state, as every other screen uses — this was
+          // the one place Retry was a bare text link rather than the
+          // screen's primary action, and it showed the server's message
+          // nowhere.
+          ? HHEmptyState(
+              icon: Icons.error_outline_rounded,
+              title: 'Could not load your profile',
+              message: controller.errorMessage!,
+              actionLabel: 'Retry',
+              isLoading: controller.isLoading,
+              onAction: controller.load,
             )
           : RefreshIndicator(
               onRefresh: controller.load,

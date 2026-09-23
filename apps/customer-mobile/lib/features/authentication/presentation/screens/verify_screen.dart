@@ -25,7 +25,7 @@ class VerifyScreen extends StatelessWidget {
               const SizedBox(height: HHSpacing.space10),
               Text(
                 'Verify your mobile number',
-                style: HHTypography.displaySm,
+                style: HHTypography.displaySm.copyWith(color: context.hh.textHeading),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: HHSpacing.space3),

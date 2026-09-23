@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 
 import '../../widgets/hh_error_banner.dart';
-import '../../widgets/hh_primary_button.dart';
+import '../../widgets/hh_gold_button.dart';
 import '../../widgets/hh_text_field.dart';
 
 /// Registration form — C2/H1, BR-AUTH-02/03. `accountType` is fixed by the
@@ -112,7 +112,7 @@ class _RegisterFormState extends State<RegisterForm> {
             },
           ),
           const SizedBox(height: HHSpacing.space7),
-          HHPrimaryButton(label: 'Create account', isLoading: widget.isBusy, onPressed: _submit),
+          HHGoldButton(label: 'Create account', isLoading: widget.isBusy, onPressed: _submit),
         ],
       ),
     );

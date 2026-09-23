@@ -88,4 +88,24 @@ class AuthRepository {
     final data = await _client.post('/auth/verifications/confirm', body: {'code': code});
     return AppUser.fromJson(data as Map<String, dynamic>);
   }
+
+  /// `POST /auth/password-resets` — C6, BR-AUTH-09. Texts a reset code to
+  /// the account's mobile number if one exists; the backend replies with the
+  /// same success message either way, so this never reveals whether the
+  /// number is registered.
+  Future<void> requestPasswordReset(String mobileNumber) =>
+      _client.post('/auth/password-resets', body: {'mobileNumber': mobileNumber});
+
+  /// `PATCH /auth/password-resets` — C6, BR-AUTH-09. Unauthenticated by
+  /// necessity, like [completeLogin]: there is no session yet to prove who
+  /// this is, only the number the code was texted to.
+  Future<void> confirmPasswordReset({
+    required String mobileNumber,
+    required String code,
+    required String newPassword,
+  }) => _client.patch('/auth/password-resets', body: {
+    'mobileNumber': mobileNumber,
+    'code': code,
+    'newPassword': newPassword,
+  });
 }

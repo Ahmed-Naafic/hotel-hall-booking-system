@@ -4,6 +4,7 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import 'core/auth_gate.dart';
+import 'core/notification_preference_controller.dart';
 import 'features/chat/application/chat_badge_controller.dart';
 import 'features/chat/data/chat_repository.dart';
 import 'features/hotel/application/hotel_context_controller.dart';
@@ -62,6 +63,12 @@ class ManagerMobileApp extends StatelessWidget {
         // agree wherever it's shown.
         ChangeNotifierProvider(
           create: (_) => ChatBadgeController(ChatRepository(apiClient)),
+        ),
+        // App-wide, same rationale as ThemeController above — a per-device
+        // preference that must agree wherever it's read (the Settings
+        // screen, and `AuthGate`'s own device-token registration).
+        ChangeNotifierProvider(
+          create: (_) => NotificationPreferenceController()..load(),
         ),
       ],
       child: Consumer<ThemeController>(

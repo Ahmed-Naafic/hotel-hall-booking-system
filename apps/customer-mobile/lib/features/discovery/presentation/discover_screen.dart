@@ -2154,7 +2154,11 @@ class _HotelDetailContent extends StatelessWidget {
                   icon: isSaved
                       ? Icons.bookmark_rounded
                       : Icons.bookmark_border_rounded,
-                  iconColor: isSaved ? scheme.primary : Colors.black87,
+                  // This button floats on a permanently white pill over the
+                  // photo, so it takes the *light* palette's action colour
+                  // in both themes. `scheme.primary` would hand it dark
+                  // mode's gold, which sits at ~2:1 on white.
+                  iconColor: isSaved ? HHPalette.light.actionCta : HHPalette.light.textBody,
                   onTap: () =>
                       context.read<FavoritesController>().toggle(hotel.id),
                 ),
@@ -3283,7 +3287,10 @@ class _FloatingCircleButton extends StatelessWidget {
   const _FloatingCircleButton({
     required this.icon,
     required this.onTap,
-    this.iconColor = Colors.black87,
+    // The pill under it is always white, so this default is fixed rather
+    // than theme-resolved — it is `HHPalette.light.textBody`, spelled as
+    // the constant a default value has to be.
+    this.iconColor = HHColors.gray700,
   });
 
   final IconData icon;

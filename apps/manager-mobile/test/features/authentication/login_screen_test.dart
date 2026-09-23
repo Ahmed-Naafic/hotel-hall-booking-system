@@ -24,6 +24,15 @@ Widget _wrap(AuthController controller, Widget child) => ChangeNotifierProvider<
       child: MaterialApp(home: child),
     );
 
+/// The redesigned Login screen (hero panel + card + feature icons + footer)
+/// is taller than the default test viewport — every tap target below the
+/// fold needs scrolling into view first, unlike a plain `tester.tap`.
+Future<void> _tap(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+}
+
 void main() {
   testWidgets('successful login reaches an authenticated AuthController state', (tester) async {
     final controller = _controller(
@@ -38,7 +47,7 @@ void main() {
     await tester.pumpWidget(_wrap(controller, const LoginScreen()));
     await tester.enterText(find.byType(TextFormField).at(0), '+15559876543');
     await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-    await tester.tap(find.text('Log in'));
+    await _tap(tester, find.text('Log in'));
     await tester.pumpAndSettle();
 
     expect(controller.status, AuthStatus.authenticated);
@@ -50,7 +59,7 @@ void main() {
     await tester.pumpWidget(_wrap(controller, const LoginScreen()));
     await tester.enterText(find.byType(TextFormField).at(0), '+15559876543');
     await tester.enterText(find.byType(TextFormField).at(1), 'password123');
-    await tester.tap(find.text('Log in'));
+    await _tap(tester, find.text('Log in'));
     await tester.pumpAndSettle();
 
     expect(find.text('This account is inactive.'), findsOneWidget);
@@ -61,9 +70,45 @@ void main() {
     final controller = _controller();
     await tester.pumpWidget(_wrap(controller, const LoginScreen()));
 
-    await tester.tap(find.text("Don't have a Hotel account? Register"));
+    await _tap(tester, find.byType(OutlinedButton));
     await tester.pumpAndSettle();
 
     expect(find.byType(RegisterScreen), findsOneWidget);
+  });
+
+  testWidgets('tapping "Forgot password?" navigates to ForgotPasswordScreen', (tester) async {
+    final controller = _controller();
+    await tester.pumpWidget(_wrap(controller, const LoginScreen()));
+
+    await _tap(tester, find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ForgotPasswordScreen), findsOneWidget);
+  });
+
+  testWidgets('a successful login with "Remember me" unchecked never persists the session', (tester) async {
+    final storage = InMemoryTokenStorage();
+    final sessionStore = SessionStore(storage: storage);
+    final client = ApiClient(
+      httpClient: MockClient((r) async {
+        if (r.url.path.endsWith('/auth/login')) {
+          return successResponse({'accessToken': 'a', 'refreshToken': 'b', 'user': testUser()});
+        }
+        throw StateError('unexpected: ${r.url.path}');
+      }),
+      baseUrl: 'http://test/api/v1',
+      accessTokenProvider: () => sessionStore.accessToken,
+    );
+    final controller = AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
+
+    await tester.pumpWidget(_wrap(controller, const LoginScreen()));
+    await tester.enterText(find.byType(TextFormField).at(0), '+15559876543');
+    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await _tap(tester, find.text('Remember me'));
+    await _tap(tester, find.text('Log in'));
+    await tester.pumpAndSettle();
+
+    expect(controller.status, AuthStatus.authenticated);
+    expect(await storage.read('hh_access_token'), isNull);
   });
 }

@@ -135,7 +135,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(LoginScreen), findsOneWidget);
 
-      await tester.tap(find.text("Don't have an account? Register"));
+      await tester.ensureVisible(find.byType(OutlinedButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(OutlinedButton));
       await tester.pumpAndSettle();
       expect(find.byType(RegisterScreen), findsOneWidget);
 

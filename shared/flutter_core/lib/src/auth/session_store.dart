@@ -34,15 +34,39 @@ class SessionStore {
   static const _accessTokenKey = 'hh_access_token';
   static const _refreshTokenKey = 'hh_refresh_token';
 
-  Future<void> save({required String accessToken, required String refreshToken}) async {
-    await _storage.write(_accessTokenKey, accessToken);
-    await _storage.write(_refreshTokenKey, refreshToken);
+  // "Remember me" unchecked (Login screen) — the session must still work for
+  // the rest of this run (every request reads it back through this same
+  // class), it just must not survive a cold start. Kept in memory instead of
+  // OS secure storage so the next launch finds nothing to restore.
+  bool _persist = true;
+  String? _memoryAccessToken;
+  String? _memoryRefreshToken;
+
+  /// [remember] is `null` on a token-refresh save (`ApiClient.tokenPairSaver`
+  /// rotates tokens without knowing the original choice) — omitting it
+  /// reuses whatever the last real login/register call decided.
+  Future<void> save({required String accessToken, required String refreshToken, bool? remember}) async {
+    if (remember != null) _persist = remember;
+    if (_persist) {
+      await _storage.write(_accessTokenKey, accessToken);
+      await _storage.write(_refreshTokenKey, refreshToken);
+    } else {
+      _memoryAccessToken = accessToken;
+      _memoryRefreshToken = refreshToken;
+      // Never leave a previously-remembered session behind once this run
+      // has chosen not to persist.
+      await _storage.delete(_accessTokenKey);
+      await _storage.delete(_refreshTokenKey);
+    }
   }
 
-  Future<String?> get accessToken => _storage.read(_accessTokenKey);
-  Future<String?> get refreshToken => _storage.read(_refreshTokenKey);
+  Future<String?> get accessToken => _persist ? _storage.read(_accessTokenKey) : Future.value(_memoryAccessToken);
+  Future<String?> get refreshToken => _persist ? _storage.read(_refreshTokenKey) : Future.value(_memoryRefreshToken);
 
   Future<void> clear() async {
+    _persist = true;
+    _memoryAccessToken = null;
+    _memoryRefreshToken = null;
     await _storage.delete(_accessTokenKey);
     await _storage.delete(_refreshTokenKey);
   }

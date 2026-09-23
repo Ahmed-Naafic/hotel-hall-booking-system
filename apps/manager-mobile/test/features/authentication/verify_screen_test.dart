@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:http/testing.dart';
 import 'package:manager_mobile/core/auth_gate.dart';
+import 'package:manager_mobile/core/notification_preference_controller.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/home_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/screens/verify_screen.dart';
 import 'package:manager_mobile/features/chat/application/chat_badge_controller.dart';
@@ -40,6 +41,9 @@ Widget _wrap(AuthController controller) {
       ),
       ChangeNotifierProvider(
         create: (_) => ChatBadgeController(ChatRepository(hotelClient)),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => NotificationPreferenceController(storage: InMemoryTokenStorage()),
       ),
     ],
     child: const MaterialApp(home: AuthGate()),

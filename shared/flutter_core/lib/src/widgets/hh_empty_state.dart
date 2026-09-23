@@ -41,7 +41,14 @@ class HHEmptyState extends StatelessWidget {
             Icon(icon, color: iconColor ?? context.hh.textSubtle, size: 40),
             const SizedBox(height: HHSpacing.space5),
             if (title != null) ...[
-              Text(title!, style: HHTypography.displaySm, textAlign: TextAlign.center),
+              // `HHTypography` bakes the light heading colour into the
+              // style, so an empty state left as-is renders navy-on-navy
+              // in dark mode.
+              Text(
+                title!,
+                style: HHTypography.displaySm.copyWith(color: context.hh.textHeading),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: HHSpacing.space3),
             ],
             Text(

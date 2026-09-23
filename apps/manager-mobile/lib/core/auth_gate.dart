@@ -10,6 +10,7 @@ import '../features/authentication/presentation/screens/login_screen.dart';
 import '../features/authentication/presentation/screens/verify_screen.dart';
 import '../features/notifications/application/notification_controller.dart';
 import '../features/notifications/presentation/screens/notification_center_screen.dart';
+import 'notification_preference_controller.dart';
 import 'push_notification_service.dart';
 
 /// Root routing decision — identical structure to Customer Mobile's own
@@ -72,6 +73,10 @@ class _AuthGateState extends State<AuthGate> {
   /// there is nothing to register (Firebase not configured, or already done).
   Future<void> _ensureDeviceTokenRegistered(BuildContext context) async {
     if (_deviceTokenRegistered) return;
+    // Respects the Manager's own Settings toggle — a Manager who turned
+    // push notifications off should not have a token silently re-registered
+    // just by the app restarting.
+    if (!context.read<NotificationPreferenceController>().enabled) return;
     _deviceTokenRegistered = true;
     final token = await PushNotificationService.instance.getToken();
     if (!context.mounted) return;

@@ -29,13 +29,17 @@ class HHPalette extends ThemeExtension<HHPalette> {
     required this.surfaceCard,
     required this.surfaceRaised,
     required this.surfaceSunken,
+    required this.surfaceField,
     required this.surfaceNavy,
     required this.surfaceNavyDeep,
+    required this.surfaceHeroTop,
+    required this.surfaceHeroBottom,
     required this.surfaceTeal,
     required this.surfaceGoldTint,
     required this.surfaceNavyTint,
     required this.surfaceNavyTintStrong,
     required this.surfaceTealTint,
+    required this.surfaceAccentTint,
     required this.surfaceOverlay,
     required this.surfaceGlass,
     required this.surfaceGlassDark,
@@ -58,6 +62,10 @@ class HHPalette extends ThemeExtension<HHPalette> {
     required this.info700,
     required this.info500,
     required this.info100,
+    required this.actionCta,
+    required this.actionCtaHover,
+    required this.actionCtaActive,
+    required this.onActionCta,
     required this.actionPrimary,
     required this.actionPrimaryHover,
     required this.actionPrimaryActive,
@@ -67,6 +75,8 @@ class HHPalette extends ThemeExtension<HHPalette> {
     required this.actionGold,
     required this.actionGoldHover,
     required this.actionGoldActive,
+    required this.actionGoldGradientFrom,
+    required this.actionGoldGradientTo,
     required this.actionDisabledBg,
     required this.actionDisabledText,
   });
@@ -87,13 +97,33 @@ class HHPalette extends ThemeExtension<HHPalette> {
   final Color surfaceCard;
   final Color surfaceRaised;
   final Color surfaceSunken;
+  /// The fill behind a text field. Deliberately *not* `surfaceCard`: nearly
+  /// every field in this app sits on a card, and a fill equal to the card is
+  /// an invisible field — in dark mode that was navy800 on navy800, leaving
+  /// only the hairline border to say an input was there at all. A translucent
+  /// lift instead reads one step above whatever it is placed on, card or page.
+  final Color surfaceField;
   final Color surfaceNavy;
   final Color surfaceNavyDeep;
+  /// The two stops of the navy hero panel the auth screens open with.
+  ///
+  /// The panel is lit from the top and *deepens* as it falls toward the card
+  /// that overlaps its bottom edge — sampled straight off the approved dark
+  /// login design, which runs ~navy800 at the crown down to ~navy950 where
+  /// the card meets it. Running it the other way puts the panel's lightest
+  /// navy against the card, and the card recedes into the panel instead of
+  /// rising from it.
+  final Color surfaceHeroTop;
+  final Color surfaceHeroBottom;
   final Color surfaceTeal;
   final Color surfaceGoldTint;
   final Color surfaceNavyTint;
   final Color surfaceNavyTintStrong;
   final Color surfaceTealTint;
+  /// A wash of whatever the *active* accent is for this theme — teal in
+  /// light, gold in dark — for selection highlights and similar. Distinct
+  /// from [surfaceTealTint], which is always teal.
+  final Color surfaceAccentTint;
   final Color surfaceOverlay;
   final Color surfaceGlass;
   final Color surfaceGlassDark;
@@ -119,6 +149,24 @@ class HHPalette extends ThemeExtension<HHPalette> {
   final Color info500;
   final Color info100;
   // --- Interactive ---
+  /// The colour a screen's *primary action* is painted in — the one button
+  /// the user is meant to press. This is the role that genuinely re-resolves
+  /// between themes: on a light page navy is the strongest mark available,
+  /// but in dark mode navy **is** the page, so a navy button is a shape you
+  /// have to hunt for. Gold is the only brand colour that carries on both
+  /// grounds, so dark resolves this to gold and light keeps navy.
+  ///
+  /// Deliberately separate from [actionPrimary], which stays navy in both
+  /// themes for the places navy is wanted as *structure* rather than as a
+  /// call to action (a chat bubble, a selected segment, an unread dot).
+  /// Collapsing the two is what would turn half the app gold.
+  final Color actionCta;
+  final Color actionCtaHover;
+  final Color actionCtaActive;
+  /// Text and icons drawn *on* [actionCta] — white on navy, near-black navy
+  /// on gold. Never assume one or the other; gold with white text fails
+  /// contrast badly.
+  final Color onActionCta;
   final Color actionPrimary;
   final Color actionPrimaryHover;
   final Color actionPrimaryActive;
@@ -128,6 +176,15 @@ class HHPalette extends ThemeExtension<HHPalette> {
   final Color actionGold;
   final Color actionGoldHover;
   final Color actionGoldActive;
+  /// The two stops of the gold call-to-action's fill, running top-left to
+  /// bottom-right. Sampled from the approved login design rather than picked
+  /// off the `gold*` scale: the fill sweeps wider than any adjacent pair on
+  /// that scale (a lit #EFC762 crown down to a #B17E32 shadow), which is what
+  /// makes the button read as a struck surface rather than a flat swatch.
+  /// Identical in both brightnesses — it is one brand object, not a role that
+  /// re-resolves per theme.
+  final Color actionGoldGradientFrom;
+  final Color actionGoldGradientTo;
   final Color actionDisabledBg;
   final Color actionDisabledText;
 
@@ -146,13 +203,17 @@ class HHPalette extends ThemeExtension<HHPalette> {
     surfaceCard: HHColors.white,
     surfaceRaised: HHColors.white,
     surfaceSunken: HHColors.sand100,
+    surfaceField: Color.fromRGBO(12, 42, 78, 0.04),
     surfaceNavy: HHColors.navy700,
     surfaceNavyDeep: HHColors.navy900,
+    surfaceHeroTop: HHColors.navy700,
+    surfaceHeroBottom: HHColors.navy900,
     surfaceTeal: HHColors.teal700,
     surfaceGoldTint: HHColors.gold100,
     surfaceNavyTint: HHColors.navy050,
     surfaceNavyTintStrong: HHColors.navy100,
     surfaceTealTint: HHColors.teal100,
+    surfaceAccentTint: HHColors.teal100,
     surfaceOverlay: HHColors.surfaceOverlay,
     surfaceGlass: HHColors.surfaceGlass,
     surfaceGlassDark: HHColors.surfaceGlassDark,
@@ -175,6 +236,10 @@ class HHPalette extends ThemeExtension<HHPalette> {
     info700: HHColors.navy600,
     info500: HHColors.navy500,
     info100: HHColors.navy100,
+    actionCta: HHColors.navy700,
+    actionCtaHover: HHColors.navy600,
+    actionCtaActive: HHColors.navy800,
+    onActionCta: HHColors.white,
     actionPrimary: HHColors.navy700,
     actionPrimaryHover: HHColors.navy600,
     actionPrimaryActive: HHColors.navy800,
@@ -184,6 +249,8 @@ class HHPalette extends ThemeExtension<HHPalette> {
     actionGold: HHColors.gold600,
     actionGoldHover: HHColors.gold500,
     actionGoldActive: HHColors.gold700,
+    actionGoldGradientFrom: Color(0xFFEFC762),
+    actionGoldGradientTo: Color(0xFFB17E32),
     actionDisabledBg: HHColors.gray100,
     actionDisabledText: HHColors.gray400,
   );
@@ -195,21 +262,30 @@ class HHPalette extends ThemeExtension<HHPalette> {
     textSubtle: HHColors.gray500,
     textInverse: HHColors.white,
     textOnNavy: HHColors.textOnNavy,
-    textAccent: HHColors.teal400,
+    // Dark mode's accent is gold, not teal. The approved dark design uses
+    // navy, gold and neutrals only — every accent mark in it (the rule, the
+    // eyebrow, the link, the checked box, the icons) is gold, and teal
+    // appears nowhere. Light mode keeps teal, where it reads properly
+    // against an ivory page.
+    textAccent: HHColors.gold400,
     textGold: HHColors.gold400,
-    textLink: HHColors.teal400,
-    textLinkHover: HHColors.teal300,
+    textLink: HHColors.gold400,
+    textLinkHover: HHColors.gold300,
     surfacePage: HHColors.navy950,
     surfaceCard: HHColors.navy800,
     surfaceRaised: HHColors.navy700,
     surfaceSunken: HHColors.navy900,
+    surfaceField: Color.fromRGBO(255, 255, 255, 0.05),
     surfaceNavy: HHColors.navy800,
     surfaceNavyDeep: HHColors.navy950,
+    surfaceHeroTop: HHColors.navy800,
+    surfaceHeroBottom: HHColors.navy950,
     surfaceTeal: HHColors.teal800,
     surfaceGoldTint: Color.fromRGBO(217, 175, 69, 0.16),
     surfaceNavyTint: Color.fromRGBO(74, 124, 171, 0.14),
     surfaceNavyTintStrong: Color.fromRGBO(74, 124, 171, 0.26),
     surfaceTealTint: Color.fromRGBO(58, 171, 182, 0.18),
+    surfaceAccentTint: Color.fromRGBO(217, 175, 69, 0.22),
     surfaceOverlay: Color.fromRGBO(3, 13, 26, 0.72),
     surfaceGlass: Color.fromRGBO(10, 33, 65, 0.72),
     surfaceGlassDark: Color.fromRGBO(3, 13, 26, 0.55),
@@ -219,7 +295,7 @@ class HHPalette extends ThemeExtension<HHPalette> {
     borderNavy: HHColors.navy400,
     borderGold: HHColors.gold600,
     borderRuleGold: HHColors.gold500,
-    focusRing: HHColors.teal400,
+    focusRing: HHColors.gold500,
     success700: Color(0xFF7EBB9C),
     success500: HHColors.success500,
     success100: Color.fromRGBO(47, 145, 96, 0.20),
@@ -232,15 +308,21 @@ class HHPalette extends ThemeExtension<HHPalette> {
     info700: HHColors.navy300,
     info500: HHColors.navy400,
     info100: Color.fromRGBO(74, 124, 171, 0.18),
+    actionCta: HHColors.gold500,
+    actionCtaHover: HHColors.gold400,
+    actionCtaActive: HHColors.gold600,
+    onActionCta: HHColors.navy950,
     actionPrimary: HHColors.navy500,
     actionPrimaryHover: HHColors.navy400,
     actionPrimaryActive: HHColors.navy600,
-    actionAccent: HHColors.teal600,
-    actionAccentHover: HHColors.teal500,
-    actionAccentActive: HHColors.teal700,
+    actionAccent: HHColors.gold500,
+    actionAccentHover: HHColors.gold400,
+    actionAccentActive: HHColors.gold600,
     actionGold: HHColors.gold500,
     actionGoldHover: HHColors.gold400,
     actionGoldActive: HHColors.gold600,
+    actionGoldGradientFrom: Color(0xFFEFC762),
+    actionGoldGradientTo: Color(0xFFB17E32),
     actionDisabledBg: Color.fromRGBO(255, 255, 255, 0.08),
     actionDisabledText: HHColors.gray500,
   );
@@ -268,13 +350,17 @@ class HHPalette extends ThemeExtension<HHPalette> {
       surfaceCard: Color.lerp(surfaceCard, other.surfaceCard, t)!,
       surfaceRaised: Color.lerp(surfaceRaised, other.surfaceRaised, t)!,
       surfaceSunken: Color.lerp(surfaceSunken, other.surfaceSunken, t)!,
+      surfaceField: Color.lerp(surfaceField, other.surfaceField, t)!,
       surfaceNavy: Color.lerp(surfaceNavy, other.surfaceNavy, t)!,
       surfaceNavyDeep: Color.lerp(surfaceNavyDeep, other.surfaceNavyDeep, t)!,
+      surfaceHeroTop: Color.lerp(surfaceHeroTop, other.surfaceHeroTop, t)!,
+      surfaceHeroBottom: Color.lerp(surfaceHeroBottom, other.surfaceHeroBottom, t)!,
       surfaceTeal: Color.lerp(surfaceTeal, other.surfaceTeal, t)!,
       surfaceGoldTint: Color.lerp(surfaceGoldTint, other.surfaceGoldTint, t)!,
       surfaceNavyTint: Color.lerp(surfaceNavyTint, other.surfaceNavyTint, t)!,
       surfaceNavyTintStrong: Color.lerp(surfaceNavyTintStrong, other.surfaceNavyTintStrong, t)!,
       surfaceTealTint: Color.lerp(surfaceTealTint, other.surfaceTealTint, t)!,
+      surfaceAccentTint: Color.lerp(surfaceAccentTint, other.surfaceAccentTint, t)!,
       surfaceOverlay: Color.lerp(surfaceOverlay, other.surfaceOverlay, t)!,
       surfaceGlass: Color.lerp(surfaceGlass, other.surfaceGlass, t)!,
       surfaceGlassDark: Color.lerp(surfaceGlassDark, other.surfaceGlassDark, t)!,
@@ -297,6 +383,10 @@ class HHPalette extends ThemeExtension<HHPalette> {
       info700: Color.lerp(info700, other.info700, t)!,
       info500: Color.lerp(info500, other.info500, t)!,
       info100: Color.lerp(info100, other.info100, t)!,
+      actionCta: Color.lerp(actionCta, other.actionCta, t)!,
+      actionCtaHover: Color.lerp(actionCtaHover, other.actionCtaHover, t)!,
+      actionCtaActive: Color.lerp(actionCtaActive, other.actionCtaActive, t)!,
+      onActionCta: Color.lerp(onActionCta, other.onActionCta, t)!,
       actionPrimary: Color.lerp(actionPrimary, other.actionPrimary, t)!,
       actionPrimaryHover: Color.lerp(actionPrimaryHover, other.actionPrimaryHover, t)!,
       actionPrimaryActive: Color.lerp(actionPrimaryActive, other.actionPrimaryActive, t)!,
@@ -306,6 +396,8 @@ class HHPalette extends ThemeExtension<HHPalette> {
       actionGold: Color.lerp(actionGold, other.actionGold, t)!,
       actionGoldHover: Color.lerp(actionGoldHover, other.actionGoldHover, t)!,
       actionGoldActive: Color.lerp(actionGoldActive, other.actionGoldActive, t)!,
+      actionGoldGradientFrom: Color.lerp(actionGoldGradientFrom, other.actionGoldGradientFrom, t)!,
+      actionGoldGradientTo: Color.lerp(actionGoldGradientTo, other.actionGoldGradientTo, t)!,
       actionDisabledBg: Color.lerp(actionDisabledBg, other.actionDisabledBg, t)!,
       actionDisabledText: Color.lerp(actionDisabledText, other.actionDisabledText, t)!,
     );

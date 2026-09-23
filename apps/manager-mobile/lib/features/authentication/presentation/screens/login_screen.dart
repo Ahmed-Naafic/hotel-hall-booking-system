@@ -19,47 +19,104 @@ class LoginScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: context.hh.surfacePage,
       body: SafeArea(
+        bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(HHSpacing.space7),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: HHSpacing.space12),
-              Text('Hotel Hall', style: HHTypography.displayMd, textAlign: TextAlign.center),
-              const SizedBox(height: HHSpacing.space1),
-              Text(
-                'FOR HOTEL MANAGERS',
-                style: TextStyle(
-                  fontSize: HHTypeScale.eyebrowSize,
-                  letterSpacing: HHTypeScale.eyebrowTracking * HHTypeScale.eyebrowSize,
-                  fontWeight: HHTypeScale.eyebrowWeight,
-                  color: context.hh.textGold,
+              const AuthHeroHeader(tagline: 'Manage your Hotel\'s halls and bookings'),
+              Container(
+                decoration: BoxDecoration(
+                  color: context.hh.surfaceCard,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(HHRadii.xl2),
+                    topRight: Radius.circular(HHRadii.xl2),
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: HHSpacing.space4),
-              Text(
-                'Log in to manage your Hotel',
-                style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textMuted),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: HHSpacing.space10),
-              LoginForm(
-                isBusy: auth.isBusy,
-                errorMessage: auth.errorMessage,
-                onSubmit: ({required mobileNumber, required password}) {
-                  auth.clearError();
-                  return auth.login(mobileNumber: mobileNumber, password: password);
-                },
-              ),
-              const SizedBox(height: HHSpacing.space6),
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    auth.clearError();
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen()));
-                  },
-                  child: const Text("Don't have a Hotel account? Register"),
+                transform: Matrix4.translationValues(0, -HHSpacing.space6, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  HHSpacing.space7,
+                  HHSpacing.space8,
+                  HHSpacing.space7,
+                  HHSpacing.space8,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Welcome Back',
+                      textAlign: TextAlign.center,
+                      style: HHTypography.displaySm.copyWith(color: context.hh.textHeading),
+                    ),
+                    const SizedBox(height: HHSpacing.space2),
+                    Text(
+                      'Log in to manage your Hotel',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textMuted),
+                    ),
+                    const SizedBox(height: HHSpacing.space8),
+                    LoginForm(
+                      isBusy: auth.isBusy,
+                      errorMessage: auth.errorMessage,
+                      onForgotPassword: () {
+                        auth.clearError();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ForgotPasswordScreen(repository: auth.repository),
+                          ),
+                        );
+                      },
+                      onSubmit: ({required mobileNumber, required password, required rememberMe}) {
+                        auth.clearError();
+                        return auth.login(
+                          mobileNumber: mobileNumber,
+                          password: password,
+                          rememberMe: rememberMe,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: HHSpacing.space6),
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: context.hh.borderSubtle)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: HHSpacing.space4),
+                          child: Text(
+                            'OR',
+                            style: TextStyle(fontSize: HHTypeScale.textXs, color: context.hh.textSubtle),
+                          ),
+                        ),
+                        Expanded(child: Divider(color: context.hh.borderSubtle)),
+                      ],
+                    ),
+                    const SizedBox(height: HHSpacing.space6),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: context.hh.borderGold),
+                        padding: const EdgeInsets.symmetric(vertical: HHSpacing.space4),
+                      ),
+                      onPressed: () {
+                        auth.clearError();
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen()));
+                      },
+                      child: RichText(
+                        text: TextSpan(
+                          style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textBody),
+                          children: [
+                            const TextSpan(text: "Don't have a Hotel account?  "),
+                            TextSpan(
+                              text: 'Register  →',
+                              style: TextStyle(color: context.hh.textGold, fontWeight: HHTypeScale.weightMedium),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: HHSpacing.space9),
+                    const AuthFeatureHighlights(),
+                    const SizedBox(height: HHSpacing.space9),
+                    const AuthFooterTagline(),
+                  ],
                 ),
               ),
             ],

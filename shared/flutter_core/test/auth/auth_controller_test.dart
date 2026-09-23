@@ -88,6 +88,83 @@ void main() {
     });
   });
 
+  group('AuthController.login rememberMe', () {
+    test('rememberMe: false keeps the session working this run but never persists it', () async {
+      final storage = InMemoryTokenStorage();
+      final sessionStore = SessionStore(storage: storage);
+      final client = ApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/auth/login')) {
+            return _success({'accessToken': 'a', 'refreshToken': 'b', 'user': _user()});
+          }
+          throw StateError('unexpected call: ${request.url.path}');
+        }),
+        baseUrl: 'http://test/api/v1',
+        accessTokenProvider: () => sessionStore.accessToken,
+      );
+      final controller = AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
+
+      final result = await controller.login(
+        mobileNumber: '+15551234567',
+        password: 'password123',
+        rememberMe: false,
+      );
+
+      expect(result, true);
+      expect(controller.status, AuthStatus.authenticated);
+      // Still usable for the rest of this run...
+      expect(await sessionStore.accessToken, 'a');
+      // ...but never written to durable storage, so a cold start finds
+      // nothing to restore.
+      expect(await storage.read('hh_access_token'), isNull);
+    });
+
+    test('defaults to remembered, matching every session before this feature existed', () async {
+      final storage = InMemoryTokenStorage();
+      final sessionStore = SessionStore(storage: storage);
+      final client = ApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/auth/login')) {
+            return _success({'accessToken': 'a', 'refreshToken': 'b', 'user': _user()});
+          }
+          throw StateError('unexpected call: ${request.url.path}');
+        }),
+        baseUrl: 'http://test/api/v1',
+        accessTokenProvider: () => sessionStore.accessToken,
+      );
+      final controller = AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
+
+      await controller.login(mobileNumber: '+15551234567', password: 'password123');
+
+      expect(await storage.read('hh_access_token'), 'a');
+    });
+
+    test('the remember-me choice survives to the texted-code step', () async {
+      final storage = InMemoryTokenStorage();
+      final sessionStore = SessionStore(storage: storage);
+      final client = ApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/auth/login')) {
+            return _success({'verificationRequired': true});
+          }
+          if (request.url.path.endsWith('/auth/login/verify')) {
+            return _success({'accessToken': 'tok', 'refreshToken': 'ref', 'user': _user()});
+          }
+          throw StateError('unexpected call: ${request.url.path}');
+        }),
+        baseUrl: 'http://test/api/v1',
+        accessTokenProvider: () => sessionStore.accessToken,
+      );
+      final controller = AuthController(repository: AuthRepository(client), sessionStore: sessionStore);
+
+      await controller.login(mobileNumber: '+15551234567', password: 'password123', rememberMe: false);
+      await controller.confirmVerification('123456');
+
+      expect(await sessionStore.accessToken, 'tok');
+      expect(await storage.read('hh_access_token'), isNull);
+    });
+  });
+
   group('AuthController.registerAndRequestVerification', () {
     test('registers then signs in, which ends at the texted code rather than a session', () async {
       final calls = <String>[];

@@ -123,7 +123,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(width: HHSpacing.space2),
         ],
       ),
-      drawer: const ManagerDrawer(),
+      drawer: ManagerDrawer(onOpenMessages: widget.onOpenBookingsTab),
       body: SafeArea(child: _body(context, hotelContext)),
     );
   }

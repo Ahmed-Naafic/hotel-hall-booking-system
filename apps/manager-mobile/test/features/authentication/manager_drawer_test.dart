@@ -4,6 +4,9 @@ import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:manager_mobile/core/notification_preference_controller.dart';
+import 'package:manager_mobile/features/authentication/presentation/screens/manager_profile_screen.dart';
+import 'package:manager_mobile/features/authentication/presentation/screens/manager_settings_screen.dart';
 import 'package:manager_mobile/features/authentication/presentation/widgets/manager_drawer.dart';
 import 'package:manager_mobile/features/hotel/application/hotel_context_controller.dart';
 import 'package:manager_mobile/features/hotel/data/hotel_repository.dart';
@@ -20,6 +23,7 @@ Widget _wrap({
   Future<http.Response> Function(http.Request)? handler,
   String accountType = 'HOTEL_MANAGER',
   String? fullName,
+  VoidCallback? onOpenMessages,
 }) {
   final sessionStore = SessionStore(storage: InMemoryTokenStorage());
   final apiClient = ApiClient(
@@ -44,11 +48,12 @@ Widget _wrap({
       ChangeNotifierProvider<HotelContextController>.value(value: hotelContext),
       ChangeNotifierProvider(create: (_) => NotificationController(NotificationRepository(apiClient))),
       ChangeNotifierProvider(create: (_) => ThemeController(storage: InMemoryTokenStorage())),
+      ChangeNotifierProvider(create: (_) => NotificationPreferenceController(storage: InMemoryTokenStorage())),
     ],
     child: MaterialApp(
       home: Scaffold(
         appBar: AppBar(title: const Text('Dashboard')),
-        drawer: const ManagerDrawer(),
+        drawer: ManagerDrawer(onOpenMessages: onOpenMessages ?? () {}),
         body: const SizedBox.shrink(),
       ),
     ),
@@ -114,5 +119,40 @@ void main() {
     expect(logoutCalled, true);
     expect(auth.status, AuthStatus.unauthenticated);
     expect(auth.currentUser, isNull);
+  });
+
+  testWidgets('tapping "Profile" opens the Profile screen', (tester) async {
+    await tester.pumpWidget(_wrap());
+    await tester.pumpAndSettle();
+    await _openDrawer(tester);
+
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ManagerProfileScreen), findsOneWidget);
+  });
+
+  testWidgets('tapping "Settings" opens the Settings screen', (tester) async {
+    await tester.pumpWidget(_wrap());
+    await tester.pumpAndSettle();
+    await _openDrawer(tester);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ManagerSettingsScreen), findsOneWidget);
+  });
+
+  testWidgets('tapping "Messages" closes the Drawer and hands off to the Bookings tab', (tester) async {
+    var opened = false;
+    await tester.pumpWidget(_wrap(onOpenMessages: () => opened = true));
+    await tester.pumpAndSettle();
+    await _openDrawer(tester);
+
+    await tester.tap(find.text('Messages'));
+    await tester.pumpAndSettle();
+
+    expect(opened, true);
+    expect(find.byType(Drawer), findsNothing);
   });
 }

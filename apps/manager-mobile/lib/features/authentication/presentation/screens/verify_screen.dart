@@ -33,7 +33,7 @@ class VerifyScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: HHSpacing.space10),
-              Text('Verify your mobile number', style: HHTypography.displaySm, textAlign: TextAlign.center),
+              Text('Verify your mobile number', style: HHTypography.displaySm.copyWith(color: context.hh.textHeading), textAlign: TextAlign.center),
               const SizedBox(height: HHSpacing.space3),
               Text(
                 'We sent a 6-digit code to ${auth.pendingMobileNumber ?? auth.currentUser?.mobileNumber ?? 'your mobile number'}.',

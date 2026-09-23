@@ -17,6 +17,9 @@ class HHTextField extends StatelessWidget {
     this.autofillHints,
     this.enabled = true,
     this.maxLines = 1,
+    this.prefixIcon,
+    this.suffixIcon,
+    this.prefixText,
   });
 
   final String label;
@@ -28,6 +31,9 @@ class HHTextField extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final bool enabled;
   final int? maxLines;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
+  final String? prefixText;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +47,12 @@ class HHTextField extends StatelessWidget {
       enabled: enabled,
       maxLines: maxLines,
       style: TextStyle(fontSize: HHTypeScale.textMd, color: context.hh.textBody),
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: prefixIcon,
+        suffixIcon: suffixIcon,
+        prefixText: prefixText,
+      ),
     );
   }
 }

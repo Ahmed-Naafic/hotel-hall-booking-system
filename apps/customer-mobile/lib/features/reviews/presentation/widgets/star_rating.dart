@@ -16,10 +16,12 @@ class StarRatingDisplay extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: List.generate(
         5,
+        // The token, not a fixed `gold600`: that is the light theme's gold
+        // and it sits too dark to read on a navy page.
         (index) => Icon(
           index < rating ? Icons.star_rounded : Icons.star_outline_rounded,
           size: size,
-          color: HHColors.gold600,
+          color: context.hh.actionGold,
         ),
       ),
     );
@@ -43,7 +45,7 @@ class StarRatingInput extends StatelessWidget {
           onPressed: () => onChanged(starValue),
           icon: Icon(
             starValue <= rating ? Icons.star_rounded : Icons.star_outline_rounded,
-            color: HHColors.gold600,
+            color: context.hh.actionGold,
           ),
           iconSize: 32,
         );

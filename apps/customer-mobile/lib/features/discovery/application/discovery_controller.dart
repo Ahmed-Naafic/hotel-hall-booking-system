@@ -21,19 +21,31 @@ class DiscoveryController extends ChangeNotifier {
   String _searchQuery = '';
   String? _searchCursor;
 
+  /// Which request the currently-displayed `hotels` belongs to. Both entry
+  /// points here write the same fields, so clearing the box while a search
+  /// is still in flight (or retyping past a slow response) would otherwise
+  /// let the older response win. See `LargeHallsController._requestId`.
+  int _requestId = 0;
+
   Future<void> loadHotels() async {
+    final requestId = ++_requestId;
     isLoading = true;
     errorMessage = null;
     isSearchActive = false;
+    isLoadingMoreSearchResults = false;
     notifyListeners();
     try {
-      hotels = await repository.getHotels();
+      final result = await repository.getHotels();
+      if (requestId != _requestId) return;
+      hotels = result;
+      hasMoreSearchResults = false;
+      _searchCursor = null;
     } catch (_) {
+      if (requestId != _requestId) return;
       errorMessage = 'Could not load Hotels. Please try again.';
-    } finally {
-      isLoading = false;
-      notifyListeners();
     }
+    isLoading = false;
+    notifyListeners();
   }
 
   /// Runs a Hotel search, or clears back to the plain unsearched browse when
@@ -44,30 +56,36 @@ class DiscoveryController extends ChangeNotifier {
       await loadHotels();
       return;
     }
+    final requestId = ++_requestId;
     _searchQuery = trimmed;
     isSearchActive = true;
     isLoading = true;
     errorMessage = null;
+    isLoadingMoreSearchResults = false;
     notifyListeners();
     try {
       final page = await repository.searchHotels(search: trimmed);
+      if (requestId != _requestId) return;
       hotels = page.hotels;
       hasMoreSearchResults = page.hasNext;
       _searchCursor = page.nextCursor;
     } catch (_) {
+      if (requestId != _requestId) return;
       errorMessage = 'Could not search Hotels. Please try again.';
       hotels = [];
       hasMoreSearchResults = false;
-    } finally {
-      isLoading = false;
-      notifyListeners();
     }
+    isLoading = false;
+    notifyListeners();
   }
 
   Future<void> loadMoreSearchResults() async {
     if (!isSearchActive || isLoadingMoreSearchResults || !hasMoreSearchResults) {
       return;
     }
+    // Appends to the generation already on screen — never takes a new one,
+    // so a page that arrives after the query changed is dropped.
+    final requestId = _requestId;
     isLoadingMoreSearchResults = true;
     notifyListeners();
     try {
@@ -75,14 +93,17 @@ class DiscoveryController extends ChangeNotifier {
         search: _searchQuery,
         cursor: _searchCursor,
       );
+      if (requestId != _requestId) return;
       hotels = [...hotels, ...page.hotels];
       hasMoreSearchResults = page.hasNext;
       _searchCursor = page.nextCursor;
     } catch (_) {
       // Keep what's already loaded; the customer can retry by scrolling again.
     } finally {
-      isLoadingMoreSearchResults = false;
-      notifyListeners();
+      if (requestId == _requestId) {
+        isLoadingMoreSearchResults = false;
+        notifyListeners();
+      }
     }
   }
 }

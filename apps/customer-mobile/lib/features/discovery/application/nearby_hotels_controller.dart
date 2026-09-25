@@ -24,7 +24,8 @@ class NearbyHotelsController extends ChangeNotifier {
   NearbyHotelsController({
     required this.repository,
     required this.locationService,
-  });
+    String initialSearch = '',
+  }) : _search = initialSearch;
 
   final DiscoveryRepository repository;
   final LocationService locationService;
@@ -32,37 +33,53 @@ class NearbyHotelsController extends ChangeNotifier {
   NearbyHotelsState state = NearbyHotelsState.locating;
   List<NearbyHotel> hotels = [];
   String? errorMessage;
-  String _search = '';
+  String _search;
   // Cached from the last successful locate — re-searching the already-known
   // position never re-triggers a GPS fix, the same way a filter chip
   // elsewhere on this screen never re-fetches location either.
   double? _latitude;
   double? _longitude;
 
+  /// Which request the currently-displayed `hotels` belongs to — see
+  /// `LargeHallsController._requestId`. Taken by [load] and [_fetch] alike,
+  /// so a locate-then-fetch sequence started earlier can never overwrite a
+  /// newer search's results, and a stale location outcome can never push
+  /// the screen back into a permission state the customer has moved past.
+  int _requestId = 0;
+
+  /// The query this controller will apply, exposed for the Discover screen
+  /// to reason about — it is applied the moment a position is known, even
+  /// if it was typed before the first locate resolved.
+  String get pendingSearch => _search;
+
+  /// True once a position is known, i.e. once searching this tab can
+  /// actually run. Before that a query is remembered, not dropped.
+  bool get hasLocation => _latitude != null && _longitude != null;
+
   Future<void> load() async {
+    final requestId = ++_requestId;
     state = NearbyHotelsState.locating;
     errorMessage = null;
     notifyListeners();
 
     final location = await locationService.getCurrentLocation();
+    if (requestId != _requestId) return;
 
     switch (location.outcome) {
       case LocationOutcome.permissionDenied:
-        state = NearbyHotelsState.permissionDenied;
-        notifyListeners();
+        _failLocate(NearbyHotelsState.permissionDenied);
         return;
       case LocationOutcome.permissionDeniedForever:
-        state = NearbyHotelsState.permissionDeniedForever;
-        notifyListeners();
+        _failLocate(NearbyHotelsState.permissionDeniedForever);
         return;
       case LocationOutcome.serviceDisabled:
-        state = NearbyHotelsState.serviceDisabled;
-        notifyListeners();
+        _failLocate(NearbyHotelsState.serviceDisabled);
         return;
       case LocationOutcome.error:
-        state = NearbyHotelsState.error;
-        errorMessage = 'Could not determine your location. Please try again.';
-        notifyListeners();
+        _failLocate(
+          NearbyHotelsState.error,
+          message: 'Could not determine your location. Please try again.',
+        );
         return;
       case LocationOutcome.granted:
         break;
@@ -70,35 +87,57 @@ class NearbyHotelsController extends ChangeNotifier {
 
     _latitude = location.latitude;
     _longitude = location.longitude;
-    await _fetch();
+    await _fetch(requestId: requestId);
   }
 
-  /// Narrows the already-located Nearby list by Hotel name/address — a
-  /// no-op until the first successful [load] resolves a position (there is
-  /// nothing to search yet), the same way [AllHallsController.applyFilters]
-  /// only ever narrows an already-chosen list.
+  /// A locate that never produced a position leaves nothing to show — the
+  /// previous session's Hotels are dropped rather than left sitting behind
+  /// a permission state, where a later transition could surface a list that
+  /// no longer matches either the query or the position.
+  void _failLocate(NearbyHotelsState next, {String? message}) {
+    _latitude = null;
+    _longitude = null;
+    hotels = [];
+    errorMessage = message;
+    state = next;
+    notifyListeners();
+  }
+
+  /// Narrows the already-located Nearby list by Hotel name/address.
+  ///
+  /// Deliberately does not trigger a locate of its own: this is called for
+  /// every keystroke pause from the Discover search box, whichever tab is
+  /// showing, and asking for GPS permission because someone typed in a
+  /// search box would be a permission prompt they never asked for. The
+  /// query is remembered instead ([pendingSearch]) and applied by the next
+  /// [load] — the one the Near You tab runs when it is actually opened —
+  /// so the tab is never shown unfiltered results for a live query.
   Future<void> search(String query) async {
+    if (query == _search) return;
     _search = query;
-    if (_latitude == null || _longitude == null) return;
-    await _fetch();
+    if (!hasLocation) return;
+    await _fetch(requestId: ++_requestId);
   }
 
-  Future<void> _fetch() async {
+  Future<void> _fetch({required int requestId}) async {
     state = NearbyHotelsState.loading;
     notifyListeners();
     try {
-      hotels = await repository.getNearbyHotels(
+      final result = await repository.getNearbyHotels(
         latitude: _latitude!,
         longitude: _longitude!,
         search: _search,
       );
+      if (requestId != _requestId) return;
+      hotels = result;
       state = hotels.isEmpty ? NearbyHotelsState.empty : NearbyHotelsState.loaded;
     } catch (_) {
+      if (requestId != _requestId) return;
+      hotels = [];
       errorMessage = 'Could not load nearby Hotels. Please try again.';
       state = NearbyHotelsState.error;
-    } finally {
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   Future<void> openAppSettings() => locationService.openAppSettings();

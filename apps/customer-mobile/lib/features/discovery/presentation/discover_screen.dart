@@ -91,10 +91,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   // screen has triggered its first load yet.
   bool _popularEverLoaded = false;
 
+  // Each of these creates its controller on first use *with the search box's
+  // current text already applied*, then loads once. Creating it unsearched
+  // and immediately searching it fired two requests for the same list whose
+  // responses raced — and the unsearched one landing second is exactly how a
+  // tab ended up showing the full list for a live query.
   NearbyHotelsController get _nearby =>
       _nearbyController ??= NearbyHotelsController(
         repository: _repository,
         locationService: const LocationService(),
+        initialSearch: _search,
       )..load();
 
   PopularHotelsController get _popular =>
@@ -118,10 +124,32 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   LargeHallsController get _largeHalls =>
-      _largeHallsController ??= LargeHallsController(_repository)..load();
+      _largeHallsController ??=
+          LargeHallsController(_repository, initialSearch: _search)..load();
 
   AllHallsController get _allHalls =>
-      _allHallsController ??= AllHallsController(_repository)..load();
+      _allHallsController ??=
+          AllHallsController(_repository, initialSearch: _search)..load();
+
+  /// Pushes the current query at every category, so results are ready the
+  /// moment the customer switches tabs rather than forcing a tab switch to
+  /// search at all.
+  ///
+  /// Near You is the one exception to fanning out by *creating* a
+  /// controller: constructing it starts a location fix, so typing in the
+  /// search box would raise a GPS permission prompt for a tab the customer
+  /// may never open. It only gets the query if it already exists; otherwise
+  /// the query is applied by `_nearby`'s own `initialSearch` when the Near
+  /// You tab is first opened, which is the point location is legitimately
+  /// asked for.
+  void _dispatchSearch(String value) {
+    if (!mounted) return;
+    context.read<DiscoveryController>().search(value);
+    _popular.search(value);
+    _nearbyController?.search(value);
+    _largeHalls.search(value);
+    _allHalls.search(value);
+  }
 
   /// The Discover screen's filter icon — narrows All Halls by guest
   /// capacity and/or price range (the two Hall attributes `GET /halls`
@@ -243,30 +271,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     onChanged: (value) {
                       setState(() => _search = value);
                       _searchDebounce?.cancel();
-                      _searchDebounce = Timer(_searchDebounceDuration, () {
-                        // Every category searches in the background,
-                        // whichever is currently selected — so results are
-                        // ready the moment the customer switches tabs,
-                        // never forcing a tab switch itself. "All Hotels"
-                        // already worked this way; Near You/Popular/Large
-                        // Halls/All Halls now match it rather than silently
-                        // ignoring the search box.
-                        context.read<DiscoveryController>().search(value);
-                        _nearby.search(value);
-                        _popular.search(value);
-                        _largeHalls.search(value);
-                        _allHalls.search(value);
-                      });
+                      _searchDebounce = Timer(
+                        _searchDebounceDuration,
+                        () => _dispatchSearch(value),
+                      );
                     },
                     onClear: () {
                       _searchDebounce?.cancel();
                       _searchController.clear();
                       setState(() => _search = '');
-                      context.read<DiscoveryController>().loadHotels();
-                      _nearby.search('');
-                      _popular.search('');
-                      _largeHalls.search('');
-                      _allHalls.search('');
+                      _dispatchSearch('');
                     },
                     onOpenFilters: _openAdvancedFilters,
                     // Reads the already-created controller only — opening

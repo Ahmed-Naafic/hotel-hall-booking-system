@@ -350,6 +350,63 @@ describe('Anonymous Hotel and Hall discovery', () => {
     )
   })
 
+  /**
+   * A cursor over a non-unique `orderBy` silently drops rows. Prisma
+   * translates `cursor` + `skip: 1` into `created_at <= (SELECT created_at
+   * WHERE id = :cursor)` plus a plain `OFFSET 1`, so every Hotel sharing the
+   * cursor row's timestamp stays in the result set while only one is
+   * skipped — the page boundary then lands in an order Postgres never
+   * promised, and a Hotel can be stepped over entirely.
+   *
+   * Measured against this database before the `id` tiebreaker was added:
+   * eight Hotels sharing a `createdAt`, paged at `limit=1`, returned seven.
+   * The missing Hotel is not duplicated elsewhere — it simply never appears
+   * in browse results. Fewer than about six tied rows does not reproduce it,
+   * which is why this test seeds eight.
+   *
+   * `createdAt` is set explicitly because `@default(now())` will not collide
+   * on its own; real data does, via batch inserts or seeding.
+   */
+  test('paging never skips or repeats a Hotel when several share a createdAt (BDR-020)', async () => {
+    const manager = await registerAndLogin('HOTEL_MANAGER')
+    const suffix = uniqueMobileNumber().slice(-8)
+    const sharedCreatedAt = new Date('2026-01-01T00:00:00.000Z')
+    const created = []
+    for (const letter of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']) {
+      created.push(
+        await prisma.hotel.create({
+          data: {
+            registeredByUserId: manager.user.id,
+            status: 'APPROVED_ACTIVE',
+            profileData: { name: `TieBreak ${suffix} ${letter}` },
+            createdAt: sharedCreatedAt,
+          },
+        }),
+      )
+    }
+
+    const search = encodeURIComponent(`TieBreak ${suffix}`)
+    const seen = []
+    let cursor = null
+    // One more iteration than there are Hotels, so a cursor that fails to
+    // advance surfaces as a mismatch rather than an endless loop.
+    for (let page = 0; page < created.length + 1; page += 1) {
+      const query = `search=${search}&limit=1${cursor ? `&cursor=${cursor}` : ''}`
+      const res = await request('GET', `/api/v1/hotels/public?${query}`)
+      assert.equal(res.status, 200)
+      seen.push(...res.body.data.map((hotel) => hotel.id))
+      if (!res.body.pagination.hasNext) break
+      cursor = res.body.pagination.nextCursor
+    }
+
+    assert.deepEqual(
+      [...seen].sort(),
+      created.map((hotel) => hotel.id).sort(),
+      'every Hotel must appear exactly once across the pages',
+    )
+    assert.equal(new Set(seen).size, seen.length, 'no Hotel may be returned twice')
+  })
+
   test('search never returns a non-Approved/Active Hotel, even on a name match (BDR-020)', async () => {
     const manager = await registerAndLogin('HOTEL_MANAGER')
     const suffix = uniqueMobileNumber().slice(-8)

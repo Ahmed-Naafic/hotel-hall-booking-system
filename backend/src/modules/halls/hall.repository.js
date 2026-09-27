@@ -18,7 +18,7 @@ export function findById(id) {
 
 /** Own-Hotel scoping (Technical Design §12) — a Hall belonging to a different Hotel is never returned. */
 export function findByIdForHotel(id, hotelId) {
-  return prisma.hall.findFirst({ where: { id, hotelId, deletedAt: null }, include: { media: true } })
+  return prisma.hall.findFirst({ where: { id, hotelId, deletedAt: null }, include: { media: { where: { deletedAt: null } } } })
 }
 
 export function updateProfileData(id, profileData) {
@@ -52,7 +52,7 @@ export function listByHotelId({ hotelId, skip, take, activeFilter, search }) {
     skip,
     take,
     orderBy: { createdAt: 'desc' },
-    include: { media: true },
+    include: { media: { where: { deletedAt: null } } },
   })
 }
 
@@ -103,8 +103,12 @@ export function listCandidatesForBrowse({ hotelId, cursor, take, minPriceCents, 
     },
     take,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-    orderBy: { createdAt: 'desc' },
-    include: { media: true, hotel: true },
+    // Tie-broken by `id` for the same reason as
+    // `hotel.repository.js#listPublic` — a shared `createdAt` otherwise
+    // leaves the order between pages undefined, and this endpoint pages
+    // through the whole platform's Halls.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    include: { media: { where: { deletedAt: null } }, hotel: true },
   })
 }
 
@@ -131,6 +135,6 @@ export function findAllCandidatesForRanking() {
 export function hydrateByIds(ids) {
   return prisma.hall.findMany({
     where: { id: { in: ids } },
-    include: { media: true, hotel: true },
+    include: { media: { where: { deletedAt: null } }, hotel: true },
   })
 }

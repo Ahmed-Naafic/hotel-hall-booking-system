@@ -237,6 +237,47 @@ describe('Platform-wide browse (GET /api/v1/halls, WBS-06, BR-HALL-08)', () => {
     assert.equal(res.status, 400)
   })
 
+  /**
+   * A cursor over a non-unique `orderBy` silently drops rows — see the
+   * equivalent Hotel test in `customers.integration.test.js` for the
+   * generated SQL and the measurement. Eight Halls sharing a `createdAt`,
+   * paged at `limit=1`, returned seven before the `id` tiebreaker existed.
+   * Fewer than about six tied rows does not reproduce it.
+   */
+  test('paging never skips or repeats a Hall when several share a createdAt', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await createApprovedHotel(accessToken)
+    const halls = []
+    for (const name of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((l) => `Tie Hall ${l}`)) {
+      halls.push(await hallService.createHall({ hotelId, profileData: { name, capacity: 100 } }))
+    }
+    const sharedCreatedAt = new Date('2026-01-01T00:00:00.000Z')
+    await prisma.hall.updateMany({
+      where: { id: { in: halls.map((hall) => hall.id) } },
+      data: { createdAt: sharedCreatedAt },
+    })
+
+    const seen = []
+    let cursor = null
+    // One more iteration than there are Halls, so a cursor that fails to
+    // advance shows up as a loop that never terminates rather than a pass.
+    for (let page = 0; page < halls.length + 1; page += 1) {
+      const query = `hotelId=${hotelId}&limit=1${cursor ? `&cursor=${cursor}` : ''}`
+      const res = await get(`/api/v1/halls?${query}`)
+      assert.equal(res.status, 200)
+      seen.push(...res.body.data.map((hall) => hall.id))
+      if (!res.body.pagination.hasNext) break
+      cursor = res.body.pagination.nextCursor
+    }
+
+    assert.deepEqual(
+      [...seen].sort(),
+      halls.map((hall) => hall.id).sort(),
+      'every Hall must appear exactly once across the pages',
+    )
+    assert.equal(new Set(seen).size, seen.length, 'no Hall may be returned twice')
+  })
+
   describe('Advanced Filters (minCapacity, minPriceCents, maxPriceCents)', () => {
     test('minCapacity excludes a Hall below it and includes one at or above it', async () => {
       const { accessToken } = await registerAndLoginHotelManager()

@@ -239,7 +239,7 @@ export async function deleteBlock({ hallId, blockId }) {
   if (!existing) {
     throw new NotFoundError('Availability block not found.')
   }
-  await availabilityRepository.deleteById(blockId)
+  await availabilityRepository.softDeleteById(blockId)
   recordAuditEvent('BLOCK_DELETED', { blockId, hallId })
 }
 

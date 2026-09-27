@@ -382,6 +382,87 @@ describe('Administration API — Hotel application decisions', () => {
   })
 })
 
+/**
+ * Local-first sync ordering (Phase 0/S-03).
+ *
+ * Inserts get a `sync_seq` from the column default. Updates get one from the
+ * `sync_seq_bump()` BEFORE UPDATE trigger — without it a changed row keeps
+ * its original number and no client ever learns it changed, which is the
+ * quietest failure a sync design can have.
+ *
+ * These assert the trigger through ordinary application writes rather than by
+ * introspecting the database, so they also prove the value is visible to the
+ * same statement Prisma issued. They fail until
+ * `20260927100000_sync_seq_bump_trigger` is applied.
+ */
+describe('Sync ordering — sync_seq assignment (Phase 0/S-03)', () => {
+  test('an insert receives a sync_seq from the column default', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId }, select: { syncSeq: true } })
+    assert.ok(hotel.syncSeq !== null, 'a newly inserted Hotel must carry a sync_seq')
+    assert.ok(hotel.syncSeq > 0n, `sync_seq must be positive, got ${hotel.syncSeq}`)
+  })
+
+  test('an update advances sync_seq', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const hall = await prisma.hall.create({
+      data: { hotelId, profileData: { name: 'Seq Hall', capacity: 60 } },
+    })
+
+    const before = await prisma.hall.findUnique({ where: { id: hall.id }, select: { syncSeq: true } })
+    await prisma.hall.update({ where: { id: hall.id }, data: { isActive: false } })
+    const after = await prisma.hall.findUnique({ where: { id: hall.id }, select: { syncSeq: true } })
+
+    assert.ok(
+      after.syncSeq > before.syncSeq,
+      `sync_seq must advance on update: was ${before.syncSeq}, now ${after.syncSeq}`,
+    )
+  })
+
+  test('an updateMany advances sync_seq on every row it touches', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const halls = []
+    for (const name of ['Bulk A', 'Bulk B']) {
+      halls.push(await prisma.hall.create({ data: { hotelId, profileData: { name, capacity: 40 } } }))
+    }
+    const ids = halls.map((h) => h.id)
+    const before = await prisma.hall.findMany({ where: { id: { in: ids } }, select: { id: true, syncSeq: true } })
+
+    // `updateMany` is the shape the lifecycle sweeps use (`expireOverdue`,
+    // `completeEnded`, `markAllReadForUser`) — the paths a repository-layer
+    // implementation would most easily have missed.
+    await prisma.hall.updateMany({ where: { id: { in: ids } }, data: { isActive: false } })
+
+    const after = await prisma.hall.findMany({ where: { id: { in: ids } }, select: { id: true, syncSeq: true } })
+    for (const row of after) {
+      const was = before.find((b) => b.id === row.id)
+      assert.ok(row.syncSeq > was.syncSeq, `sync_seq must advance for ${row.id}`)
+    }
+  })
+
+  test('a soft delete advances sync_seq, so a tombstone is a detectable change', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const hall = await prisma.hall.create({ data: { hotelId, profileData: { name: 'Tombstone Hall' } } })
+    const media = await prisma.hallMedia.create({
+      data: { hallId: hall.id, type: 'PHOTO', storagePath: `halls/${hall.id}/photos/seq-test.jpg` },
+    })
+
+    const before = await prisma.hallMedia.findUnique({ where: { id: media.id }, select: { syncSeq: true } })
+    await prisma.hallMedia.update({ where: { id: media.id }, data: { deletedAt: new Date() } })
+    const after = await prisma.hallMedia.findUnique({ where: { id: media.id }, select: { syncSeq: true } })
+
+    assert.ok(
+      after.syncSeq > before.syncSeq,
+      'a tombstone must advance sync_seq or clients never learn the row was deleted',
+    )
+  })
+})
+
 describe('Administration API — Hotel suspension, deactivation, and reactivation (HM11, HM17, BR-HOTEL-09, BR-HOTEL-16)', () => {
   test('suspends an Approved/Active Hotel through the admin API', async () => {
     const { accessToken } = await registerAndLoginHotelManager()
@@ -394,6 +475,41 @@ describe('Administration API — Hotel suspension, deactivation, and reactivatio
     assert.equal(res.body.data.status, 'SUSPENDED')
     const hotelRes = await get(`/api/v1/hotels/${hotelId}`, authHeader(accessToken))
     assert.equal(hotelRes.body.data.status, 'SUSPENDED')
+  })
+
+  /**
+   * Phase 0/S-06. Suspending a Hotel writes exactly one row — `hotels.status` —
+   * yet hides every one of its Halls and photos from every Customer, because
+   * `visibility.service.js#computeVisibility` derives that live rather than
+   * storing it. A replicated client watching `sync_seq` would therefore never
+   * learn its cached Halls had become invisible.
+   *
+   * `lifecycle.service.js#transition` bumps `sync_seq` on the dependent rows
+   * so the change travels as an ordinary one. Asserted here against the real
+   * transition, not the repository helper in isolation.
+   */
+  test('suspending a Hotel advances sync_seq on its Halls and media', async () => {
+    const { accessToken } = await registerAndLoginHotelManager()
+    const hotelId = await approveHotel(accessToken)
+    const hall = await prisma.hall.create({
+      data: { hotelId, profileData: { name: 'Fan-out Hall', capacity: 120 } },
+    })
+    const before = await prisma.hall.findUnique({ where: { id: hall.id }, select: { syncSeq: true } })
+    assert.ok(before.syncSeq !== null, 'a new Hall must get a sync_seq from the column default')
+
+    const admin = await createAndLoginPlatformAdministrator()
+    const res = await post(`/api/v1/admin/hotels/${hotelId}/suspension`, undefined, authHeader(admin.accessToken))
+    assert.equal(res.status, 200)
+
+    const after = await prisma.hall.findUnique({ where: { id: hall.id }, select: { syncSeq: true } })
+    assert.ok(
+      after.syncSeq > before.syncSeq,
+      `Hall sync_seq must advance past ${before.syncSeq}, got ${after.syncSeq}`,
+    )
+    // The Hall row itself is otherwise untouched — this is a re-publish, not an edit.
+    const reread = await prisma.hall.findUnique({ where: { id: hall.id } })
+    assert.equal(reread.hotelId, hotelId)
+    assert.equal(reread.isActive, true)
   })
 
   test('deactivates an Approved/Active Hotel through the admin API', async () => {

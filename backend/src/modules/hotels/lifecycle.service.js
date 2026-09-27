@@ -42,5 +42,12 @@ export async function transition(hotel, toStatus, { client } = {}) {
       `Cannot move a Hotel from ${hotel.status} to ${toStatus}.`,
     )
   }
-  return hotelRepository.updateStatus(hotel.id, toStatus, client)
+  const updated = await hotelRepository.updateStatus(hotel.id, toStatus, client)
+  // Phase 0/S-06 — a status change is also a visibility change for every
+  // Hall and photo under this Hotel, none of which this write touched. Runs
+  // on the caller's transaction client when there is one; `updateStatus`
+  // varies its own `include` on whether a client was passed, so this
+  // deliberately does not introduce a transaction where there was none.
+  await hotelRepository.touchSyncDependents(hotel.id, client)
+  return updated
 }

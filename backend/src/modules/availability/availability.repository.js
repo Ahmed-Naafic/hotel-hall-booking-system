@@ -20,7 +20,7 @@ export function create({ hallId, startsAt, endsAt, reason, createdByUserId }, cl
 }
 
 export function findByIdForHall(id, hallId, client) {
-  return db(client).hallAvailabilityBlock.findFirst({ where: { id, hallId } })
+  return db(client).hallAvailabilityBlock.findFirst({ where: { id, hallId, deletedAt: null } })
 }
 
 export function update(id, { startsAt, endsAt, reason }, client) {
@@ -30,14 +30,27 @@ export function update(id, { startsAt, endsAt, reason }, client) {
   })
 }
 
-export function deleteById(id, client) {
-  return db(client).hallAvailabilityBlock.delete({ where: { id } })
+/**
+ * Soft delete (Phase 0/S-05). This row used to be removed outright, which a
+ * replicated client cannot detect: absence is not a change, so a deleted
+ * block stayed on the device forever and kept a free Hall looking busy —
+ * losing the Hotel a booking with nothing to show for it.
+ *
+ * The row stays as a tombstone. Every read in this file filters
+ * `deletedAt: null`, so nothing downstream sees it: in particular
+ * [hasOverlap] must not, or a deleted block would keep blocking Bookings.
+ */
+export function softDeleteById(id, client) {
+  return db(client).hallAvailabilityBlock.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  })
 }
 
 /** Every block for one Hall whose period intersects [rangeStart, rangeEnd) — the day-view query. */
 export function listForHallInRange({ hallId, rangeStart, rangeEnd }, client) {
   return db(client).hallAvailabilityBlock.findMany({
-    where: { hallId, startsAt: { lt: rangeEnd }, endsAt: { gt: rangeStart } },
+    where: { hallId, deletedAt: null, startsAt: { lt: rangeEnd }, endsAt: { gt: rangeStart } },
     orderBy: { startsAt: 'asc' },
   })
 }
@@ -52,6 +65,9 @@ export async function hasOverlap({ hallId, startsAt, endsAt, excludeId }, client
   const match = await db(client).hallAvailabilityBlock.findFirst({
     where: {
       hallId,
+      // A tombstoned block is not a block. Without this, deleting a block
+      // would appear to succeed and still refuse every Booking in its period.
+      deletedAt: null,
       startsAt: { lt: endsAt },
       endsAt: { gt: startsAt },
       ...(excludeId ? { id: { not: excludeId } } : {}),

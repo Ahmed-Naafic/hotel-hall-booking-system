@@ -70,6 +70,11 @@ model CustomerProfile {
   deletedAt         DateTime? @map("deleted_at")
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([userId, syncSeq], map: "idx_customer_profiles_user_sync_seq")
   @@map("customer_profiles")
 }
 
@@ -164,6 +169,12 @@ model Hotel {
   notifications          Notification[]
 
   @@index([status], map: "idx_hotels_status")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([syncSeq], map: "idx_hotels_sync_seq")
+  @@index([registeredByUserId, syncSeq], map: "idx_hotels_registered_by_sync_seq")
   @@map("hotels")
 }
 
@@ -177,12 +188,18 @@ model SavedHotel {
   customerUserId String   @map("customer_user_id") @db.Uuid
   hotelId        String   @map("hotel_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
   customer User  @relation(fields: [customerUserId], references: [id])
   hotel    Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 
   @@unique([customerUserId, hotelId])
   @@index([customerUserId, createdAt], map: "idx_saved_hotels_customer_created_at")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([customerUserId, syncSeq], map: "idx_saved_hotels_customer_sync_seq")
   @@map("saved_hotels")
 }
 
@@ -201,12 +218,19 @@ model Review {
   rating         Int
   text           String?
   createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
   booking  Booking @relation(fields: [bookingId], references: [id])
   customer User    @relation(fields: [customerUserId], references: [id])
   hotel    Hotel   @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 
   @@index([hotelId, createdAt], map: "idx_reviews_hotel_created_at")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([hotelId, syncSeq], map: "idx_reviews_hotel_sync_seq")
+  @@index([customerUserId, syncSeq], map: "idx_reviews_customer_sync_seq")
   @@map("reviews")
 }
 
@@ -228,9 +252,19 @@ model HotelMedia {
   displayOrder Int?      @map("display_order")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
+  /// Tombstone (Phase 0/S-05). These rows used to be removed outright, which
+  /// a replica cannot detect — absence is not a change. Reads filter
+  /// `deletedAt: null` via a hand-added partial index (see the
+  /// `add_media_and_block_tombstones` migration), not expressible in Prisma.
+  deletedAt    DateTime? @map("deleted_at")
   hotel        Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 
   @@index([hotelId], map: "idx_hotel_media_hotel_id")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([hotelId, syncSeq], map: "idx_hotel_media_hotel_sync_seq")
   @@map("hotel_media")
 }
 
@@ -250,11 +284,17 @@ model HotelApplication {
   decisionReason  String?                @map("decision_reason")
   submittedAt     DateTime               @default(now()) @map("submitted_at")
   createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at")
   decidedBy       User?                  @relation(fields: [decidedByUserId], references: [id])
   hotel           Hotel                  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   notifications   Notification[]
 
   @@index([hotelId], map: "idx_hotel_applications_hotel_id")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([hotelId, syncSeq], map: "idx_hotel_applications_hotel_sync_seq")
   @@map("hotel_applications")
 }
 
@@ -273,10 +313,16 @@ model CriticalInformationChangeRequest {
   decidedAt       DateTime?            @map("decided_at")
   submittedAt     DateTime             @default(now()) @map("submitted_at")
   createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at")
   decidedBy       User?                @relation(fields: [decidedByUserId], references: [id])
   hotel           Hotel                @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 
   @@index([hotelId], map: "idx_critical_information_change_requests_hotel_id")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([hotelId, syncSeq], map: "idx_critical_changes_hotel_sync_seq")
   @@map("critical_information_change_requests")
 }
 
@@ -315,6 +361,12 @@ model Hall {
   paymentReceivingNumber String?                 @map("payment_receiving_number")
 
   @@index([hotelId], map: "idx_halls_hotel_id")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([syncSeq], map: "idx_halls_sync_seq")
+  @@index([hotelId, syncSeq], map: "idx_halls_hotel_sync_seq")
   @@map("halls")
 }
 
@@ -364,6 +416,12 @@ model Booking {
   @@index([hallId, startsAt, endsAt], map: "idx_bookings_hall_period")
   @@index([status, paymentDeadlineAt], map: "idx_bookings_status_payment_deadline")
   @@index([paymentStatus], map: "idx_bookings_payment_status")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([hotelId, syncSeq], map: "idx_bookings_hotel_sync_seq")
+  @@index([customerUserId, syncSeq], map: "idx_bookings_customer_sync_seq")
   @@map("bookings")
 }
 
@@ -378,9 +436,19 @@ model HallMedia {
   displayOrder Int?      @map("display_order")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
+  /// Tombstone (Phase 0/S-05). These rows used to be removed outright, which
+  /// a replica cannot detect — absence is not a change. Reads filter
+  /// `deletedAt: null` via a hand-added partial index (see the
+  /// `add_media_and_block_tombstones` migration), not expressible in Prisma.
+  deletedAt    DateTime? @map("deleted_at")
   hall         Hall      @relation(fields: [hallId], references: [id], onDelete: Cascade)
 
   @@index([hallId], map: "idx_hall_media_hall_id")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([hallId, syncSeq], map: "idx_hall_media_hall_sync_seq")
   @@map("hall_media")
 }
 
@@ -404,10 +472,17 @@ model HallAvailabilityBlock {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  deletedAt       DateTime? @map("deleted_at")
+
   hall      Hall @relation(fields: [hallId], references: [id], onDelete: Cascade)
   createdBy User @relation(fields: [createdByUserId], references: [id])
 
   @@index([hallId, startsAt], map: "idx_hall_availability_blocks_hall_starts_at")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([hallId, syncSeq], map: "idx_hall_blocks_hall_sync_seq")
   @@map("hall_availability_blocks")
 }
 
@@ -510,6 +585,7 @@ model Notification {
   hotelApplicationId String?            @map("hotel_application_id") @db.Uuid
   readAt             DateTime?          @map("read_at")
   createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at")
 
   recipient        User              @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
   booking          Booking?          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -518,6 +594,11 @@ model Notification {
 
   @@index([recipientUserId, createdAt], map: "idx_notifications_recipient_created_at")
   @@index([recipientUserId, status], map: "idx_notifications_recipient_status")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([recipientUserId, syncSeq], map: "idx_notifications_recipient_sync_seq")
   @@map("notifications")
 }
 
@@ -592,11 +673,17 @@ model ChatMessage {
   body         String
   readAt       DateTime? @map("read_at")
   createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   sender  User    @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
 
   @@index([bookingId, createdAt], map: "idx_chat_messages_booking_created_at")
   @@index([bookingId, senderUserId, readAt], map: "idx_chat_messages_unread_lookup")
+  /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
+  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
+  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+
+  @@index([bookingId, syncSeq], map: "idx_chat_messages_booking_sync_seq")
   @@map("chat_messages")
 }

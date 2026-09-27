@@ -126,6 +126,39 @@ describe('Manager block management (own-Hotel scoped)', () => {
     assert.equal(new Date(res.body.data.endsAt).toISOString().slice(11, 16), '11:00')
   })
 
+  /**
+   * Blocks became tombstones in Phase 0/S-05 so a replicated client can see
+   * a deletion. That only works if the database's own anti-overlap guarantee
+   * ignores tombstones: `hall_availability_blocks_no_overlap` is an EXCLUDE
+   * constraint with no WHERE clause, so a soft-deleted row still occupies its
+   * period at the database level and rejects any replacement — even though
+   * `hasOverlap` correctly reports the period free.
+   *
+   * The equivalent constraint on `bookings` already scopes itself
+   * (`WHERE status IN ('PENDING','CONFIRMED')`); this one needs the same
+   * treatment via `WHERE deleted_at IS NULL`.
+   */
+  test('a deleted block frees its period for a new block', async () => {
+    const { accessToken } = await registerAndLogin()
+    const hotelId = await createApprovedHotel(accessToken)
+    const hall = await hallService.createHall({ hotelId })
+    const date = dateInDays(3)
+    const period = { date, startTime: '10:00', endTime: '14:00' }
+    const blocksPath = `/api/v1/hotels/${hotelId}/halls/${hall.id}/availability/blocks`
+
+    const created = await request('POST', blocksPath, { token: accessToken, body: { ...period, reason: 'Maintenance' } })
+    assert.equal(created.status, 201)
+
+    const deleted = await request('DELETE', `${blocksPath}/${created.body.data.id}`, { token: accessToken })
+    assert.ok(deleted.status === 200 || deleted.status === 204, `delete returned ${deleted.status}`)
+
+    // The period is free as far as the application is concerned — `hasOverlap`
+    // filters tombstones — so re-blocking it must succeed rather than hit the
+    // EXCLUDE constraint underneath.
+    const again = await request('POST', blocksPath, { token: accessToken, body: { ...period, reason: 'Maintenance again' } })
+    assert.equal(again.status, 201, `re-blocking a freed period returned ${again.status}`)
+  })
+
   test('an overlapping block is rejected (409)', async () => {
     const { accessToken } = await registerAndLogin()
     const hotelId = await createApprovedHotel(accessToken)

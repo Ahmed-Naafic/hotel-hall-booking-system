@@ -24,14 +24,14 @@ export function create({ registeredByUserId, profileData }) {
 export function findById(id) {
   return prisma.hotel.findUnique({
     where: { id, deletedAt: null },
-    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
+    include: { media: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } }, ...managerInclude },
   })
 }
 
 export function findByIdForOwner(id, registeredByUserId) {
   return prisma.hotel.findFirst({
     where: { id, registeredByUserId, deletedAt: null },
-    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
+    include: { media: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } }, ...managerInclude },
   })
 }
 
@@ -39,7 +39,7 @@ export function findLatestByOwner(registeredByUserId) {
   return prisma.hotel.findFirst({
     where: { registeredByUserId, deletedAt: null },
     orderBy: { createdAt: 'desc' },
-    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
+    include: { media: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } }, ...managerInclude },
   })
 }
 
@@ -82,13 +82,51 @@ export function updateStatus(id, status, client = prisma) {
   })
 }
 
+/**
+ * Re-publishes everything whose Customer-visibility depends on this Hotel's
+ * status (Phase 0/S-06).
+ *
+ * A Hall carries no copy of its Hotel's status — `visibility.service.js#computeVisibility`
+ * derives it live from the Eligibility Query Interface. So suspending a Hotel
+ * writes exactly one row, `hotels.status`, while silently hiding every one of
+ * its Halls and their photos from every Customer. No timestamp or sequence on
+ * those rows moves, so a replicated client would keep showing a marketplace
+ * that no longer exists until something unrelated happened to touch them.
+ *
+ * Bumping `sync_seq` here is what turns a derived change into an ordinary one
+ * the existing cursor mechanism already carries. It is deliberately a write
+ * fan-out rather than denormalising eligibility onto `Hall`: this project
+ * commits to eligibility being computed in exactly one place
+ * (`architecture-principles.md` §5), and a copied status column would be a
+ * second source of truth for it.
+ *
+ * One statement, so it is atomic on its own even when no surrounding
+ * transaction is supplied. Bounded by one Hotel's Hall count, on an action a
+ * Platform Administrator performs rarely.
+ */
+export function touchSyncDependents(hotelId, client = prisma) {
+  return client.$executeRaw`
+    WITH bumped_halls AS (
+      UPDATE halls SET sync_seq = nextval('sync_seq')
+       WHERE hotel_id = ${hotelId}::uuid
+       RETURNING id
+    ), bumped_hotel_media AS (
+      UPDATE hotel_media SET sync_seq = nextval('sync_seq')
+       WHERE hotel_id = ${hotelId}::uuid
+       RETURNING id
+    )
+    UPDATE hall_media SET sync_seq = nextval('sync_seq')
+     WHERE hall_id IN (SELECT id FROM bumped_halls)
+  `
+}
+
 export function list({ status, skip, take }) {
   return prisma.hotel.findMany({
     where: { deletedAt: null, ...(status ? { status } : {}) },
     skip,
     take,
     orderBy: { createdAt: 'desc' },
-    include: { media: { orderBy: { createdAt: 'asc' } }, ...managerInclude },
+    include: { media: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } }, ...managerInclude },
   })
 }
 
@@ -97,7 +135,7 @@ export function count({ status }) {
 }
 
 const publicInclude = {
-  media: { orderBy: { createdAt: 'asc' } },
+  media: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
 }
 
 // `BDR-020` — case-insensitive, partial match against Hotel Name and the
@@ -121,7 +159,13 @@ export function listPublic({ cursor, take, search }) {
     include: publicInclude,
     take,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-    orderBy: { createdAt: 'desc' },
+    // `id` breaks ties on `createdAt` — without it two Hotels sharing a
+    // timestamp have no defined order between pages, so a cursor can skip
+    // one or return it twice. Same two-key ordering every other
+    // cursor-paginated list in the project already uses
+    // (`notification.repository.js`, `booking.repository.js`,
+    // `review.repository.js`, `chat.repository.js`).
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
   })
 }
 

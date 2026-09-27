@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/location_service.dart';
 import '../data/discovery_repository.dart';
 import '../data/nearby_hotel.dart';
+import '../../../core/request_generation.dart';
 
 /// The state Nearby Hotels can be in — kept distinct rather than a single
 /// `errorMessage` string so the screen can show a permission-specific
@@ -20,7 +21,7 @@ enum NearbyHotelsState {
   error,
 }
 
-class NearbyHotelsController extends ChangeNotifier {
+class NearbyHotelsController extends ChangeNotifier with RequestGeneration {
   NearbyHotelsController({
     required this.repository,
     required this.locationService,
@@ -40,12 +41,6 @@ class NearbyHotelsController extends ChangeNotifier {
   double? _latitude;
   double? _longitude;
 
-  /// Which request the currently-displayed `hotels` belongs to — see
-  /// `LargeHallsController._requestId`. Taken by [load] and [_fetch] alike,
-  /// so a locate-then-fetch sequence started earlier can never overwrite a
-  /// newer search's results, and a stale location outcome can never push
-  /// the screen back into a permission state the customer has moved past.
-  int _requestId = 0;
 
   /// The query this controller will apply, exposed for the Discover screen
   /// to reason about — it is applied the moment a position is known, even
@@ -57,13 +52,13 @@ class NearbyHotelsController extends ChangeNotifier {
   bool get hasLocation => _latitude != null && _longitude != null;
 
   Future<void> load() async {
-    final requestId = ++_requestId;
+    final request = beginRequest();
     state = NearbyHotelsState.locating;
     errorMessage = null;
     notifyListeners();
 
     final location = await locationService.getCurrentLocation();
-    if (requestId != _requestId) return;
+    if (isSuperseded(request)) return;
 
     switch (location.outcome) {
       case LocationOutcome.permissionDenied:
@@ -87,7 +82,7 @@ class NearbyHotelsController extends ChangeNotifier {
 
     _latitude = location.latitude;
     _longitude = location.longitude;
-    await _fetch(requestId: requestId);
+    await _fetch(request: request);
   }
 
   /// A locate that never produced a position leaves nothing to show — the
@@ -116,10 +111,10 @@ class NearbyHotelsController extends ChangeNotifier {
     if (query == _search) return;
     _search = query;
     if (!hasLocation) return;
-    await _fetch(requestId: ++_requestId);
+    await _fetch(request: beginRequest());
   }
 
-  Future<void> _fetch({required int requestId}) async {
+  Future<void> _fetch({required int request}) async {
     state = NearbyHotelsState.loading;
     notifyListeners();
     try {
@@ -128,11 +123,11 @@ class NearbyHotelsController extends ChangeNotifier {
         longitude: _longitude!,
         search: _search,
       );
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       hotels = result;
       state = hotels.isEmpty ? NearbyHotelsState.empty : NearbyHotelsState.loaded;
     } catch (_) {
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       hotels = [];
       errorMessage = 'Could not load nearby Hotels. Please try again.';
       state = NearbyHotelsState.error;

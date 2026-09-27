@@ -169,6 +169,101 @@ void main() {
     });
   });
 
+  group('an unsearched load cannot overwrite the search that followed it', () {
+    /// The original defect, modelled directly. The Discover screen built each
+    /// controller with an immediate *unsearched* `load()`, and the debounce
+    /// called `search()` straight after — two requests for the same list. The
+    /// unsearched one landing second is what painted the full marketplace over
+    /// a live query, and it is the failure a customer actually saw.
+    ///
+    /// The handler makes the unsearched request the slow one, so "last response
+    /// wins" would produce the bug and only a generation guard prevents it.
+    MockClient unsearchedIsSlow(String Function(String search) id) =>
+        MockClient((request) async {
+          final search = request.url.queryParameters['search'] ?? '';
+          await Future<void>.delayed(
+            search.isEmpty ? const Duration(milliseconds: 150) : const Duration(milliseconds: 20),
+          );
+          final key = search.isEmpty ? 'unsearched' : search;
+          return _envelope(
+            [if (id(key) == 'hall') _hallJson('for-$key') else _hotelJson('for-$key')],
+            pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null},
+          );
+        });
+
+    test('Large Halls', () async {
+      final controller = LargeHallsController(_repositoryWith(unsearchedIsSlow((_) => 'hall')));
+
+      // Exactly the old screen's sequence, neither awaited before the other.
+      await Future.wait([controller.load(), controller.search('guuleed')]);
+
+      expect(controller.halls.single.id, 'for-guuleed');
+      expect(controller.state, LargeHallsState.loaded);
+    });
+
+    test('All Halls', () async {
+      final controller = AllHallsController(_repositoryWith(unsearchedIsSlow((_) => 'hall')));
+
+      await Future.wait([controller.load(), controller.search('guuleed')]);
+
+      expect(controller.halls.single.id, 'for-guuleed');
+    });
+
+    test('Popular', () async {
+      final controller = PopularHotelsController(_repositoryWith(unsearchedIsSlow((_) => 'hotel')));
+
+      await Future.wait([controller.load(), controller.search('guuleed')]);
+
+      expect(controller.hotels.single.id, 'for-guuleed');
+    });
+
+    test('Near You', () async {
+      final controller = NearbyHotelsController(
+        repository: _repositoryWith(
+          MockClient((request) async {
+            final search = request.url.queryParameters['search'] ?? '';
+            await Future<void>.delayed(
+              search.isEmpty ? const Duration(milliseconds: 150) : const Duration(milliseconds: 20),
+            );
+            return _envelope([
+              _hotelJson('for-${search.isEmpty ? 'unsearched' : search}', distanceKm: 1.0),
+            ]);
+          }),
+        ),
+        locationService: _FakeLocationService(_granted),
+      );
+      // First locate, so the query below is applied rather than only remembered.
+      await controller.load();
+
+      await Future.wait([controller.load(), controller.search('guuleed')]);
+
+      expect(controller.hotels.single.id, 'for-guuleed');
+      expect(controller.state, NearbyHotelsState.loaded);
+    });
+
+    test('All Hotels — the unsearched browse cannot land on top of a search', () async {
+      final controller = DiscoveryController(
+        _repositoryWith(
+          MockClient((request) async {
+            final search = request.url.queryParameters['search'];
+            await Future<void>.delayed(
+              search == null ? const Duration(milliseconds: 150) : const Duration(milliseconds: 20),
+            );
+            return _envelope(
+              [_hotelJson(search == null ? 'unsearched' : 'for-$search')],
+              pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null},
+            );
+          }),
+        ),
+      );
+
+      await Future.wait([controller.loadHotels(), controller.search('guuleed')]);
+
+      expect(controller.hotels.single.id, 'for-guuleed');
+      expect(controller.isSearchActive, isTrue);
+    });
+  });
+
   group('clearing the search cannot be overwritten either', () {
     test('a slow in-flight search does not land after the box was cleared', () async {
       final controller = LargeHallsController(
@@ -209,6 +304,108 @@ void main() {
 
       expect(controller.hotels.single.id, 'browse');
       expect(controller.isSearchActive, isFalse);
+    });
+  });
+
+  group('a superseded request cannot surface its loading or error state', () {
+    /// A superseded request owns none of the state — not the results, and not
+    /// the error or loading flags either. Without that, a slow *failure* for an
+    /// abandoned query lands after a newer query already succeeded, and the
+    /// customer gets an error banner over a perfectly good list, with a
+    /// "Try again" that would only re-run the query they already left.
+    test('Large Halls — a slow failure does not overwrite a newer success', () async {
+      final controller = LargeHallsController(
+        _repositoryWith(
+          MockClient((request) async {
+            final search = request.url.queryParameters['search'] ?? '';
+            if (search == 'doomed') {
+              await Future<void>.delayed(const Duration(milliseconds: 120));
+              return http.Response('{"status":"error","message":"boom"}', 500);
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            return _envelope([_hallJson('for-$search')]);
+          }),
+        ),
+      );
+
+      await Future.wait([controller.search('doomed'), controller.search('guuleed')]);
+
+      expect(controller.state, LargeHallsState.loaded, reason: 'the newer success owns the state');
+      expect(controller.errorMessage, isNull, reason: 'no banner for an abandoned query');
+      expect(controller.halls.single.id, 'for-guuleed');
+    });
+
+    test('All Halls — a slow failure does not overwrite a newer success', () async {
+      final controller = AllHallsController(
+        _repositoryWith(
+          MockClient((request) async {
+            final search = request.url.queryParameters['search'] ?? '';
+            if (search == 'doomed') {
+              await Future<void>.delayed(const Duration(milliseconds: 120));
+              return http.Response('{"status":"error","message":"boom"}', 500);
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            return _envelope(
+              [_hallJson('for-$search')],
+              pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null},
+            );
+          }),
+        ),
+      );
+
+      await Future.wait([controller.search('doomed'), controller.search('guuleed')]);
+
+      expect(controller.state, AllHallsState.loaded);
+      expect(controller.errorMessage, isNull);
+      expect(controller.isLoadingMore, isFalse, reason: 'paging must not be left jammed');
+    });
+
+    test('All Hotels — a slow failure does not overwrite a newer success', () async {
+      final controller = DiscoveryController(
+        _repositoryWith(
+          MockClient((request) async {
+            final search = request.url.queryParameters['search'] ?? '';
+            if (search == 'doomed') {
+              await Future<void>.delayed(const Duration(milliseconds: 120));
+              return http.Response('{"status":"error","message":"boom"}', 500);
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            return _envelope(
+              [_hotelJson('for-$search')],
+              pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null},
+            );
+          }),
+        ),
+      );
+
+      await Future.wait([controller.search('doomed'), controller.search('guuleed')]);
+
+      expect(controller.errorMessage, isNull);
+      expect(controller.isLoading, isFalse, reason: 'the winner must clear the spinner');
+      expect(controller.hotels.single.id, 'for-guuleed');
+    });
+
+    test('Near You — a slow failure does not overwrite a newer success', () async {
+      final controller = NearbyHotelsController(
+        repository: _repositoryWith(
+          MockClient((request) async {
+            final search = request.url.queryParameters['search'] ?? '';
+            if (search == 'doomed') {
+              await Future<void>.delayed(const Duration(milliseconds: 120));
+              return http.Response('{"status":"error","message":"boom"}', 500);
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            return _envelope([_hotelJson('for-$search', distanceKm: 1.0)]);
+          }),
+        ),
+        locationService: _FakeLocationService(_granted),
+      );
+      await controller.load();
+
+      await Future.wait([controller.search('doomed'), controller.search('guuleed')]);
+
+      expect(controller.state, NearbyHotelsState.loaded);
+      expect(controller.hotels.single.id, 'for-guuleed');
     });
   });
 

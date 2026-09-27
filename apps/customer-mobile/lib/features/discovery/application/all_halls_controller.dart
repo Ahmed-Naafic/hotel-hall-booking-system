@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/browsable_hall.dart';
 import '../data/discovery_repository.dart';
+import '../../../core/request_generation.dart';
 
 enum AllHallsState { loading, loaded, empty, error }
 
@@ -25,7 +26,7 @@ class AdvancedHallFilters {
 /// All Halls (approved V1 business rules) — server-side cursor pagination;
 /// this controller only ever holds the pages already fetched, never the
 /// whole Hall table. No ranking, no location, no authentication.
-class AllHallsController extends ChangeNotifier {
+class AllHallsController extends ChangeNotifier with RequestGeneration {
   AllHallsController(this.repository, {String initialSearch = ''})
     : _search = initialSearch;
   final DiscoveryRepository repository;
@@ -39,15 +40,9 @@ class AllHallsController extends ChangeNotifier {
   AdvancedHallFilters filters = AdvancedHallFilters.none;
   String _search;
 
-  /// Which request the currently-displayed result set belongs to — see
-  /// `LargeHallsController._requestId`. [loadMore] deliberately does *not*
-  /// take a new number: it appends to the generation already on screen, so
-  /// a page that arrives after the query changed is dropped rather than
-  /// appended to a result set it never belonged to.
-  int _requestId = 0;
 
   Future<void> load() async {
-    final requestId = ++_requestId;
+    final request = beginRequest();
     state = AllHallsState.loading;
     errorMessage = null;
     // A page fetch still in flight belongs to the generation being replaced;
@@ -62,13 +57,13 @@ class AllHallsController extends ChangeNotifier {
         maxPriceCents: filters.maxPriceCents,
         search: _search,
       );
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       halls = page.halls;
       hasMore = page.hasNext;
       _nextCursor = page.nextCursor;
       state = halls.isEmpty ? AllHallsState.empty : AllHallsState.loaded;
     } catch (_) {
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       errorMessage = 'Could not load Halls. Please try again.';
       state = AllHallsState.error;
     }
@@ -98,7 +93,7 @@ class AllHallsController extends ChangeNotifier {
 
   Future<void> loadMore() async {
     if (isLoadingMore || !hasMore || state != AllHallsState.loaded) return;
-    final requestId = _requestId;
+    final request = currentRequest();
     isLoadingMore = true;
     notifyListeners();
     try {
@@ -109,14 +104,14 @@ class AllHallsController extends ChangeNotifier {
         maxPriceCents: filters.maxPriceCents,
         search: _search,
       );
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       halls = [...halls, ...page.halls];
       hasMore = page.hasNext;
       _nextCursor = page.nextCursor;
     } catch (_) {
       // Keep what's already loaded; the customer can retry by scrolling again.
     } finally {
-      if (requestId == _requestId) {
+      if (!isSuperseded(request)) {
         isLoadingMore = false;
         notifyListeners();
       }

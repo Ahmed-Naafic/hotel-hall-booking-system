@@ -39,7 +39,14 @@ import '../../reviews/data/review_repository.dart';
 import '../../reviews/presentation/widgets/star_rating.dart';
 
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key});
+  const DiscoverScreen({super.key, this.locationService = const LocationService()});
+
+  /// Injectable so Near You can be exercised end-to-end in a widget test.
+  /// `package:geolocator` has no platform implementation under `flutter test`,
+  /// so the real service never resolves there and the Near You tab could only
+  /// ever be tested one layer down, at its controller. Defaulted, so every
+  /// production call site is unchanged.
+  final LocationService locationService;
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
@@ -99,7 +106,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   NearbyHotelsController get _nearby =>
       _nearbyController ??= NearbyHotelsController(
         repository: _repository,
-        locationService: const LocationService(),
+        locationService: widget.locationService,
         initialSearch: _search,
       )..load();
 

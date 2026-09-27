@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:customer_mobile/core/location_service.dart';
 import 'package:customer_mobile/core/pending_action_controller.dart';
 import 'package:customer_mobile/features/discovery/application/discovery_controller.dart';
 import 'package:customer_mobile/features/discovery/application/popular_hotels_controller.dart';
@@ -95,6 +96,23 @@ Map<String, dynamic> _hallJson(({String id, String name, int capacity}) hall) =>
 /// fetched once for a query, and never refetched when already correct.
 final List<Uri> requestLog = [];
 
+/// Near You needs a location. `package:geolocator` has no platform
+/// implementation under `flutter test`, so the real service never resolves;
+/// `DiscoverScreen.locationService` is injectable for exactly this.
+class _FakeLocationService extends LocationService {
+  const _FakeLocationService(this.result);
+  final LocationResult result;
+
+  @override
+  Future<LocationResult> getCurrentLocation() async => result;
+}
+
+const _granted = LocationResult(
+  outcome: LocationOutcome.granted,
+  latitude: 2.0469,
+  longitude: 45.3182,
+);
+
 Future<http.Response> _handle(http.Request request) async {
   requestLog.add(request.url);
   final path = request.url.path;
@@ -154,12 +172,21 @@ Future<http.Response> _handle(http.Request request) async {
     );
   }
 
-  // /hotels/public/nearby — never reached in a widget test (see the file
-  // comment); an empty list keeps an unexpected call from hanging.
+  if (path.endsWith('/hotels/public/nearby')) {
+    // The real endpoint filters by name/address before the 5 km distance cut
+    // and returns nearest-first (`hotel.service.js#listNearbyPublicHotels`).
+    var distance = 0.5;
+    return _envelope([
+      for (final hotel in _hotels)
+        if (_matches(hotel.name, search))
+          {..._hotelJson(hotel), 'distanceKm': distance += 0.5},
+    ]);
+  }
+
   return _envelope([]);
 }
 
-Widget _wrapDiscover() {
+Widget _wrapDiscover({LocationService? locationService}) {
   final apiClient = ApiClient(
     httpClient: MockClient(_handle),
     baseUrl: 'http://test/api/v1',
@@ -185,7 +212,11 @@ Widget _wrapDiscover() {
         create: (_) => PopularHotelsController(DiscoveryRepository(apiClient)),
       ),
     ],
-    child: const MaterialApp(home: DiscoverScreen()),
+    child: MaterialApp(
+      home: locationService == null
+          ? const DiscoverScreen()
+          : DiscoverScreen(locationService: locationService),
+    ),
   );
 }
 
@@ -393,6 +424,62 @@ void main() {
     await _selectTab(tester, 'Large Halls');
     expect(_callsTo('/halls/large-capacity'), before);
     expect(find.text('Jazeera Ballroom'), findsNothing);
+  });
+
+  testWidgets('Near You shows only matching Hotels once a location is known', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrapDiscover(locationService: const _FakeLocationService(_granted)));
+    await tester.pumpAndSettle();
+
+    await _searchFor(tester, 'guuleed');
+    await _selectTab(tester, 'Near You');
+
+    expect(find.text('Guuleed Palace'), findsWidgets);
+    expect(find.text('GUULEED Annex'), findsWidgets);
+    expect(find.text('Jazeera Suites'), findsNothing);
+    expect(
+      requestLog
+          .where((uri) => uri.path.endsWith('/hotels/public/nearby'))
+          .last
+          .queryParameters['search'],
+      'guuleed',
+    );
+  });
+
+  testWidgets('Near You without a location shows the permission state, not a stale list', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrapDiscover(
+        locationService: const _FakeLocationService(
+          LocationResult(outcome: LocationOutcome.permissionDenied),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _searchFor(tester, 'guuleed');
+    await _selectTab(tester, 'Near You');
+
+    // No Hotel list at all, and nothing from another tab left behind.
+    expect(find.text('Guuleed Palace'), findsNothing);
+    expect(find.text('Jazeera Suites'), findsNothing);
+    expect(find.textContaining('location'), findsWidgets);
+  });
+
+  testWidgets('clearing the search restores Near You too', (tester) async {
+    await tester.pumpWidget(_wrapDiscover(locationService: const _FakeLocationService(_granted)));
+    await tester.pumpAndSettle();
+
+    await _searchFor(tester, 'guuleed');
+    await _selectTab(tester, 'Near You');
+    expect(find.text('Jazeera Suites'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Jazeera Suites'), findsWidgets);
   });
 
   testWidgets(

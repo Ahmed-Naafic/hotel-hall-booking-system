@@ -2,13 +2,14 @@ import 'package:flutter/foundation.dart';
 
 import '../data/discovery_repository.dart';
 import '../data/popular_hotel.dart';
+import '../../../core/request_generation.dart';
 
 enum PopularHotelsState { loading, loaded, empty, error }
 
 /// Popular Hotels (approved V1 business rules) — no location permission and
 /// no authentication involved at all, unlike Nearby Hotels; this is
 /// deliberately a plain load/loaded/empty/error controller.
-class PopularHotelsController extends ChangeNotifier {
+class PopularHotelsController extends ChangeNotifier with RequestGeneration {
   PopularHotelsController(this.repository);
   final DiscoveryRepository repository;
 
@@ -17,10 +18,6 @@ class PopularHotelsController extends ChangeNotifier {
   String? errorMessage;
   String _search = '';
 
-  /// See `LargeHallsController._requestId` — same stale-response guard, for
-  /// the same reason: this controller is app-wide, so a `markStale` refetch
-  /// and a search can easily be in flight at the same time.
-  int _requestId = 0;
 
   // Ranking here is driven by qualifying (CONFIRMED/COMPLETED) Booking
   // counts (approved V1 business rules) — the one Discover ranking that a
@@ -38,18 +35,18 @@ class PopularHotelsController extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    final requestId = ++_requestId;
+    final request = beginRequest();
     state = PopularHotelsState.loading;
     errorMessage = null;
     isStale = false;
     notifyListeners();
     try {
       final result = await repository.getPopularHotels(search: _search);
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       hotels = result;
       state = hotels.isEmpty ? PopularHotelsState.empty : PopularHotelsState.loaded;
     } catch (_) {
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       errorMessage = 'Could not load popular Hotels. Please try again.';
       state = PopularHotelsState.error;
     }

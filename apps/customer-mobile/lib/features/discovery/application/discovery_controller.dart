@@ -2,8 +2,9 @@ import 'package:flutter/foundation.dart';
 
 import '../data/discovery_models.dart';
 import '../data/discovery_repository.dart';
+import '../../../core/request_generation.dart';
 
-class DiscoveryController extends ChangeNotifier {
+class DiscoveryController extends ChangeNotifier with RequestGeneration {
   DiscoveryController(this.repository);
   final DiscoveryRepository repository;
   List<HotelSummary> hotels = [];
@@ -21,14 +22,9 @@ class DiscoveryController extends ChangeNotifier {
   String _searchQuery = '';
   String? _searchCursor;
 
-  /// Which request the currently-displayed `hotels` belongs to. Both entry
-  /// points here write the same fields, so clearing the box while a search
-  /// is still in flight (or retyping past a slow response) would otherwise
-  /// let the older response win. See `LargeHallsController._requestId`.
-  int _requestId = 0;
 
   Future<void> loadHotels() async {
-    final requestId = ++_requestId;
+    final request = beginRequest();
     isLoading = true;
     errorMessage = null;
     isSearchActive = false;
@@ -36,12 +32,12 @@ class DiscoveryController extends ChangeNotifier {
     notifyListeners();
     try {
       final result = await repository.getHotels();
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       hotels = result;
       hasMoreSearchResults = false;
       _searchCursor = null;
     } catch (_) {
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       errorMessage = 'Could not load Hotels. Please try again.';
     }
     isLoading = false;
@@ -56,7 +52,7 @@ class DiscoveryController extends ChangeNotifier {
       await loadHotels();
       return;
     }
-    final requestId = ++_requestId;
+    final request = beginRequest();
     _searchQuery = trimmed;
     isSearchActive = true;
     isLoading = true;
@@ -65,12 +61,12 @@ class DiscoveryController extends ChangeNotifier {
     notifyListeners();
     try {
       final page = await repository.searchHotels(search: trimmed);
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       hotels = page.hotels;
       hasMoreSearchResults = page.hasNext;
       _searchCursor = page.nextCursor;
     } catch (_) {
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       errorMessage = 'Could not search Hotels. Please try again.';
       hotels = [];
       hasMoreSearchResults = false;
@@ -85,7 +81,7 @@ class DiscoveryController extends ChangeNotifier {
     }
     // Appends to the generation already on screen — never takes a new one,
     // so a page that arrives after the query changed is dropped.
-    final requestId = _requestId;
+    final request = currentRequest();
     isLoadingMoreSearchResults = true;
     notifyListeners();
     try {
@@ -93,14 +89,14 @@ class DiscoveryController extends ChangeNotifier {
         search: _searchQuery,
         cursor: _searchCursor,
       );
-      if (requestId != _requestId) return;
+      if (isSuperseded(request)) return;
       hotels = [...hotels, ...page.hotels];
       hasMoreSearchResults = page.hasNext;
       _searchCursor = page.nextCursor;
     } catch (_) {
       // Keep what's already loaded; the customer can retry by scrolling again.
     } finally {
-      if (requestId == _requestId) {
+      if (!isSuperseded(request)) {
         isLoadingMoreSearchResults = false;
         notifyListeners();
       }

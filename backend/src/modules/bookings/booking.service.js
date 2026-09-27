@@ -47,6 +47,20 @@ async function advanceLifecycle(scope) {
   await repository.completeEnded(scope, new Date(), COMPLETION_GRACE_MS)
 }
 
+/**
+ * The same clock sweep every ordinary read performs, exposed for the
+ * Synchronization Component (Local-First Technical Design §12).
+ *
+ * A sync response for Bookings must run this first or a replica holds Bookings
+ * stuck `PENDING` past `paymentDeadlineAt` until some unrelated request happens
+ * to advance them. Exposed as a named function rather than letting that module
+ * reach for the repository, so expiry keeps firing its Notification (C8)
+ * through the one path that already does it correctly.
+ */
+export function advanceLifecycleForSync(scope) {
+  return advanceLifecycle(scope)
+}
+
 async function advanceAndFindCustomer(id, userId) {
   await advanceLifecycle({ customerUserId: userId })
   const booking = await repository.findForCustomer(id, userId)

@@ -30,6 +30,10 @@
     {
       "name": "Bookings",
       "description": "Customer booking requests and own-Hotel Manager lifecycle management (Module 5)."
+    },
+    {
+      "name": "Synchronization",
+      "description": "Incremental replication for local-first clients, per docs/02-architecture/local-first-synchronization-technical-design.md. Read-only — every mutation keeps its own existing endpoint."
     }
   ],
   "components": {
@@ -1217,6 +1221,25 @@
             "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/PublicHall" } } } }] } } }
           },
           "400": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+        }
+      }
+    },
+    "/sync/{collection}": {
+      "get": {
+        "tags": ["Synchronization"],
+        "summary": "Changes to one collection since the client's cursor",
+        "description": "Rows whose `syncSeq` exceeds `since`, ascending, for the authenticated caller's own scope only. Scope is derived from the access token, never from a request parameter, and `collection` is an allowlist — there is no generic table access. Phase 1 covers a Hotel Manager's own Hotel and everything under it. Deletions arrive in `deleted` as ids rather than being omitted, because a replica cannot detect an absence. `nextCursor` is the highest `syncSeq` in the returned page, never the server clock. Booking rows deliberately exclude the Customer's fullName/mobileNumber (Restricted per data-architecture.md §13).",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "collection", "in": "path", "required": true, "description": "One of the registered collections.", "schema": { "type": "string", "enum": ["hotel", "hall", "hotelMedia", "hallMedia", "availabilityBlock", "booking", "notification", "hotelApplication"] } },
+          { "name": "since", "in": "query", "description": "The client's high-water mark, as a decimal string — syncSeq is a BIGINT. Omit for initial sync.", "schema": { "type": "string", "pattern": "^[0-9]+$" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Changed rows, tombstone ids, and the caller's scope identity.", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "properties": { "data": { "type": "object", "properties": { "changed": { "type": "array", "items": { "type": "object" } }, "deleted": { "type": "array", "items": { "type": "string", "format": "uuid" } }, "scopeId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" } } } } }] } } } },
+          "400": { "description": "Unknown collection, malformed cursor, or out-of-range limit.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+          "403": { "description": "This account type may not synchronize this collection.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
         }
       }
     }

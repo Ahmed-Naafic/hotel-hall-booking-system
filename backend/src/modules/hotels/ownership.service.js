@@ -17,3 +17,20 @@ export async function isOwnedByUser(hotelId, userId) {
   const hotel = await hotelRepository.findByIdForOwner(hotelId, userId)
   return hotel !== null
 }
+
+/**
+ * The inverse question: which Hotels does this Manager own?
+ *
+ * Added for the Synchronization Component (Local-First Technical Design §6),
+ * which needs the tenant boundary as a list to constrain a query by, not a
+ * yes/no about one Hotel it already has in hand. An additive extension to this
+ * interface, the same shape Hall Management Technical Design §18 Item 5
+ * anticipates for the Eligibility Query Interface.
+ *
+ * Ids only — consistent with this interface's rule that no Hotel record crosses
+ * the module boundary.
+ */
+export async function listOwnedHotelIds(userId) {
+  const hotels = await hotelRepository.listIdsByOwner(userId)
+  return hotels.map((hotel) => hotel.id)
+}

@@ -18,6 +18,7 @@ import { bookingRouter, hotelBookingRouter } from './modules/bookings/booking.ro
 import { favoriteRouter } from './modules/favorites/favorite.routes.js'
 import { bookingReviewRouter, hotelReviewRouter } from './modules/reviews/review.routes.js'
 import { notificationRouter } from './modules/notifications/notification.routes.js'
+import { syncRouter } from './modules/sync/sync.routes.js'
 import { bookingMessagesRouter, messagesRouter } from './modules/chat/chat.routes.js'
 
 const openapiSpecPath = fileURLToPath(new URL('./openapi/openapi.json', import.meta.url))
@@ -55,6 +56,7 @@ export function createApp() {
   app.use('/api/v1/halls', hallRouter)
   app.use('/api/v1/admin', administrationRouter)
   app.use('/api/v1/notifications', notificationRouter)
+  app.use('/api/v1/sync', syncRouter)
 
   // OpenAPI/Swagger documentation (technology-stack.md, api-standards.md §16) —
   // a tooling/meta endpoint, unversioned like the health check pattern

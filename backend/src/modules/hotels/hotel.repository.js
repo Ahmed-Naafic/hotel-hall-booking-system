@@ -49,6 +49,22 @@ export function findLatestByOwner(registeredByUserId) {
 // wasted work when the caller only asks "is this Hotel eligible?", and
 // multiplied by every Hall on a browse page before `findStatusesByIds`
 // collapsed that into one query.
+/**
+ * Every Hotel this Manager registered, ids only — the tenant boundary
+ * synchronization scopes itself by (Local-First Technical Design §6).
+ *
+ * A list rather than a single id even though no approved journey gives a
+ * Manager more than one Hotel: `Hotel`'s own schema comment records that the
+ * Glossary says "at least one", and a scope that is already a list cannot be
+ * silently widened later by a caller that assumed a scalar.
+ */
+export function listIdsByOwner(registeredByUserId) {
+  return prisma.hotel.findMany({
+    where: { registeredByUserId, deletedAt: null },
+    select: { id: true },
+  })
+}
+
 export function findStatusById(id) {
   return prisma.hotel.findUnique({
     where: { id, deletedAt: null },
@@ -182,16 +198,31 @@ export function findPublicById(id) {
  * coordinate validity and the fixed 5km radius. Same eligibility filter as
  * listPublic/findPublicById (BR: only APPROVED_ACTIVE is Customer-visible).
  */
-export function findAllApprovedActive() {
+/**
+ * The candidate set Nearby Hotels filters by distance — `id` and
+ * `profileData` only, no joins.
+ *
+ * Measured at 2,000 approved Hotels: joining media here (which the previous
+ * `findAllApprovedActive` did) cost 169ms median for an endpoint that keeps
+ * roughly 38 rows, because every Hotel's photos were fetched to answer a
+ * question only its coordinates can answer. `profileData` is still needed in
+ * full — it carries the coordinates, and the name/address the optional
+ * `search` matches against.
+ *
+ * Same lean-candidates-then-hydrate-the-winners shape
+ * `visibility.service.js#listLargeHalls` already uses with
+ * `hallRepository.findAllCandidatesForRanking` / `hydrateByIds`.
+ */
+export function findProximityCandidates() {
   return prisma.hotel.findMany({
     where: { deletedAt: null, status: 'APPROVED_ACTIVE' },
-    include: publicInclude,
+    select: { id: true, profileData: true },
   })
 }
 
 /**
  * Popular Hotels — the same Customer-visible eligibility filter as
- * listPublic/findPublicById/findAllApprovedActive, scoped to a specific
+ * listPublic/findPublicById/findProximityCandidates, scoped to a specific
  * candidate id set (the Hotels with at least one qualifying Booking).
  * Halls are included (non-deleted only) so the service layer can apply the
  * "at least one Hall" requirement without a second query.

@@ -115,9 +115,9 @@ export async function getPublicHotelById(id) {
  * incomplete profile) is excluded rather than treated as a match.
  */
 export async function listNearbyPublicHotels({ latitude, longitude, search }) {
-  const hotels = await hotelRepository.findAllApprovedActive()
+  const candidates = await hotelRepository.findProximityCandidates()
 
-  return hotels
+  const withinRadius = candidates
     .filter((hotel) => hotelMatchesSearch(hotel, search))
     .map((hotel) => {
       const location = hotel.profileData?.location
@@ -132,10 +132,26 @@ export async function listNearbyPublicHotels({ latitude, longitude, search }) {
         lat2: hotelLatitude,
         lon2: hotelLongitude,
       })
-      return { hotel, distanceKm }
+      return { id: hotel.id, distanceKm }
     })
     .filter((entry) => entry !== null && entry.distanceKm <= NEARBY_RADIUS_KM)
     .sort((a, b) => a.distanceKm - b.distanceKm)
+
+  if (withinRadius.length === 0) {
+    return []
+  }
+
+  // Only the Hotels that survived the radius are worth their display joins —
+  // the same two-step `listLargeHalls` uses for its own ranking. Re-attaches
+  // `distanceKm` and preserves the nearest-first order, which the hydrating
+  // query does not guarantee on its own.
+  const hydratedById = new Map(
+    (await hotelRepository.findApprovedActiveByIds(withinRadius.map((entry) => entry.id)))
+      .map((hotel) => [hotel.id, hotel]),
+  )
+  return withinRadius
+    .map((entry) => ({ hotel: hydratedById.get(entry.id), distanceKm: entry.distanceKm }))
+    .filter((entry) => entry.hotel !== undefined)
 }
 
 /**

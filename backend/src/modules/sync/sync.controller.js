@@ -13,7 +13,7 @@ export const changes = asyncHandler(async (req, res) => {
 
   sendSuccess(res, {
     message: 'Changes retrieved successfully.',
-    data: mapper.toSyncData(result),
+    data: mapper.toSyncData({ collection: req.params.collection, ...result }),
     pagination: result.pagination,
   })
 })

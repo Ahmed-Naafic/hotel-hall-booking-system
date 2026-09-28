@@ -42,12 +42,27 @@ export async function transition(hotel, toStatus, { client } = {}) {
       `Cannot move a Hotel from ${hotel.status} to ${toStatus}.`,
     )
   }
-  const updated = await hotelRepository.updateStatus(hotel.id, toStatus, client)
   // Phase 0/S-06 — a status change is also a visibility change for every
-  // Hall and photo under this Hotel, none of which this write touched. Runs
-  // on the caller's transaction client when there is one; `updateStatus`
-  // varies its own `include` on whether a client was passed, so this
-  // deliberately does not introduce a transaction where there was none.
-  await hotelRepository.touchSyncDependents(hotel.id, client)
+  // Hall and photo under this Hotel, none of which the status write touches,
+  // so their sync_seq is bumped too. Runs on the caller's transaction client
+  // when there is one; `updateStatus` varies its own `include` on whether a
+  // client was passed, so this deliberately does not introduce a transaction
+  // where there was none. The order differs between the two cases on purpose:
+  //
+  //   - Inside a transaction every lock is held to COMMIT, so the dependents
+  //     are bumped *first*: children, then this Hotel, the same order a Hotel
+  //     photo delete takes them (hotel_media, then hotels via its trigger).
+  //     The reverse order can deadlock against that delete. Atomicity makes
+  //     the order invisible to a sync reader.
+  //   - Without one, each statement commits on its own, so no lock outlives it
+  //     and no deadlock is possible — but the bumps must then come *after* the
+  //     status commits, or a sync between the two would republish the Halls
+  //     under the old status and never again.
+  if (client) {
+    await hotelRepository.touchSyncDependents(hotel.id, client)
+    return hotelRepository.updateStatus(hotel.id, toStatus, client)
+  }
+  const updated = await hotelRepository.updateStatus(hotel.id, toStatus)
+  await hotelRepository.touchSyncDependents(hotel.id)
   return updated
 }

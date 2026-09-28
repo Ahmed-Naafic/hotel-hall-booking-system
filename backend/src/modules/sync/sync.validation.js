@@ -1,6 +1,6 @@
 import { ValidationError } from '../../shared/errors/errorTypes.js'
 import { COLLECTION_NAMES } from './sync.collections.js'
-import { DEFAULT_LIMIT, MAX_LIMIT } from './sync.cursor.js'
+import { DEFAULT_LIMIT, MAX_LIMIT, decodeCursor } from './sync.cursor.js'
 
 /**
  * Rejects a malformed sync request before any query runs
@@ -19,13 +19,16 @@ export function validateChanges(req, res, next) {
     })
   }
 
-  // `since` is a decimal string, not a number: `sync_seq` is a BIGINT and can
-  // exceed what a JS number represents exactly.
+  // `since` is an opaque snapshot-window token (sync.cursor.js). Decoding it is
+  // its validation: every field is shape-checked before any SQL sees it.
   if (since !== undefined) {
-    if (!/^\d+$/.test(since)) {
-      details.push({ field: 'since', message: 'since must be a non-negative integer.' })
-    } else {
-      req.syncCursor = BigInt(since)
+    try {
+      req.syncCursor = decodeCursor(since)
+    } catch (error) {
+      // An expired (but genuine) cursor is not a validation failure — it
+      // propagates as SYNC_CURSOR_EXPIRED so the client can recover.
+      if (!(error instanceof ValidationError)) throw error
+      details.push(...error.details)
     }
   }
 

@@ -116,23 +116,28 @@ export function updateStatus(id, status, client = prisma) {
  * (`architecture-principles.md` §5), and a copied status column would be a
  * second source of truth for it.
  *
- * One statement, so it is atomic on its own even when no surrounding
- * transaction is supplied. Bounded by one Hotel's Hall count, on an action a
- * Platform Administrator performs rarely.
+ * Bounded by one Hotel's Hall count, on an action a Platform Administrator
+ * performs rarely.
+ *
+ * **Lock order: children before parents, always.** Deleting a photo locks its
+ * `hall_media` row and then — through the `sync_seq_bump_media_parent`
+ * trigger — its `halls` row. If this function locked `halls` first and then
+ * `hall_media`, a Hotel status change racing a photo delete would take the two
+ * locks in opposite orders and deadlock (40P01). Three statements rather than
+ * one CTE, because PostgreSQL does not guarantee the execution order of
+ * data-modifying CTEs. The `hotels` row itself is the caller's to order — see
+ * `lifecycle.service.js#transition`.
  */
-export function touchSyncDependents(hotelId, client = prisma) {
-  return client.$executeRaw`
-    WITH bumped_halls AS (
-      UPDATE halls SET sync_seq = nextval('sync_seq')
-       WHERE hotel_id = ${hotelId}::uuid
-       RETURNING id
-    ), bumped_hotel_media AS (
-      UPDATE hotel_media SET sync_seq = nextval('sync_seq')
-       WHERE hotel_id = ${hotelId}::uuid
-       RETURNING id
-    )
+export async function touchSyncDependents(hotelId, client = prisma) {
+  await client.$executeRaw`
     UPDATE hall_media SET sync_seq = nextval('sync_seq')
-     WHERE hall_id IN (SELECT id FROM bumped_halls)
+     WHERE hall_id IN (SELECT id FROM halls WHERE hotel_id = ${hotelId}::uuid)
+  `
+  await client.$executeRaw`
+    UPDATE hotel_media SET sync_seq = nextval('sync_seq') WHERE hotel_id = ${hotelId}::uuid
+  `
+  await client.$executeRaw`
+    UPDATE halls SET sync_seq = nextval('sync_seq') WHERE hotel_id = ${hotelId}::uuid
   `
 }
 

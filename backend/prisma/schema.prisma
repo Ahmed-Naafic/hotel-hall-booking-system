@@ -71,8 +71,15 @@ model CustomerProfile {
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([userId, syncSeq], map: "idx_customer_profiles_user_sync_seq")
   @@map("customer_profiles")
@@ -170,8 +177,15 @@ model Hotel {
 
   @@index([status], map: "idx_hotels_status")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([syncSeq], map: "idx_hotels_sync_seq")
   @@index([registeredByUserId, syncSeq], map: "idx_hotels_registered_by_sync_seq")
@@ -196,8 +210,15 @@ model SavedHotel {
   @@unique([customerUserId, hotelId])
   @@index([customerUserId, createdAt], map: "idx_saved_hotels_customer_created_at")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([customerUserId, syncSeq], map: "idx_saved_hotels_customer_sync_seq")
   @@map("saved_hotels")
@@ -226,8 +247,15 @@ model Review {
 
   @@index([hotelId, createdAt], map: "idx_reviews_hotel_created_at")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([hotelId, syncSeq], map: "idx_reviews_hotel_sync_seq")
   @@index([customerUserId, syncSeq], map: "idx_reviews_customer_sync_seq")
@@ -261,8 +289,15 @@ model HotelMedia {
 
   @@index([hotelId], map: "idx_hotel_media_hotel_id")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([hotelId, syncSeq], map: "idx_hotel_media_hotel_sync_seq")
   @@map("hotel_media")
@@ -291,8 +326,15 @@ model HotelApplication {
 
   @@index([hotelId], map: "idx_hotel_applications_hotel_id")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([hotelId, syncSeq], map: "idx_hotel_applications_hotel_sync_seq")
   @@map("hotel_applications")
@@ -319,8 +361,15 @@ model CriticalInformationChangeRequest {
 
   @@index([hotelId], map: "idx_critical_information_change_requests_hotel_id")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([hotelId, syncSeq], map: "idx_critical_changes_hotel_sync_seq")
   @@map("critical_information_change_requests")
@@ -362,8 +411,15 @@ model Hall {
 
   @@index([hotelId], map: "idx_halls_hotel_id")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([syncSeq], map: "idx_halls_sync_seq")
   @@index([hotelId, syncSeq], map: "idx_halls_hotel_sync_seq")
@@ -417,8 +473,15 @@ model Booking {
   @@index([status, paymentDeadlineAt], map: "idx_bookings_status_payment_deadline")
   @@index([paymentStatus], map: "idx_bookings_payment_status")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([hotelId, syncSeq], map: "idx_bookings_hotel_sync_seq")
   @@index([customerUserId, syncSeq], map: "idx_bookings_customer_sync_seq")
@@ -445,8 +508,15 @@ model HallMedia {
 
   @@index([hallId], map: "idx_hall_media_hall_id")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([hallId, syncSeq], map: "idx_hall_media_hall_sync_seq")
   @@map("hall_media")
@@ -479,8 +549,15 @@ model HallAvailabilityBlock {
 
   @@index([hallId, startsAt], map: "idx_hall_availability_blocks_hall_starts_at")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([hallId, syncSeq], map: "idx_hall_blocks_hall_sync_seq")
   @@map("hall_availability_blocks")
@@ -595,8 +672,15 @@ model Notification {
   @@index([recipientUserId, createdAt], map: "idx_notifications_recipient_created_at")
   @@index([recipientUserId, status], map: "idx_notifications_recipient_status")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([recipientUserId, syncSeq], map: "idx_notifications_recipient_sync_seq")
   @@map("notifications")
@@ -681,8 +765,15 @@ model ChatMessage {
   @@index([bookingId, createdAt], map: "idx_chat_messages_booking_created_at")
   @@index([bookingId, senderUserId, readAt], map: "idx_chat_messages_unread_lookup")
   /// Local-first sync ordering (Phase 0/S-03) — assigned from the shared
-  /// `sync_seq` sequence on insert and bumped on update. Read by nothing yet.
-  syncSeq BigInt? @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// `sync_seq` sequence on insert and bumped on update. Orders rows within a
+  /// sync batch only; it is NOT commit-ordered (Local-First Technical Design §4).
+  syncSeq  BigInt  @default(dbgenerated("nextval('sync_seq')")) @map("sync_seq")
+  /// The top-level transaction that last wrote this row (`pg_current_xact_id()`),
+  /// set on insert by default and on update by `sync_seq_bump()`. Sync batches
+  /// are windows between two snapshots of this value, which is what makes
+  /// delivery correct regardless of commit order (Technical Design §4, §7).
+  /// NULL only for rows last written before the column existed.
+  syncTxid BigInt? @default(dbgenerated("((pg_current_xact_id())::text)::bigint")) @map("sync_txid")
 
   @@index([bookingId, syncSeq], map: "idx_chat_messages_booking_sync_seq")
   @@map("chat_messages")

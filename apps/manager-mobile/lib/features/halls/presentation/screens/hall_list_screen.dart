@@ -4,6 +4,7 @@ import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/presentation/dashboard_back_button.dart';
+import '../../../../core/sync/local_replica.dart';
 import '../../application/hall_list_controller.dart';
 import '../../data/hall_models.dart';
 import '../../data/hall_repository.dart';
@@ -43,6 +44,9 @@ class HallListScreen extends StatelessWidget {
       create: (context) => HallListController(
         repository: HallRepository(context.read<ApiClient>()),
         hotelId: hotelId,
+        // Optional: absent in tests and wherever no replica is provided, in
+        // which case the list reads from the network as it always has.
+        replica: context.read<LocalReplica?>(),
       )..load(),
       child: _HallListView(hotelId: hotelId, embedded: embedded, onOpenDashboardTab: onOpenDashboardTab),
     );
@@ -89,7 +93,7 @@ class _HallListViewState extends State<_HallListView> {
       ),
     );
     if (created != null && mounted) {
-      controller.load();
+      controller.refreshAfterCommand();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Hall created.')));
@@ -175,6 +179,7 @@ class _HallListViewState extends State<_HallListView> {
               ),
             ),
             const SizedBox(height: HHSpacing.space3),
+            if (list.showingSavedData) _SavedDataNotice(offline: list.savedDataBecauseOffline),
             Expanded(child: _body(context, list)),
           ],
         ),
@@ -325,6 +330,38 @@ class _StatusChip extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Shown above a list read from the replica when the last sync failed —
+/// usually because the device is offline — so the list is what was last
+/// synced, and may be out of date. Changes
+/// (activating a Hall, adding one) still need a connection and say so when
+/// they fail.
+class _SavedDataNotice extends StatelessWidget {
+  const _SavedDataNotice({required this.offline});
+
+  final bool offline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(HHSpacing.space7, 0, HHSpacing.space7, HHSpacing.space3),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off, size: 16, color: context.hh.textMuted),
+          const SizedBox(width: HHSpacing.space2),
+          Expanded(
+            child: Text(
+              offline
+                  ? 'Offline — showing halls saved on this device.'
+                  : 'Couldn’t refresh — showing halls saved on this device.',
+              style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textSm),
+            ),
+          ),
+        ],
       ),
     );
   }

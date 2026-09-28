@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'core/auth_gate.dart';
 import 'core/notification_preference_controller.dart';
+import 'core/sync/local_replica.dart';
 import 'features/chat/application/chat_badge_controller.dart';
 import 'features/chat/data/chat_repository.dart';
 import 'features/hotel/application/hotel_context_controller.dart';
@@ -33,6 +34,12 @@ class ManagerMobileApp extends StatelessWidget {
       repository: AuthRepository(apiClient),
       sessionStore: sessionStore,
     );
+    // The on-device replica (ADR-0009) follows the session: it syncs when a
+    // verified Manager signs in or the app returns to the foreground, and is
+    // wiped when the session ends.
+    final localReplica = LocalReplica(apiClient: apiClient)
+      ..bindAuth(authController)
+      ..attachLifecycle();
 
     return MultiProvider(
       providers: [
@@ -43,6 +50,9 @@ class ManagerMobileApp extends StatelessWidget {
         // wherever they're needed, never a second HTTP client instance.
         Provider<ApiClient>.value(value: apiClient),
         ChangeNotifierProvider<AuthController>(create: (_) => authController),
+        // App-wide, like the session it follows. Screens that read locally
+        // (the Hall list) take it optionally, so they still work without it.
+        ChangeNotifierProvider<LocalReplica>(create: (_) => localReplica),
         // Hotel context is Manager-Mobile-only (Customer Mobile never has
         // one) — its own cached id, independent of the shared SessionStore
         // (`HotelContextController`'s own doc comment explains why).

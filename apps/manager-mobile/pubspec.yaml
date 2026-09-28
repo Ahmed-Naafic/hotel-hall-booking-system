@@ -55,7 +55,15 @@ dependencies:
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0
 
+  # Local-first synchronization (ADR-0009) — the on-device replica the sync
+  # engine writes into. SQLite via sqflite: relational rows, queries by scope,
+  # and no codegen step added to the toolchain.
+  sqflite: ^2.4.2
+
 dev_dependencies:
+  # Supplies a SQLite implementation under `flutter test`, which has no
+  # platform channel (ADR-0009) — the same reason LocationService is injectable.
+  sqflite_common_ffi: ^2.3.4
   flutter_test:
     sdk: flutter
   http: ^1.6.0

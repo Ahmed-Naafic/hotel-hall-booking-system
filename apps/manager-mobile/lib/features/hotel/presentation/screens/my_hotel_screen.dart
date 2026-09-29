@@ -15,6 +15,7 @@ import '../widgets/hotel_onboarding.dart';
 import '../widgets/hotel_profile_header.dart';
 import 'hotel_details_screen.dart';
 import 'hotel_profile_form_screen.dart';
+import '../../../../core/sync/local_replica.dart';
 
 /// Manager → My Hotel — the minimal navigation level between Home and
 /// Halls the requested nav tree calls for. Shows the Hotel's own real
@@ -100,6 +101,7 @@ class MyHotelScreenState extends State<MyHotelScreen> {
     if (!force && hotelId == _statsLoadedForHotelId) return;
     _statsLoadedForHotelId = hotelId;
     final apiClient = context.read<ApiClient>();
+    final replica = context.read<LocalReplica?>();
     // Plain field assignment, not `setState` — this runs from within
     // `build()` itself (the `ready` case below), so the `FutureBuilder`s
     // `HotelProfileHeader` builds later in this same pass already pick up
@@ -109,10 +111,10 @@ class MyHotelScreenState extends State<MyHotelScreen> {
     // FutureBuilder that shows it. Offline these can fail while no builder is
     // listening yet (the Hall count's builder only exists once the summary has
     // loaded), which surfaced as an unhandled async error.
-    _hallCountFuture = HallRepository(apiClient).listHalls(hotelId: hotelId, limit: 1).then((page) => page.total)
+    _hallCountFuture = HallRepository(apiClient, replica: replica).listHalls(hotelId: hotelId, limit: 1).then((page) => page.total)
       ..ignore();
-    _summaryFuture = ManagerBookingRepository(apiClient).summary(hotelId)..ignore();
-    HotelRepository(apiClient).getMedia(hotelId).then((media) {
+    _summaryFuture = ManagerBookingRepository(apiClient, replica: replica).summary(hotelId)..ignore();
+    HotelRepository(apiClient, replica: replica).getMedia(hotelId).then((media) {
       if (mounted) setState(() => _media = media);
     }).catchError((Object _) {
       // The hero photo is a non-essential nicety — falls back to the

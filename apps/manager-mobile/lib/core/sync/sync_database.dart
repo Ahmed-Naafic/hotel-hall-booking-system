@@ -22,9 +22,10 @@ class SyncDatabase {
 
   final Database db;
 
-  /// 2 added `sync_owner`. Upgrades drop and resync (below), so bumping this
-  /// costs one full sync, never data the server does not still hold.
-  static const _version = 2;
+  /// 2 added `sync_owner`; 3 lifted `booking_id` and added `sync_cache`.
+  /// Upgrades drop and resync (below), so bumping this costs one full sync,
+  /// never data the server does not still hold.
+  static const _version = 3;
 
   /// Opens (and migrates) the replica. `factory`/`path` are injectable so tests
   /// can run against an in-memory database through `sqflite_common_ffi`, which
@@ -54,6 +55,7 @@ class SyncDatabase {
         sync_seq   TEXT NOT NULL,
         hotel_id   TEXT,
         hall_id    TEXT,
+        booking_id TEXT,
         data       TEXT NOT NULL,
         PRIMARY KEY (collection, id)
       )
@@ -66,6 +68,10 @@ class SyncDatabase {
     );
     await db.execute(
       'CREATE INDEX idx_records_collection_hall ON sync_records (collection, hall_id)',
+    );
+    // A Booking's chat conversation is read by `booking_id`.
+    await db.execute(
+      'CREATE INDEX idx_records_collection_booking ON sync_records (collection, booking_id)',
     );
 
     await db.execute('''
@@ -89,6 +95,19 @@ class SyncDatabase {
     // memory, because the replica outlives the process — an app killed while
     // offline must still know whose rows these are when someone else signs in
     // next, before any sync has had a chance to compare scopes.
+    // The last response of a server *aggregate* the app shows (e.g. the Booking
+    // summary), keyed by what was asked. Offline, the app shows this rather than
+    // recomputing the aggregate on the device — which would copy a business rule
+    // (what counts as revenue) into a second place. Belongs to the owner like
+    // every other row, and is wiped with them.
+    await db.execute('''
+      CREATE TABLE sync_cache (
+        key      TEXT PRIMARY KEY,
+        value    TEXT NOT NULL,
+        saved_at TEXT NOT NULL
+      )
+    ''');
+
     await db.execute('''
       CREATE TABLE sync_owner (
         id      INTEGER PRIMARY KEY CHECK (id = 1),
@@ -105,6 +124,7 @@ class SyncDatabase {
     await db.execute('DROP TABLE IF EXISTS sync_state');
     await db.execute('DROP TABLE IF EXISTS sync_scope');
     await db.execute('DROP TABLE IF EXISTS sync_owner');
+    await db.execute('DROP TABLE IF EXISTS sync_cache');
     await _create(db, to);
   }
 

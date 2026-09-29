@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
@@ -136,5 +138,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('New message'), findsOneWidget);
+  });
+
+  testWidgets('offline, sending fails visibly and puts the typed message back — nothing is lost', (tester) async {
+    var offline = false;
+    await tester.pumpWidget(
+      _wrap((request) async {
+        if (offline) throw const SocketException('offline');
+        if (request.url.path.endsWith('/bookings/b1/messages') && request.method == 'GET') {
+          return _envelope([], pagination: {'limit': 50, 'hasNext': false, 'nextCursor': null});
+        }
+        if (request.url.path.endsWith('/read-all')) return _envelope(null);
+        return _envelope({});
+      }),
+    );
+    await tester.pumpAndSettle();
+
+    offline = true;
+    await tester.enterText(find.byType(TextField), 'Are you open on Friday?');
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Could not reach the server'), findsOneWidget, reason: 'the failure is shown');
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'Are you open on Friday?', reason: 'what the Manager typed is kept');
   });
 }

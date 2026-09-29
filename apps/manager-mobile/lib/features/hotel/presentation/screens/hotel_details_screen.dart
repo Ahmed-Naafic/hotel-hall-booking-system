@@ -9,6 +9,7 @@ import '../../data/hotel_repository.dart';
 import '../widgets/hotel_onboarding.dart';
 import 'hotel_photo_viewer_screen.dart';
 import 'hotel_profile_form_screen.dart';
+import '../../../../core/sync/local_replica.dart';
 
 enum _LoadStatus { loading, ready, error }
 
@@ -47,7 +48,7 @@ class _HotelDetailsScreenState extends State<HotelDetailsScreen> {
   Future<void> _load() async {
     setState(() => _status = _LoadStatus.loading);
     try {
-      final repository = HotelRepository(context.read<ApiClient>());
+      final repository = HotelRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>());
       final results = await Future.wait([
         repository.getHotel(widget.hotelId),
         repository.getMedia(widget.hotelId),

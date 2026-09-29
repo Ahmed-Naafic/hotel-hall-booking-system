@@ -65,8 +65,11 @@ the same reason `LocationService` is injectable, since geolocator has none.
 - **The replica is wiped when the session ends** (sign-out, expiry, or a different user signing in),
   not only on a `scopeId` mismatch — unencrypted data must not outlive the session it belongs to.
   A device that merely started offline keeps it (Technical Design §16, item 11).
-- A collection is replicated only once something reads it. Manager Mobile replicates `hotel` (the
-  Hotel context, offline) and `hall` (the Hall list) today (Technical Design §16).
+- A collection is replicated only once something reads it. Manager Mobile replicates `hotel`,
+  `hall`, `hotelApplication`, `booking`, `notification` and `chatMessage` (Technical Design §16).
+  Schema version 3 adds a lifted `booking_id` column and a small `sync_cache` table for the last
+  response of a server aggregate; like everything else, it belongs to the owner and is wiped with
+  the replica.
 - If `sqflite` cannot open on a platform, the replica reports itself unavailable and every reader
   falls back to the network path it used before. Local-first is an optimisation of reads, never a
   precondition for the app to work.

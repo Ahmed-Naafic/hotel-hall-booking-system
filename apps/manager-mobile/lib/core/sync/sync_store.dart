@@ -107,6 +107,7 @@ class SyncStore {
       await txn.delete('sync_state');
       await txn.delete('sync_scope');
       await txn.delete('sync_owner');
+      await txn.delete('sync_cache');
     });
   }
 
@@ -141,6 +142,7 @@ class SyncStore {
             // a gap.
             'hotel_id': row['hotelId'] as String?,
             'hall_id': row['hallId'] as String?,
+            'booking_id': row['bookingId'] as String?,
             'data': jsonEncode(row),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
@@ -182,6 +184,53 @@ class SyncStore {
   /// Rows of one collection belonging to one Hall.
   Future<List<Map<String, dynamic>>> forHall(String collection, String hallId) =>
       _query(collection, where: 'hall_id = ?', args: [hallId]);
+
+  /// Rows of one collection belonging to one Booking (its chat messages).
+  Future<List<Map<String, dynamic>>> forBooking(String collection, String bookingId) =>
+      _query(collection, where: 'booking_id = ?', args: [bookingId]);
+
+  /// Runs a read over one collection's rows and decodes them. For the local
+  /// repositories, which own their query shapes; this class stays the only
+  /// place that knows the table layout.
+  Future<List<Map<String, dynamic>>> select(
+    String collection, {
+    String? where,
+    List<Object?> args = const [],
+    required String orderBy,
+    int? limit,
+  }) async {
+    final rows = await _db.rawQuery(
+      'SELECT data FROM sync_records WHERE collection = ?'
+      '${where == null ? '' : ' AND $where'}'
+      ' ORDER BY $orderBy${limit == null ? '' : ' LIMIT $limit'}',
+      [collection, ...args],
+    );
+    return rows
+        .map((row) => (jsonDecode(row['data'] as String) as Map).cast<String, dynamic>())
+        .toList();
+  }
+
+  Future<int> countWhere(String collection, {String? where, List<Object?> args = const []}) async {
+    final rows = await _db.rawQuery(
+      'SELECT count(*) AS n FROM sync_records WHERE collection = ?'
+      '${where == null ? '' : ' AND $where'}',
+      [collection, ...args],
+    );
+    return rows.first['n'] as int;
+  }
+
+  Future<void> cachePut(String key, Object? value) async {
+    await _db.insert(
+      'sync_cache',
+      {'key': key, 'value': jsonEncode(value), 'saved_at': DateTime.now().toUtc().toIso8601String()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Object?> cacheGet(String key) async {
+    final rows = await _db.query('sync_cache', columns: ['value'], where: 'key = ?', whereArgs: [key]);
+    return rows.isEmpty ? null : jsonDecode(rows.first['value'] as String);
+  }
 
   Future<Map<String, dynamic>?> byId(String collection, String id) async {
     final rows = await _query(collection, where: 'id = ?', args: [id]);

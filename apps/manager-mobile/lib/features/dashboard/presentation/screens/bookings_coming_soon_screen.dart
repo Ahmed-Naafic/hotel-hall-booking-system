@@ -9,6 +9,7 @@ import '../../../../core/presentation/manager_formatters.dart';
 import '../../../bookings/data/booking_models.dart';
 import '../../../bookings/data/booking_repository.dart';
 import '../../../chat/presentation/screens/chat_screen.dart';
+import '../../../../core/sync/local_replica.dart';
 
 /// Manager → Bookings tab — every Booking for the Hotel, searchable by
 /// Customer name/mobile/Hall and filterable by status (All/Confirmed/
@@ -66,9 +67,14 @@ class BookingsComingSoonScreenState extends State<BookingsComingSoonScreen> {
     try {
       final rows = await ManagerBookingRepository(
         context.read<ApiClient>(),
+        replica: context.read<LocalReplica?>(),
       ).list(hotelId);
       if (mounted) setState(() => _bookings = rows);
     } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on NetworkException catch (error) {
+      // Offline with nothing replicated yet — the repository already fell back
+      // to the replica when it could.
       if (mounted) setState(() => _error = error.message);
     }
   }
@@ -93,10 +99,18 @@ class BookingsComingSoonScreenState extends State<BookingsComingSoonScreen> {
     try {
       final updated = await ManagerBookingRepository(
         context.read<ApiClient>(),
+        replica: context.read<LocalReplica?>(),
       ).action(hotelId, booking.id, action, body: body);
       await _load(hotelId);
       return updated;
     } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return null;
+    } on NetworkException catch (error) {
+      // Every Booking action is decided by the server (Technical Design §12):
+      // offline it fails, visibly, and nothing changes locally.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
       }

@@ -45,12 +45,28 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
   Future<void> _openNotification(AppNotification notification) async {
     final controller = context.read<NotificationController>();
-    if (notification.isUnread) await controller.markRead(notification.id);
+    if (notification.isUnread) {
+      try {
+        await controller.markRead(notification.id);
+      } on NetworkException {
+        // Offline: it stays unread — the server holds read state — but the
+        // Manager still goes where the notification points.
+      }
+    }
     if (!mounted) return;
     if (notification.bookingId != null) {
       Navigator.of(context).pop(NotificationDestination.bookingsTab);
     } else if (_hotelStatusNotificationTypes.contains(notification.type)) {
       Navigator.of(context).pop(NotificationDestination.hotelTab);
+    }
+  }
+
+  Future<void> _markAllRead(NotificationController controller) async {
+    try {
+      await controller.markAllRead();
+    } on NetworkException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -63,7 +79,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         actions: [
           Consumer<NotificationController>(
             builder: (context, controller, _) => TextButton(
-              onPressed: controller.unreadCount > 0 ? () => controller.markAllRead() : null,
+              onPressed: controller.unreadCount > 0 ? () => _markAllRead(controller) : null,
               child: const Text('Mark all read'),
             ),
           ),

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'core/auth_gate.dart';
 import 'core/notification_preference_controller.dart';
+import 'core/presentation/offline_banner.dart';
 import 'core/sync/local_replica.dart';
 import 'features/chat/application/chat_badge_controller.dart';
 import 'features/chat/data/chat_repository.dart';
@@ -67,13 +68,13 @@ class ManagerMobileApp extends StatelessWidget {
         // Center screen always agree — same rationale as Customer Mobile's
         // own app-wide controllers this session.
         ChangeNotifierProvider(
-          create: (_) => NotificationController(NotificationRepository(apiClient)),
+          create: (_) => NotificationController(NotificationRepository(apiClient, replica: localReplica)),
         ),
         // App-wide, same rationale as NotificationController above — a
         // second, independent unread badge (Business Rule 8) that must
         // agree wherever it's shown.
         ChangeNotifierProvider(
-          create: (_) => ChatBadgeController(ChatRepository(apiClient)),
+          create: (_) => ChatBadgeController(ChatRepository(apiClient, replica: localReplica)),
         ),
         // App-wide, same rationale as ThemeController above — a per-device
         // preference that must agree wherever it's read (the Settings
@@ -89,6 +90,8 @@ class ManagerMobileApp extends StatelessWidget {
           theme: buildHotelHallTheme(),
           darkTheme: buildHotelHallTheme(brightness: Brightness.dark),
           themeMode: themeController.mode,
+          // Above every route: whatever screen is showing saved data says so.
+          builder: OfflineBanner.wrap,
           home: const AuthGate(),
         ),
       ),

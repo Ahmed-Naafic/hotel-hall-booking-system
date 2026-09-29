@@ -94,6 +94,51 @@ class LocalReplica extends ChangeNotifier with WidgetsBindingObserver {
     return _store!.all(collection);
   }
 
+  /// The store, for reading [collection] — or null when it may not be read
+  /// (see [hasSynced]). Local repositories query through this, so the owner
+  /// and has-synced checks cannot be skipped by a reader.
+  Future<SyncStore?> readable(String collection) async =>
+      await hasSynced(collection) ? _store : null;
+
+  /// Saves the last response of a server aggregate for offline display — only
+  /// while the replica belongs to the signed-in user.
+  Future<void> cachePut(String key, Object? value) async {
+    if (!await _ownerConfirmed()) return;
+    await _store!.cachePut(key, value);
+  }
+
+  Future<Object?> cacheGet(String key) async {
+    if (!await _ownerConfirmed()) return null;
+    return _store!.cacheGet(key);
+  }
+
+  Future<bool> _ownerConfirmed() async {
+    if (await ready() == null) return false;
+    return _auth == null || _activeUserId != null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reachability, as observed by any request
+  // ---------------------------------------------------------------------------
+
+  /// A request (not only a sync) could not reach the server, and its caller is
+  /// falling back to local data. Every screen shows the offline banner from
+  /// this one flag, whichever request noticed first.
+  void noteUnreachable(NetworkException error) {
+    if (lastError is NetworkException) return;
+    lastError = error;
+    _notify();
+  }
+
+  /// A request just reached the server. Clears an offline state and brings the
+  /// replica up to date, which is what the banner was warning about.
+  void noteReachable() {
+    if (lastError is! NetworkException) return;
+    lastError = null;
+    _notify();
+    unawaited(sync());
+  }
+
   // ---------------------------------------------------------------------------
   // The queue
   // ---------------------------------------------------------------------------
@@ -172,6 +217,10 @@ class LocalReplica extends ChangeNotifier with WidgetsBindingObserver {
   /// The signed-in user the replica has been confirmed to belong to, or null
   /// while nobody is — during which nothing reads it and nothing syncs it.
   String? _activeUserId;
+
+  /// The user the replica is confirmed to belong to, for local reads that
+  /// depend on who is asking (e.g. which chat messages are someone else's).
+  String? get activeUserId => _activeUserId;
 
   /// Follows the session: sync when a verified Manager is signed in, wipe when
   /// the session is gone or the rows belong to someone else.

@@ -32,6 +32,14 @@ class _Server {
   int status = 200;
   String userId = 'u1';
   List<Map<String, dynamic>> ownHotels = [_hotel('h1')];
+  List<Map<String, dynamic>> applications = [
+    for (final (id, status, at) in [
+      ('a-old', 'REJECTED', '2026-08-01T00:00:00.000Z'),
+      ('a-new', 'APPROVED', '2026-08-20T00:00:00.000Z'),
+    ])
+      {'id': id, 'hotelId': 'h1', 'status': status, 'submittedAt': at, 'decidedByUserId': null,
+       'decidedAt': null, 'decisionReason': null},
+  ];
 
   MockClient get client => MockClient((r) async {
         if (offline) throw const SocketException('offline');
@@ -41,8 +49,12 @@ class _Server {
         if (path.endsWith('/hotels/me')) {
           return successResponse({'hotel': ownHotels.last, 'latestApplication': null});
         }
-        if (path.endsWith('/sync/hotel') || path.endsWith('/sync/hall')) {
-          final rows = path.endsWith('/sync/hotel') ? ownHotels : const <Map<String, dynamic>>[];
+        if (path.contains('/sync/')) {
+          final rows = path.endsWith('/sync/hotel')
+              ? ownHotels
+              : path.endsWith('/sync/hotelApplication')
+                  ? applications
+                  : const <Map<String, dynamic>>[];
           return http.Response(
             jsonEncode({
               'status': 'success',
@@ -121,7 +133,8 @@ void main() {
     expect(context.status, HotelContextStatus.ready);
     expect(context.hotel?.id, 'h1');
     expect(context.isOffline, isTrue);
-    expect(context.latestApplication, isNull, reason: 'not replicated, so unknown offline — never invented');
+    expect(context.latestApplication?.id, 'a-new', reason: 'the most recently submitted, as /hotels/me picks it');
+    expect(context.reviewSummary, isNull, reason: 'a server aggregate, not replicated — unknown offline, never invented');
   });
 
   test('the replica fallback picks the newest Hotel, as /hotels/me does', () async {

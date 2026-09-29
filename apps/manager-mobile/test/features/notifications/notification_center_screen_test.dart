@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
@@ -180,5 +182,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(markedAllRead, true);
+  });
+
+  testWidgets('offline, tapping a notification still takes the Manager where it points', (tester) async {
+    var offline = false;
+    await tester.pumpWidget(
+      _wrap((request) async {
+        if (offline) throw const SocketException('offline');
+        if (request.url.path.endsWith('/notifications') && request.method == 'GET') {
+          return _envelope([_notificationJson()], pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null});
+        }
+        if (request.url.path.endsWith('/unread-count')) return _envelope({'count': 1});
+        return _envelope({});
+      }),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    offline = true; // marking read needs the server; navigating does not
+    await tester.tap(find.text('New booking request'));
+    await tester.pumpAndSettle();
+
+    expect(_lastPopResult, NotificationDestination.bookingsTab);
+  });
+
+  testWidgets('offline, Mark all read fails visibly instead of throwing', (tester) async {
+    var offline = false;
+    await tester.pumpWidget(
+      _wrap((request) async {
+        if (offline) throw const SocketException('offline');
+        if (request.url.path.endsWith('/notifications') && request.method == 'GET') {
+          return _envelope([_notificationJson()], pagination: {'limit': 20, 'hasNext': false, 'nextCursor': null});
+        }
+        if (request.url.path.endsWith('/unread-count')) return _envelope({'count': 1});
+        return _envelope({});
+      }),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    offline = true;
+    await tester.tap(find.text('Mark all read'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Could not reach the server'), findsOneWidget);
   });
 }

@@ -66,6 +66,11 @@ const WINDOWS = {
     table: 'hotel_applications',
     scope: ({ hotelIds }) => Prisma.sql`hotel_id = ANY(${hotelIds}::uuid[])`,
   },
+  chatMessage: {
+    table: 'chat_messages',
+    scope: ({ hotelIds }) =>
+      Prisma.sql`booking_id IN (SELECT id FROM bookings WHERE hotel_id = ANY(${hotelIds}::uuid[]))`,
+  },
 }
 
 /**
@@ -162,6 +167,7 @@ const HYDRATORS = {
   booking: (ids) => prisma.booking.findMany({ where: { id: { in: ids } }, select: BOOKING_FIELDS }),
   notification: (ids) => prisma.notification.findMany({ where: { id: { in: ids } } }),
   hotelApplication: (ids) => prisma.hotelApplication.findMany({ where: { id: { in: ids } } }),
+  chatMessage: (ids) => prisma.chatMessage.findMany({ where: { id: { in: ids } } }),
 }
 
 /**

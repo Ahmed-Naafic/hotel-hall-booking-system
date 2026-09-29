@@ -10,6 +10,7 @@ import '../../data/hall_models.dart';
 import '../../data/hall_repository.dart';
 import 'hall_form_screen.dart';
 import 'hall_photo_viewer_screen.dart';
+import '../../../../core/sync/local_replica.dart';
 
 enum _LoadStatus { loading, ready, error }
 
@@ -53,7 +54,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
   Future<void> _load() async {
     setState(() => _status = _LoadStatus.loading);
     try {
-      final repository = HallRepository(context.read<ApiClient>());
+      final repository = HallRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>());
       final hall = await repository.getHall(
         hotelId: widget.hotelId,
         id: widget.hallId,
@@ -102,7 +103,7 @@ class _HallDetailsScreenState extends State<HallDetailsScreen> {
     setState(() => _isUploadingPhotos = true);
     var uploaded = 0;
     String? failure;
-    final repository = HallRepository(context.read<ApiClient>());
+    final repository = HallRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>());
     for (final image in images) {
       try {
         await repository.uploadPhoto(

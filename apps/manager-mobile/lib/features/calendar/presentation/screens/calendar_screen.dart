@@ -7,6 +7,7 @@ import '../../../../core/presentation/manager_formatters.dart';
 import '../../../bookings/data/booking_models.dart';
 import '../../../bookings/data/booking_repository.dart';
 import '../../../hotel/application/hotel_context_controller.dart';
+import '../../../../core/sync/local_replica.dart';
 
 /// Manager → Calendar tab (replaces the previous standalone "Profile"
 /// destination, which moved to the hamburger-menu Drawer on Home). A month
@@ -34,7 +35,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
     if (hotelId == _loadedForHotelId) return;
     _loadedForHotelId = hotelId;
-    _bookingsFuture = ManagerBookingRepository(context.read<ApiClient>()).list(hotelId);
+    _bookingsFuture = ManagerBookingRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>()).list(hotelId);
   }
 
   void _retry() => setState(() => _loadedForHotelId = null);

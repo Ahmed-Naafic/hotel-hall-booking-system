@@ -15,6 +15,7 @@ import '../../../hotel/presentation/widgets/hotel_onboarding.dart';
 import '../../../chat/application/chat_badge_controller.dart';
 import '../../../notifications/application/notification_controller.dart';
 import '../../../notifications/presentation/screens/notification_center_screen.dart';
+import '../../../../core/sync/local_replica.dart';
 
 /// Manager → Home (Dashboard tab). Every value shown here already exists
 /// on a screen elsewhere in the app, or is a real database-side aggregate
@@ -63,7 +64,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     // FutureBuilder that shows it. Offline these can fail while no builder is
     // listening yet (the Hall count's builder only exists once the summary has
     // loaded), which surfaced as an unhandled async error.
-    _hallCountFuture = HallRepository(context.read<ApiClient>())
+    _hallCountFuture = HallRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>())
         .listHalls(hotelId: hotelId, limit: 1)
         .then((page) => page.total)
       ..ignore();
@@ -80,7 +81,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
     if (!force && hotelId == _summaryLoadedForHotelId) return;
     _summaryLoadedForHotelId = hotelId;
-    _summaryFuture = ManagerBookingRepository(context.read<ApiClient>()).summary(hotelId)..ignore();
+    _summaryFuture = ManagerBookingRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>()).summary(hotelId)..ignore();
   }
 
   /// The 3 newest Bookings for this Hotel, reusing the existing
@@ -94,7 +95,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
     if (!force && hotelId == _recentBookingsLoadedForHotelId) return;
     _recentBookingsLoadedForHotelId = hotelId;
-    _recentBookingsFuture = ManagerBookingRepository(context.read<ApiClient>()).list(hotelId, limit: 3)..ignore();
+    _recentBookingsFuture = ManagerBookingRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>()).list(hotelId, limit: 3)..ignore();
   }
 
   /// Called by `HomeScreen` when the Home tab becomes selected again, and

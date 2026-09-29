@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../application/chat_controller.dart';
 import '../../data/chat_models.dart';
 import '../../data/chat_repository.dart';
+import '../../../../core/sync/local_replica.dart';
 
 /// Communication V1 — a single Booking's conversation between the Customer
 /// and the Hotel Manager of its Hotel (Business Specification "Communication
@@ -28,7 +29,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = ChatController(ChatRepository(context.read<ApiClient>()), widget.bookingId);
+    _controller = ChatController(ChatRepository(context.read<ApiClient>(), replica: context.read<LocalReplica?>()), widget.bookingId);
     _controller.addListener(_onControllerChanged);
     _controller.load();
   }
@@ -48,7 +49,19 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _composeController.text;
     if (text.trim().isEmpty) return;
     _composeController.clear();
-    await _controller.send(text);
+    try {
+      await _controller.send(text);
+    } on NetworkException catch (e) {
+      // Sending needs the server — a message exists once the server has it.
+      // Put the text back rather than lose what the Manager typed.
+      if (!mounted) return;
+      _composeController.text = text;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _composeController.text = text;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override

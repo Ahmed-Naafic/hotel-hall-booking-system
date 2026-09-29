@@ -35,7 +35,7 @@ const byRecipient = (scope) => ({ recipientUserId: scope.identity.userId })
  * rather than inferring from the absence of `deletedAt` means adding a
  * tombstone column to one of them cannot silently start hiding its rows.
  */
-const NEVER_DELETED = new Set(['booking', 'notification', 'hotelApplication'])
+const NEVER_DELETED = new Set(['booking', 'notification', 'hotelApplication', 'chatMessage'])
 
 export const collections = {
   hotel: { accountTypes: [HOTEL_MANAGER], scopeArgs: byOwnedHotels },
@@ -72,6 +72,15 @@ export const collections = {
     scopeArgs: byRecipient,
   },
   hotelApplication: {
+    accountTypes: [HOTEL_MANAGER],
+    scopeArgs: byOwnedHotels,
+  },
+  /**
+   * The conversations on this Manager's own Hotels' Bookings. A Manager is a
+   * participant in exactly those (`chat.service.js#assertParticipant`), so the
+   * scope is the Booking's Hotel — never a `bookingId` the client supplies.
+   */
+  chatMessage: {
     accountTypes: [HOTEL_MANAGER],
     scopeArgs: byOwnedHotels,
   },

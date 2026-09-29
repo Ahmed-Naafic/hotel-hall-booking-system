@@ -1,5 +1,7 @@
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 
+import '../../../core/sync/local_replica.dart';
+import '../../../core/sync/offline_fallback.dart';
 import 'hotel_models.dart';
 
 /// Wraps the two Hotel Management endpoints this app needs — `POST
@@ -9,9 +11,12 @@ import 'hotel_models.dart';
 /// Design §11) — this module never calls `GET /hotels` (Platform-
 /// Administrator-only) or any application/review endpoint.
 class HotelRepository {
-  HotelRepository(this._client);
+  HotelRepository(this._client, {this.replica});
 
   final ApiClient _client;
+
+  /// Optional offline fallback for [getMedia] ([serverFirst]).
+  final LocalReplica? replica;
 
   Future<MyHotelSnapshot> getMyHotel() async {
     final data = await _client.get('/hotels/me');
@@ -33,10 +38,17 @@ class HotelRepository {
 
   /// `GET /api/v1/hotels/:id` — own-Hotel only; `404` if not found or not
   /// owned by the caller (never leaked, api-standards.md §9).
-  Future<Hotel> getHotel(String hotelId) async {
-    final data = await _client.get('/hotels/$hotelId');
-    return Hotel.fromJson(data as Map<String, dynamic>);
-  }
+  Future<Hotel> getHotel(String hotelId) => serverFirst(
+    replica,
+    online: () async {
+      final data = await _client.get('/hotels/$hotelId');
+      return Hotel.fromJson(data as Map<String, dynamic>);
+    },
+    local: (replica) async {
+      final row = await (await replica.readable('hotel'))?.byId('hotel', hotelId);
+      return row == null ? null : Hotel.fromJson(row);
+    },
+  );
 
   /// `PATCH /api/v1/hotels/:id` — completes a `REGISTERED` Hotel's initial
   /// profile (HM2, `BR-HOTEL-02`), edits a `REJECTED` Hotel's draft (HM7),
@@ -133,8 +145,19 @@ class HotelRepository {
 
   /// `GET /api/v1/hotels/:hotelId/media` — the Hotel's current Logo (or
   /// `null`) and full Photos list.
-  Future<HotelMediaCollection> getMedia(String hotelId) async {
-    final data = await _client.get('/hotels/$hotelId/media');
-    return HotelMediaCollection.fromJson(data as Map<String, dynamic>);
-  }
+  ///
+  /// Offline, the Logo and Photos the synced Hotel carries — the same shape
+  /// (`toPublicHotel` embeds exactly what this endpoint returns), with the
+  /// URLs the server derived when the Hotel was last synced.
+  Future<HotelMediaCollection> getMedia(String hotelId) => serverFirst(
+    replica,
+    online: () async {
+      final data = await _client.get('/hotels/$hotelId/media');
+      return HotelMediaCollection.fromJson(data as Map<String, dynamic>);
+    },
+    local: (replica) async {
+      final row = await (await replica.readable('hotel'))?.byId('hotel', hotelId);
+      return row == null ? null : HotelMediaCollection.fromJson(row);
+    },
+  );
 }

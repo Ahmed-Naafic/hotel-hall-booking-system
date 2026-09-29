@@ -143,6 +143,7 @@ const ALL_COLLECTIONS = [
   'booking',
   'notification',
   'hotelApplication',
+  'chatMessage',
 ]
 
 before(async () => {
@@ -245,6 +246,9 @@ describe('Tenant isolation', () => {
     const foreignNotification = await prisma.notification.create({
       data: { recipientUserId: theirs.user.id, type: 'NEW_BOOKING_REQUEST', title: 'x', body: 'y' },
     })
+    const foreignMessage = await prisma.chatMessage.create({
+      data: { bookingId: foreignBooking.id, senderUserId: customer.user.id, body: 'Not yours to read' },
+    })
     const foreignApplications = await prisma.hotelApplication.findMany({ where: { hotelId: theirs.hotelId } })
     assert.ok(foreignApplications.length > 0, 'the other tenant must have an application to leak')
 
@@ -256,6 +260,7 @@ describe('Tenant isolation', () => {
       foreignBlock.id,
       foreignBooking.id,
       foreignNotification.id,
+      foreignMessage.id,
       ...foreignApplications.map((a) => a.id),
     ])
 
@@ -796,6 +801,58 @@ describe('Response shape — the same shape the REST endpoints return', () => {
     // through it.
     assert.equal(row.customer, undefined, 'no customer object may appear')
     assert.ok(!JSON.stringify(row).includes(customer.user.mobileNumber))
+  })
+})
+
+describe('Chat collection', () => {
+  async function bookingWithCustomer(manager) {
+    const customer = await registerAndLogin('CUSTOMER')
+    const booking = await prisma.booking.create({
+      data: {
+        customerUserId: customer.user.id,
+        hotelId: manager.hotelId,
+        hallId: manager.hallId,
+        startsAt: new Date(Date.now() + 50 * 86400000),
+        endsAt: new Date(Date.now() + 50 * 86400000 + 3600000),
+        numberOfGuests: 20,
+        eventType: 'CONFERENCE',
+        paymentDeadlineAt: new Date(Date.now() + 86400000),
+        totalRentCents: 1000,
+        advancePercentSnapshot: 30,
+        requiredAdvanceCents: 300,
+      },
+    })
+    return { customer, booking }
+  }
+
+  test('delivers the Manager’s conversations with the bookingId a replica groups them by', async () => {
+    const manager = await managerWithApprovedHotel()
+    const { customer, booking } = await bookingWithCustomer(manager)
+    const message = await prisma.chatMessage.create({
+      data: { bookingId: booking.id, senderUserId: customer.user.id, body: 'Is parking included?' },
+    })
+
+    const { changed } = await drain('chatMessage', { token: manager.accessToken })
+    const row = changed.find((r) => r.id === message.id)
+    assert.ok(row)
+    assert.equal(row.bookingId, booking.id)
+    assert.equal(row.body, 'Is parking included?')
+    assert.equal(row.readAt, null)
+  })
+
+  test('marking a conversation read re-publishes its messages with readAt set', async () => {
+    const manager = await managerWithApprovedHotel()
+    const { customer, booking } = await bookingWithCustomer(manager)
+    const message = await prisma.chatMessage.create({
+      data: { bookingId: booking.id, senderUserId: customer.user.id, body: 'Hello' },
+    })
+    const { cursor } = await drain('chatMessage', { token: manager.accessToken })
+
+    const read = await request('POST', `/api/v1/bookings/${booking.id}/messages/read-all`, { token: manager.accessToken })
+    assert.ok(read.status < 300, JSON.stringify(read.body))
+
+    const next = await drain('chatMessage', { token: manager.accessToken, since: cursor })
+    assert.ok(next.changed.find((r) => r.id === message.id)?.readAt, 'the read state must reach the replica')
   })
 })
 

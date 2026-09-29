@@ -17,6 +17,7 @@ const syncCollections = <String>[
   'booking',
   'notification',
   'hotelApplication',
+  'chatMessage',
 ];
 
 /// What Manager Mobile replicates today, each because something reads it:
@@ -27,11 +28,24 @@ const syncCollections = <String>[
 ///     a gate that always required the network.
 ///   - `hall` — the Hall list reads locally (`LocalHallRepository`). A synced
 ///     Hall already carries its photos, with server-derived URLs, so
-///     `hallMedia` is not needed alongside it.
+///     `hallMedia` is not needed alongside it; nor is `hotelMedia`, which the
+///     synced Hotel embeds the same way.
+///   - `hotelApplication` — the Hotel tab's application status, offline.
+///   - `booking` — Bookings, Calendar and the Dashboard's recent Bookings,
+///     offline (without customer contact details, which are never replicated).
+///   - `notification` — the Notification Center and its unread badge, offline.
+///   - `chatMessage` — each Booking's conversation and the chat badge, offline.
 ///
 /// A collection is added here when something starts reading it — never
 /// speculatively.
-const managerReplicatedCollections = <String>['hotel', 'hall'];
+const managerReplicatedCollections = <String>[
+  'hotel',
+  'hall',
+  'hotelApplication',
+  'booking',
+  'notification',
+  'chatMessage',
+];
 
 /// What one sync run did, so a caller can report it without re-querying.
 class SyncOutcome {

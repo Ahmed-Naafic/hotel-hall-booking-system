@@ -179,7 +179,9 @@ class _HallListViewState extends State<_HallListView> {
               ),
             ),
             const SizedBox(height: HHSpacing.space3),
-            if (list.showingSavedData) _SavedDataNotice(offline: list.savedDataBecauseOffline),
+            // Offline is announced app-wide (OfflineBanner); this covers a sync
+            // that failed for any other reason, which the banner does not.
+            if (list.showingSavedData && !list.savedDataBecauseOffline) _SavedDataNotice(offline: false),
             Expanded(child: _body(context, list)),
           ],
         ),

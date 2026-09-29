@@ -5,6 +5,7 @@ import { toPublicHallMedia } from '../halls/media.mapper.js'
 import { toManagerAvailabilityBlock } from '../availability/availability.mapper.js'
 import { toBooking } from '../bookings/booking.mapper.js'
 import { toNotification } from '../notifications/notification.mapper.js'
+import { toChatMessage } from '../chat/chat.mapper.js'
 
 /**
  * Data-shape translation (naming-conventions.md §6) — Prisma result → sync
@@ -38,6 +39,9 @@ const mappers = {
   booking: toBooking,
   notification: toNotification,
   hotelApplication: toPublicApplication,
+  // The REST shape omits `bookingId` because the URL already names the
+  // conversation; a replica holds every conversation at once, so it needs it.
+  chatMessage: (message) => ({ ...toChatMessage(message), bookingId: message.bookingId }),
 }
 
 /** Converts the types JSON cannot carry. `syncSeq` is a BIGINT; dates are Dates. */

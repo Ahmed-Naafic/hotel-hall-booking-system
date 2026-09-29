@@ -635,9 +635,23 @@ each platform's own storage layer consumes.
   the replica has synced, the list reads the network exactly as before. Commands (activate, create,
   edit) remain server calls; the list re-reads after a forced sync. Offline, the synced list stays on
   screen with a notice, and commands fail visibly rather than pretending.
-- **Next candidates**, each an ordinary engineering change against this same contract:
-  Notifications (the unread badge becomes a local `COUNT`, §10) and the Calendar's Bookings. Booking
-  contact details stay network-only until business decision #3.
+- **Every other screen reads server first, with the replica as the offline fallback**
+  (`offline_fallback.dart#serverFirst`): Home, Hotel, Bookings, Calendar, Notifications, Chat, and the
+  Hall and Hotel detail screens. Not local-first like the Hall list, deliberately: online they show
+  what the replica must not hold — a Booking's customer name and number (business decision #3) — so
+  online behaviour is unchanged, and offline the same screens render from the replica without them.
+  Only a `NetworkException` falls back; a server response is never replaced by older local data.
+  The replica additionally holds `hotelApplication`, `booking`, `notification` and `chatMessage`.
+- **Aggregates are not recomputed on the device.** The Booking summary (total, revenue, pending) is
+  the server's rule; offline, Home shows the last summary the server returned (`sync_cache`), never
+  a local recalculation that could drift from it. Counts that are plain reads (Halls, unread
+  notifications, unread messages) are counted locally.
+- **One app-wide offline banner** ("Offline — data may be out of date. Changes need a connection."),
+  above every route, driven by one reachability flag that any request — a sync or a fallback read —
+  raises, and the next successful request clears.
+- **Commands never fall back.** Booking actions, marking read, and sending a message are server
+  calls; offline each fails visibly and changes nothing locally (a message being sent is put back
+  in the compose box rather than lost).
 
 ---
 
@@ -844,6 +858,13 @@ rather than silently fixed.
     manual steps and fails against the old controller with the same message. Two pre-existing
     defects surfaced on the same path and were fixed: `MyHotelScreen.refresh()` never rebuilt, so its
     stats never refreshed, and stats futures could fail unhandled offline.
+
+**Found extending offline to every screen (2026-09-29), fixed:**
+
+29. **Commands offline were unhandled errors.** Booking actions caught only `ApiException`; chat send
+    cleared the typed text before failing, losing it; tapping a notification marked it read before
+    navigating, so offline it went nowhere; Mark all read threw. Each now fails visibly, and each has
+    a test.
 
 **Accepted risks, not defects:**
 

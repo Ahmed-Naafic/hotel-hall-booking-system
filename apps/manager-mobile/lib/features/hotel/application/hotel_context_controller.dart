@@ -78,8 +78,10 @@ class HotelContextController extends ChangeNotifier {
       errorMessage = e.message;
       if (known) {
         isOffline = true;
+        replica?.noteUnreachable(e);
       } else if (await _loadFromReplica()) {
         isOffline = true;
+        replica?.noteUnreachable(e);
         status = HotelContextStatus.ready;
       } else {
         status = HotelContextStatus.error;
@@ -89,16 +91,26 @@ class HotelContextController extends ChangeNotifier {
   }
 
   /// The Manager's Hotel from the replica — the most recently created, which
-  /// is the one `GET /hotels/me` returns. The application decision and review
-  /// summary are not replicated and stay unknown offline.
+  /// is the one `GET /hotels/me` returns — with its latest application (the
+  /// most recently submitted, as `/hotels/me` picks it). The review summary is
+  /// a server aggregate that is not replicated, and stays unknown offline.
   Future<bool> _loadFromReplica() async {
     final rows = await replica?.readAll('hotel');
     if (rows == null || rows.isEmpty) return false;
     rows.sort((a, b) => (b['createdAt'] as String).compareTo(a['createdAt'] as String));
     hotel = Hotel.fromJson(rows.first);
-    latestApplication = null;
+    latestApplication = await _latestApplicationFromReplica(hotel!.id);
     reviewSummary = null;
     return true;
+  }
+
+  Future<HotelApplication?> _latestApplicationFromReplica(String hotelId) async {
+    final rows = (await replica?.readAll('hotelApplication'))
+        ?.where((row) => row['hotelId'] == hotelId)
+        .toList();
+    if (rows == null || rows.isEmpty) return null;
+    rows.sort((a, b) => (b['submittedAt'] as String).compareTo(a['submittedAt'] as String));
+    return HotelApplication.fromJson(rows.first);
   }
 
   /// Explicit, user-initiated only — never called automatically, so an

@@ -60,6 +60,7 @@ class ManagerMobileApp extends StatelessWidget {
           create: (_) => HotelContextController(
             repository: HotelRepository(apiClient),
             storage: const SecureTokenStorage(),
+            replica: localReplica,
           ),
         ),
         // App-wide so the Dashboard's unread badge and the Notification

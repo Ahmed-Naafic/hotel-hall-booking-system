@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 import 'package:hotel_hall_design_tokens/hotel_hall_design_tokens.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/presentation/dashboard_back_button.dart';
+import '../../../../core/sync/local_replica.dart';
 import '../../../calendar/presentation/screens/calendar_screen.dart';
 import '../../../dashboard/presentation/screens/bookings_coming_soon_screen.dart';
 import '../../../dashboard/presentation/screens/dashboard_screen.dart';
@@ -61,6 +64,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (index == 0) _dashboardKey.currentState?.refresh();
     if (index == 1) _hotelKey.currentState?.refresh();
     if (index == 3) _bookingsKey.currentState?.refresh();
+    // The Halls tab reads the local replica. Syncing on every visit is what
+    // brings it up to date online — and, offline, what detects that the
+    // server is unreachable so the list can say its data may be out of date.
+    if (index == 2) unawaited(context.read<LocalReplica?>()?.sync());
   }
 
   @override

@@ -70,7 +70,10 @@ class MyHotelScreenState extends State<MyHotelScreen> {
   Future<void> refresh() async {
     final hotelContext = context.read<HotelContextController>();
     await hotelContext.load();
-    if (mounted) _maybeLoadStats(hotelContext.hotel?.id, force: true);
+    // `setState`, unlike the in-`build` call below: here nothing else would
+    // rebuild, so the `FutureBuilder`s never saw the new Futures — the stats
+    // never refreshed, and a failed request (e.g. offline) went unhandled.
+    if (mounted) setState(() => _maybeLoadStats(hotelContext.hotel?.id, force: true));
   }
 
   @override
@@ -102,8 +105,13 @@ class MyHotelScreenState extends State<MyHotelScreen> {
     // `HotelProfileHeader` builds later in this same pass already pick up
     // these new Futures directly, the same pattern `DashboardScreen`'s own
     // `_maybeLoadHallCount`/`_maybeLoadSummary` already use.
-    _hallCountFuture = HallRepository(apiClient).listHalls(hotelId: hotelId, limit: 1).then((page) => page.total);
-    _summaryFuture = ManagerBookingRepository(apiClient).summary(hotelId);
+    // `..ignore()` marks a failure as handled without hiding it from the
+    // FutureBuilder that shows it. Offline these can fail while no builder is
+    // listening yet (the Hall count's builder only exists once the summary has
+    // loaded), which surfaced as an unhandled async error.
+    _hallCountFuture = HallRepository(apiClient).listHalls(hotelId: hotelId, limit: 1).then((page) => page.total)
+      ..ignore();
+    _summaryFuture = ManagerBookingRepository(apiClient).summary(hotelId)..ignore();
     HotelRepository(apiClient).getMedia(hotelId).then((media) {
       if (mounted) setState(() => _media = media);
     }).catchError((Object _) {

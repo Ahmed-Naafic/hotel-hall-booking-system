@@ -47,7 +47,7 @@ class HallListScreen extends StatelessWidget {
         // Optional: absent in tests and wherever no replica is provided, in
         // which case the list reads from the network as it always has.
         replica: context.read<LocalReplica?>(),
-      )..load(),
+      )..load(forceSync: true),
       child: _HallListView(hotelId: hotelId, embedded: embedded, onOpenDashboardTab: onOpenDashboardTab),
     );
   }
@@ -356,8 +356,8 @@ class _SavedDataNotice extends StatelessWidget {
           Expanded(
             child: Text(
               offline
-                  ? 'Offline — showing halls saved on this device.'
-                  : 'Couldn’t refresh — showing halls saved on this device.',
+                  ? 'Offline — data may be out of date. Showing halls saved on this device.'
+                  : 'Couldn’t refresh — data may be out of date. Showing halls saved on this device.',
               style: TextStyle(color: context.hh.textMuted, fontSize: HHTypeScale.textSm),
             ),
           ),

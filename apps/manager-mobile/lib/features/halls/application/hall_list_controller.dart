@@ -86,7 +86,12 @@ class HallListController extends ChangeNotifier {
   bool _loadInFlight = false;
   bool _replicaChangedDuringLoad = false;
 
-  Future<void> load() async {
+  /// [forceSync]: the screen was just opened, or the Manager asked to retry —
+  /// attempt a real sync, so an unreachable server is *detected* and the
+  /// saved-data notice shown. Otherwise (a search or filter re-running) a sync
+  /// is attempted only if the replica is stale, so typing does not cost a
+  /// round trip per keystroke.
+  Future<void> load({bool forceSync = false}) async {
     final generation = ++_generation;
     _loadInFlight = true;
     status = HallListStatus.loading;
@@ -94,7 +99,7 @@ class HallListController extends ChangeNotifier {
     _page = 1;
     _notify();
     try {
-      await _load(generation);
+      await _load(generation, forceSync: forceSync);
     } finally {
       if (generation == _generation) {
         _loadInFlight = false;
@@ -106,12 +111,14 @@ class HallListController extends ChangeNotifier {
     }
   }
 
-  Future<void> _load(int generation) async {
+  Future<void> _load(int generation, {required bool forceSync}) async {
     final local = await _localRepository();
     if (generation != _generation) return;
     if (local != null) {
+      // Local rows first, whatever the network is doing — then the sync, whose
+      // outcome (fresh rows, or the offline notice) arrives by notification.
       await _renderLocal(local, generation);
-      unawaited(replica!.syncIfStale());
+      unawaited(forceSync ? replica!.sync() : replica!.syncIfStale());
       return;
     }
 

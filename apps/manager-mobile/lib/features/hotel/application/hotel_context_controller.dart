@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:hotel_hall_core/hotel_hall_core.dart';
 
+import '../../../core/sync/local_replica.dart';
 import '../data/hotel_models.dart';
 import '../data/hotel_repository.dart';
 
@@ -14,11 +15,29 @@ enum HotelContextStatus { unknown, none, loading, ready, error }
 /// Manager's latest Hotel plus the latest application decision state. The
 /// local cache remains only as a convenience for existing app state between
 /// refreshes.
+///
+/// **Offline.** Every tab calls [load] again when it is revisited, so it must
+/// never turn a Hotel it already knows into an error just because the server
+/// is unreachable: the Halls tab is built only while [status] is `ready`, and
+/// an offline refresh used to replace the (locally readable) Hall list with
+/// "Could not reach the server". On a [NetworkException] a known Hotel is kept
+/// and [isOffline] is set; with none known, the Hotel is taken from the local
+/// [replica] if it holds one for this Manager. A server *response* — any
+/// [ApiException] — still wins: this only covers not being able to ask.
 class HotelContextController extends ChangeNotifier {
-  HotelContextController({required this.repository, required this.storage});
+  HotelContextController({required this.repository, required this.storage, this.replica});
 
   final HotelRepository repository;
   final TokenStorage storage;
+
+  /// Optional — absent in tests and wherever no replica exists, in which case
+  /// being offline is an error, as it always was.
+  final LocalReplica? replica;
+
+  /// The Hotel shown was resolved without the server — kept from an earlier
+  /// load or read from the replica — because the server could not be reached.
+  /// Its application state and review summary may be missing or out of date.
+  bool isOffline = false;
 
   static const _hotelIdKey = 'hh_hotel_id';
 
@@ -29,8 +48,13 @@ class HotelContextController extends ChangeNotifier {
   String? errorMessage;
 
   Future<void> load() async {
-    status = HotelContextStatus.loading;
-    notifyListeners();
+    // Revalidating a context that is already resolved keeps showing it: no
+    // loading flash, and no teardown of the tabs built on it.
+    final known = status == HotelContextStatus.ready || status == HotelContextStatus.none;
+    if (!known) {
+      status = HotelContextStatus.loading;
+      notifyListeners();
+    }
 
     try {
       final snapshot = await repository.getMyHotel();
@@ -44,14 +68,37 @@ class HotelContextController extends ChangeNotifier {
         await storage.write(_hotelIdKey, hotel!.id);
         status = HotelContextStatus.ready;
       }
+      isOffline = false;
+      errorMessage = null;
     } on ApiException catch (e) {
       errorMessage = e.message;
       status = HotelContextStatus.error;
+      isOffline = false;
     } on NetworkException catch (e) {
       errorMessage = e.message;
-      status = HotelContextStatus.error;
+      if (known) {
+        isOffline = true;
+      } else if (await _loadFromReplica()) {
+        isOffline = true;
+        status = HotelContextStatus.ready;
+      } else {
+        status = HotelContextStatus.error;
+      }
     }
     notifyListeners();
+  }
+
+  /// The Manager's Hotel from the replica — the most recently created, which
+  /// is the one `GET /hotels/me` returns. The application decision and review
+  /// summary are not replicated and stay unknown offline.
+  Future<bool> _loadFromReplica() async {
+    final rows = await replica?.readAll('hotel');
+    if (rows == null || rows.isEmpty) return false;
+    rows.sort((a, b) => (b['createdAt'] as String).compareTo(a['createdAt'] as String));
+    hotel = Hotel.fromJson(rows.first);
+    latestApplication = null;
+    reviewSummary = null;
+    return true;
   }
 
   /// Explicit, user-initiated only — never called automatically, so an
@@ -86,6 +133,7 @@ class HotelContextController extends ChangeNotifier {
     hotel = null;
     latestApplication = null;
     reviewSummary = null;
+    isOffline = false;
     status = HotelContextStatus.unknown;
   }
 

@@ -87,6 +87,13 @@ class LocalReplica extends ChangeNotifier with WidgetsBindingObserver {
     return _store!.hasSynced(collection);
   }
 
+  /// Every row of [collection], or null when the replica may not be read for
+  /// it (see [hasSynced]).
+  Future<List<Map<String, dynamic>>?> readAll(String collection) async {
+    if (!await hasSynced(collection)) return null;
+    return _store!.all(collection);
+  }
+
   // ---------------------------------------------------------------------------
   // The queue
   // ---------------------------------------------------------------------------

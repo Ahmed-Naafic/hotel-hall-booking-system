@@ -623,8 +623,15 @@ each platform's own storage layer consumes.
     as the owner, or the replica is wiped for them, nothing reads it — so a restart, an offline
     start, or a failed first sync cannot expose one Manager's rows to another.
 - **What reads locally: the Hall list** — list, name search, Active/Inactive filter and chip counts,
-  ordered as the server orders them (`createdAt` desc). It syncs only `hall`: a synced Hall carries
-  its photos, and a collection is replicated when a screen reads it, never speculatively (§13). Until
+  ordered as the server orders them (`createdAt` desc). It syncs `hotel` and `hall` only: a synced
+  Hall carries its photos, and a collection is replicated when something reads it, never
+  speculatively (§13).
+- **The Hotel context is part of the offline path.** Every Halls screen needs the Manager's Hotel id
+  first, from `HotelContextController`, which every tab revisit reloads. An unreachable server keeps a
+  Hotel already known (marked offline, never a loading flash); with none known, the Hotel is read
+  from the replica (`hotel`), subject to the same owner check. A server *response* is still an error.
+  Opening the Halls screen or tab forces a real sync attempt, so being offline is detected and the
+  list says "Offline — data may be out of date" rather than showing it silently. Until
   the replica has synced, the list reads the network exactly as before. Commands (activate, create,
   edit) remain server calls; the list re-reads after a forced sync. Offline, the synced list stays on
   screen with a notice, and commands fail visibly rather than pretending.
@@ -826,6 +833,18 @@ rather than silently fixed.
     codebase, but not tested — a deadlock needs an interleaving inside a single statement that a test
     cannot force deterministically. Recorded rather than papered over with a test that could not fail.
 
+**Found by manual device test (2026-09-28), resolved:**
+
+28. **Offline, the Halls tab showed "Could not reach the server" instead of the saved Halls.** The
+    local-first Hall list was never reached: `HomeScreen` builds it only while
+    `HotelContextController` is `ready`, and revisiting the Home or Hotel tab reloads that context,
+    which turned a known Hotel into an error when `GET /hotels/me` could not be reached. The Phase 1
+    tests constructed the Hall list with a Hotel id already in hand, so they never exercised the
+    gate. Fixed in the context (above); a widget test now drives the real shell through the exact
+    manual steps and fails against the old controller with the same message. Two pre-existing
+    defects surfaced on the same path and were fixed: `MyHotelScreen.refresh()` never rebuilt, so its
+    stats never refreshed, and stats futures could fail unhandled offline.
+
 **Accepted risks, not defects:**
 
 - **Outside a transaction, a Hotel status change and its dependents' bumps are separate commits.**
@@ -836,7 +855,8 @@ rather than silently fixed.
 - **Starting the app offline shows the sign-in screen**, because `AuthController.restoreSession`
   treats an unreachable server as signed out (while keeping the stored session). The replica
   survives it, so local-first helps from the moment a signed-in session loses connectivity, not on
-  an offline cold start. Changing that is an Authentication behaviour change, outside this document.
+  an offline cold start. Opening an app offline on a stored session means trusting that session
+  without the server for some period — §14 decision #4 — and is not decided here.
 
 - §13's working-set strategy means a Customer's local replica is a partial marketplace. Local
   *search* over it would amend `BDR-020` and is out of scope (§14 #1), but any locally-rendered

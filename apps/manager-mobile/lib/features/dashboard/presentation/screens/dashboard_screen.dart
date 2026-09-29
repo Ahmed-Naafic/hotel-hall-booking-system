@@ -59,9 +59,14 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
     if (!force && hotelId == _hallCountLoadedForHotelId) return;
     _hallCountLoadedForHotelId = hotelId;
+    // `..ignore()` marks a failure as handled without hiding it from the
+    // FutureBuilder that shows it. Offline these can fail while no builder is
+    // listening yet (the Hall count's builder only exists once the summary has
+    // loaded), which surfaced as an unhandled async error.
     _hallCountFuture = HallRepository(context.read<ApiClient>())
         .listHalls(hotelId: hotelId, limit: 1)
-        .then((page) => page.total);
+        .then((page) => page.total)
+      ..ignore();
   }
 
   /// Overview grid's Total Bookings / Total Revenue / Pending Requests —
@@ -75,7 +80,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
     if (!force && hotelId == _summaryLoadedForHotelId) return;
     _summaryLoadedForHotelId = hotelId;
-    _summaryFuture = ManagerBookingRepository(context.read<ApiClient>()).summary(hotelId);
+    _summaryFuture = ManagerBookingRepository(context.read<ApiClient>()).summary(hotelId)..ignore();
   }
 
   /// The 3 newest Bookings for this Hotel, reusing the existing
@@ -89,7 +94,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
     if (!force && hotelId == _recentBookingsLoadedForHotelId) return;
     _recentBookingsLoadedForHotelId = hotelId;
-    _recentBookingsFuture = ManagerBookingRepository(context.read<ApiClient>()).list(hotelId, limit: 3);
+    _recentBookingsFuture = ManagerBookingRepository(context.read<ApiClient>()).list(hotelId, limit: 3)..ignore();
   }
 
   /// Called by `HomeScreen` when the Home tab becomes selected again, and

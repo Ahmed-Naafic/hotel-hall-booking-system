@@ -19,11 +19,19 @@ const syncCollections = <String>[
   'hotelApplication',
 ];
 
-/// What Manager Mobile replicates today: the Hall list reads locally
-/// (`LocalHallRepository`). A synced Hall already carries its photos, with
-/// server-derived URLs, so `hallMedia` is not needed alongside it. A collection
-/// is added here when a screen starts reading it — never speculatively.
-const managerReplicatedCollections = <String>['hall'];
+/// What Manager Mobile replicates today, each because something reads it:
+///
+///   - `hotel` — `HotelContextController` resolves the Manager's Hotel from it
+///     when the server is unreachable. Every Halls screen needs that Hotel's id
+///     first; without an offline source for it, the local Hall list sat behind
+///     a gate that always required the network.
+///   - `hall` — the Hall list reads locally (`LocalHallRepository`). A synced
+///     Hall already carries its photos, with server-derived URLs, so
+///     `hallMedia` is not needed alongside it.
+///
+/// A collection is added here when something starts reading it — never
+/// speculatively.
+const managerReplicatedCollections = <String>['hotel', 'hall'];
 
 /// What one sync run did, so a caller can report it without re-querying.
 class SyncOutcome {
